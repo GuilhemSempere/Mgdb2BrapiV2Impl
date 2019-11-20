@@ -11,6 +11,8 @@ import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallSetsListResponse;
 import org.brapi.v2.model.CallSetsSearchRequest;
 import org.brapi.v2.model.CallsSearchRequest;
+import org.brapi.v2.model.GermplasmListResponse;
+import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.MarkerPositionListResponse;
 import org.brapi.v2.model.MarkerPositionSearchRequest;
 import org.brapi.v2.model.ReferenceListResponse;
@@ -47,6 +49,8 @@ public interface SearchApi {
     public static final String searchCallsetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/callsets";
     public static final String searchVariantsetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/variantsets";
     public static final String searchCallsPost_url = CallsApi.URL_BASE_PREFIX + "/search/calls";
+    public static final String searchSamplesPost_url = CallsApi.URL_BASE_PREFIX + "/search/samples";
+    public static final String searchGermplasmPost_url = CallsApi.URL_BASE_PREFIX + "/search/germplasm";
 
 	@ApiOperation(value = "Submit a search request for `Calls`", nickname = "searchCallsPost", notes = "`GET /callsets/{id}` will return a JSON version of `CallSet`.", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Calls", })
@@ -194,7 +198,7 @@ public interface SearchApi {
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)
-    ResponseEntity<SuccessfulSearchResponse> searchSamplesPost(@ApiParam(value = ""  )  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = ""  )  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
     @ApiOperation(value = "Get the results of a Samples search request", nickname = "searchSamplesSearchResultsDbIdGet", notes = "Used to retrieve list of Samples from a Sample Tracking system based on some search criteria.  See Search Services for additional implementation details.", response = SampleListResponse.class, authorizations = {
@@ -264,4 +268,31 @@ public interface SearchApi {
         method = RequestMethod.GET)
     ResponseEntity<VariantSetListResponse> searchVariantsetsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
+
+    @ApiOperation(value = "Submit a search request for Germplasm", nickname = "searchGermplasmPost", notes = "Search for a set of germplasm based on some criteria  Addresses these needs   - General germplasm search mechanism that accepts POST for complex queries   - Possibility to search germplasm by more parameters than those allowed by the existing germplasm search   - Possibility to get MCPD details by PUID rather than dbId  See Search Services for additional implementation details.", response = SuccessfulSearchResponse.class, authorizations = {
+            @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm", })
+        @ApiResponses(value = { 
+            @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
+            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+        @RequestMapping(value = searchGermplasmPost_url,
+            produces = { "application/json" }, 
+            consumes = { "application/json" },
+            method = RequestMethod.POST)
+        ResponseEntity<GermplasmListResponse> searchGermplasmPost(@ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+
+
+        @ApiOperation(value = "Get the results of a Germplasm search request", nickname = "searchGermplasmSearchResultsDbIdGet", notes = "See Search Services for additional implementation details.  Addresses these needs:   1. General germplasm search mechanism that accepts POST for complex queries   2. possibility to search germplasm by more parameters than those allowed by the existing germplasm search   3. possibility to get MCPD details by PUID rather than dbId", response = GermplasmListResponse.class, authorizations = {
+            @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm", })
+        @ApiResponses(value = { 
+            @ApiResponse(code = 200, message = "OK", response = GermplasmListResponse.class),
+            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+            @ApiResponse(code = 403, message = "Forbidden", response = String.class),
+            @ApiResponse(code = 404, message = "Not Found", response = String.class) })
+        @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/search/germplasm/{searchResultsDbId}",
+            produces = { "application/json" }, 
+            method = RequestMethod.GET)
+        ResponseEntity<GermplasmListResponse> searchGermplasmSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 }
