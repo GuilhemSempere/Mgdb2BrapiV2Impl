@@ -22,9 +22,19 @@ public class VariantSetsSearchRequest   {
   @Valid
   private List<String> studyDbIds = null;
 
+  @JsonProperty("referenceSetDbIds")
+  @Valid
+  private List<String> referenceSetDbIds = null;
+  
   @JsonProperty("variantSetDbIds")
   @Valid
   private List<String> variantSetDbIds = null;
+  
+  @JsonProperty("page_size")
+  private Integer pageSize = null;
+
+  @JsonProperty("page_token")
+  private String pageToken = null;
 
   public VariantSetsSearchRequest studyDbIds(List<String> studyDbIds) {
     this.studyDbIds = studyDbIds;
@@ -51,6 +61,27 @@ public class VariantSetsSearchRequest   {
 
   public void setStudyDbIds(List<String> studyDbIds) {
     this.studyDbIds = studyDbIds;
+  }
+  
+  public VariantSetsSearchRequest referenceSetDbIds(List<String> referenceSetDbIds) {
+    this.referenceSetDbIds = referenceSetDbIds;
+    return this;
+  }
+
+  public VariantSetsSearchRequest addReferenceSetDbIdsItem(String referenceSetDbIdsItem) {
+    if (this.referenceSetDbIds == null) {
+      this.referenceSetDbIds = new ArrayList<String>();
+    }
+    this.referenceSetDbIds.add(referenceSetDbIdsItem);
+    return this;
+  }
+  
+  public List<String> getReferenceSetDbIds() {
+    return referenceSetDbIds;
+  }
+
+  public void setReferenceSetDbIds(List<String> referenceSetDbIds) {
+    this.referenceSetDbIds = referenceSetDbIds;
   }
 
   public VariantSetsSearchRequest variantSetDbIds(List<String> variantSetDbIds) {
@@ -81,6 +112,45 @@ public class VariantSetsSearchRequest   {
   }
 
 
+  public VariantSetsSearchRequest pageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+    return this;
+  }
+
+  /**
+   * Specifies the maximum number of results to return in a single page. If unspecified, a system default will be used.
+   * @return pageSize
+  **/
+  @ApiModelProperty(value = "Specifies the maximum number of results to return in a single page. If unspecified, a system default will be used.")
+  
+    public Integer getPageSize() {
+    return pageSize;
+  }
+
+  public void setPageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+  }
+
+  public VariantSetsSearchRequest pageToken(String pageToken) {
+    this.pageToken = pageToken;
+    return this;
+  }
+
+  /**
+   * The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.
+   * @return pageToken
+  **/
+  @ApiModelProperty(value = "The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.")
+  
+    public String getPageToken() {
+    return pageToken;
+  }
+
+  public void setPageToken(String pageToken) {
+    this.pageToken = pageToken;
+  }
+
+
   @Override
   public boolean equals(java.lang.Object o) {
     if (this == o) {
@@ -91,12 +161,15 @@ public class VariantSetsSearchRequest   {
     }
     VariantSetsSearchRequest variantSetsSearchRequest = (VariantSetsSearchRequest) o;
     return Objects.equals(this.studyDbIds, variantSetsSearchRequest.studyDbIds) &&
-        Objects.equals(this.variantSetDbIds, variantSetsSearchRequest.variantSetDbIds);
+        Objects.equals(this.variantSetDbIds, variantSetsSearchRequest.variantSetDbIds) &&
+        Objects.equals(this.referenceSetDbIds, variantSetsSearchRequest.referenceSetDbIds) &&
+        Objects.equals(this.pageSize, variantSetsSearchRequest.pageSize) &&
+        Objects.equals(this.pageToken, variantSetsSearchRequest.pageToken);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(studyDbIds, variantSetDbIds);
+    return Objects.hash(studyDbIds, variantSetDbIds, referenceSetDbIds, pageSize, pageToken);
   }
 
   @Override
@@ -106,6 +179,9 @@ public class VariantSetsSearchRequest   {
     
     sb.append("    studyDbIds: ").append(toIndentedString(studyDbIds)).append("\n");
     sb.append("    variantSetDbIds: ").append(toIndentedString(variantSetDbIds)).append("\n");
+    sb.append("    referenceSetDbIds: ").append(toIndentedString(referenceSetDbIds)).append("\n");
+    sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
+    sb.append("    pageToken: ").append(toIndentedString(pageToken)).append("\n");
     sb.append("}");
     return sb.toString();
   }
