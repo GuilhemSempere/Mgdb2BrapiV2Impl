@@ -3,10 +3,12 @@ package org.brapi.v2.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import io.swagger.annotations.*;
+import jhi.brapi.api.germplasm.BrapiGermplasm;
 
 import org.brapi.v2.model.Analysis;
 import org.brapi.v2.model.CallListResponse;
@@ -15,6 +17,7 @@ import org.brapi.v2.model.CallSetsListResponse;
 import org.brapi.v2.model.CallSetsListResponseResult;
 import org.brapi.v2.model.CallSetsSearchRequest;
 import org.brapi.v2.model.CallsSearchRequest;
+import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmListResponseResult;
 import org.brapi.v2.model.GermplasmSearchRequest;
@@ -60,6 +63,7 @@ import javax.validation.Valid;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -288,40 +292,71 @@ public ResponseEntity<SuccessfulSearchResponse> searchReferencesPost(@ApiParam(v
     }
     
     public ResponseEntity<GermplasmListResponse> searchGermplasmPost(@ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        try {
-//        	GermplasmListResponse glr = new GermplasmListResponse();
-//        	GermplasmListResponseResult result = new GermplasmListResponseResult();
-//        	String refSetDbId = null;
-//        	Integer variantSetId = null;
-//        	Collection<Integer> sampleIds = new HashSet<>();
-//        	for (String spId : body.getGermplasmDbIds()) {
-//        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 3);
-//        		if (refSetDbId == null) {
-//        			refSetDbId = info[0];
-//            		if (variantSetId == null)
-//            			variantSetId = Integer.parseInt(info[1]);
-//            		else if (!refSetDbId.equals(info[0]))
-//            			throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
-//        		}
-//        		else if (!refSetDbId.equals(info[0]))
-//        			throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
-//    			sampleIds.add(Integer.parseInt(info[3]));
-//        	}
-//
-//        	MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
-//        	for (GenotypingSample mgdbSample : mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class)) {
-//        		Sample sample = new Sample();
-//        		sample.sampleDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual(), mgdbSample.getId()));
-//        		sample.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual()));
-//        		result.addDataItem(sample);
-//        	}
-//			glr.setResult(result);
-//            return new ResponseEntity<SampleListResponse>(glr, HttpStatus.OK);
-//            } catch (IOException e) {
-//            log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<GermplasmListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-    }
+		try {
+			GermplasmListResponse glr = new GermplasmListResponse();
+			GermplasmListResponseResult result = new GermplasmListResponseResult();
+			String refSetDbId = null;
+			Integer variantSetId = null;
+			Collection<String> germplasmIds = new HashSet<>();
+			for (String spId : body.getGermplasmDbIds()) {
+				String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 3);
+				if (refSetDbId == null) {
+					refSetDbId = info[0];
+					if (variantSetId == null)
+						variantSetId = Integer.parseInt(info[1]);
+					else if (!refSetDbId.equals(info[0]))
+						throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
+				} else if (!refSetDbId.equals(info[0]))
+					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
+				germplasmIds.add(info[2]);
+			}
+
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
+//			final Map<Integer, String> sampleIdToIndividualMap = new HashMap<>();
+//			for (GenotypingSample sample : mongoTemplate.find(new Query(Criteria.where("_id").in(germplasmIds)),GenotypingSample.class))
+//				sampleIdToIndividualMap.put(sample.getId(), sample.getIndividual());
+
+			// germplasmFields.put("germplasmname", "germplasmName");
+			// germplasmFields.put("defaultdisplayname", "defaultDisplayName");
+			// germplasmFields.put("accessionnumber", "accessionNumber");
+			// germplasmFields.put("germplasmpui", "germplasmPUI");
+			// germplasmFields.put("pedigree", "pedigree");
+			// germplasmFields.put("seedsource", "seedSource");
+			// germplasmFields.put("commoncropname", "commonCropName");
+			// germplasmFields.put("institutecode", "instituteCode");
+			// germplasmFields.put("institutename", "instituteName");
+			// germplasmFields.put("biologicalstatusofaccessioncode",
+			// "biologicalStatusOfAccessionCode");
+			// germplasmFields.put("countryoforigincode",
+			// "countryOfOriginCode");
+			// germplasmFields.put("typeofgermplasmstoragecode",
+			// "typeOfGermplasmStorageCode");
+			// germplasmFields.put("genus", "genus");
+			// germplasmFields.put("species", "species");
+			// germplasmFields.put("speciesauthority", "speciesAuthority");
+			// germplasmFields.put("subtaxa", "subtaxa");
+			// germplasmFields.put("subtaxaauthority", "subtaxaAuthority");
+			// germplasmFields.put("acquisitiondate", "acquisitionDate");
+
+			for (Individual ind : mongoTemplate.find(new Query(Criteria.where("_id").in(germplasmIds)), Individual.class)) {
+				Germplasm germplasm = new Germplasm();
+				germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, ind.getId()));
+				for (String key : ind.getAdditionalInfo().keySet()) {
+					if (!BrapiGermplasm.germplasmFields.containsKey(key))
+						germplasm.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key).toString());
+					else {
+						System.err.println(key);
+					}
+				}
+				result.addDataItem(germplasm);
+			}
+			glr.setResult(result);
+			return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.OK);
+		} catch (Exception e) {
+			log.error("Couldn't serialize response for content type application/json", e);
+			return new ResponseEntity<GermplasmListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
 
     public ResponseEntity<GermplasmListResponse> searchGermplasmSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
         try {
