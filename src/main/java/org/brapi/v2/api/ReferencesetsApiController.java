@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.*;
@@ -33,6 +34,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
 @Controller
@@ -71,13 +73,13 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         }
     }
 
-    public ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId) {    
-        try {
-            return new ResponseEntity<ReferenceSet>(objectMapper.readValue("{\n  \"isDerived\" : true,\n  \"sourceURI\" : \"sourceURI\",\n  \"species\" : {\n    \"termURI\" : \"termURI\",\n    \"term\" : \"term\"\n  },\n  \"md5checksum\" : \"md5checksum\",\n  \"additionalInfo\" : {\n    \"key\" : \"additionalInfo\"\n  },\n  \"assemblyPUI\" : \"assemblyPUI\",\n  \"description\" : \"description\",\n  \"referenceSetDbId\" : \"referenceSetDbId\",\n  \"referenceSetName\" : \"referenceSetName\",\n  \"sourceAccessions\" : [ \"sourceAccessions\", \"sourceAccessions\" ]\n}", ReferenceSet.class), HttpStatus.NOT_IMPLEMENTED);
-        } catch (IOException e) {
-            log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<ReferenceSet>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
+//    public ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId) {    
+//        try {
+//            return new ResponseEntity<ReferenceSet>(objectMapper.readValue("{\n  \"isDerived\" : true,\n  \"sourceURI\" : \"sourceURI\",\n  \"species\" : {\n    \"termURI\" : \"termURI\",\n    \"term\" : \"term\"\n  },\n  \"md5checksum\" : \"md5checksum\",\n  \"additionalInfo\" : {\n    \"key\" : \"additionalInfo\"\n  },\n  \"assemblyPUI\" : \"assemblyPUI\",\n  \"description\" : \"description\",\n  \"referenceSetDbId\" : \"referenceSetDbId\",\n  \"referenceSetName\" : \"referenceSetName\",\n  \"sourceAccessions\" : [ \"sourceAccessions\", \"sourceAccessions\" ]\n}", ReferenceSet.class), HttpStatus.NOT_IMPLEMENTED);
+//        } catch (IOException e) {
+//            log.error("Couldn't serialize response for content type application/json", e);
+//            return new ResponseEntity<ReferenceSet>(HttpStatus.INTERNAL_SERVER_ERROR);
+//        }
+//    }
 
 }

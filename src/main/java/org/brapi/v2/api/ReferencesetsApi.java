@@ -43,13 +43,13 @@ public interface ReferencesetsApi {
     ResponseEntity<ReferenceListResponse1> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Gets a `ReferenceSet` by ID.", nickname = "referencesetsReferenceSetDbIdGet", notes = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.", response = ReferenceSet.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "A successful response.", response = ReferenceSet.class) })
-    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/referencesets/{referenceSetDbId}",
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId);
+//    @ApiOperation(value = "Gets a `ReferenceSet` by ID.", nickname = "referencesetsReferenceSetDbIdGet", notes = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.", response = ReferenceSet.class, authorizations = {
+//        @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets", })
+//    @ApiResponses(value = { 
+//        @ApiResponse(code = 200, message = "A successful response.", response = ReferenceSet.class) })
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/referencesets/{referenceSetDbId}",
+//        produces = { "application/json" }, 
+//        method = RequestMethod.GET)
+//    ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId);
 
 }

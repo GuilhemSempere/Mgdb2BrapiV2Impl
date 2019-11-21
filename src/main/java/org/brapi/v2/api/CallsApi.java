@@ -29,16 +29,16 @@ public interface CallsApi {
 
 	static public final String URL_BASE_PREFIX = "/brapi/v2";
 	
-    @ApiOperation(value = "Gets a filtered list of `Calls`", nickname = "callsGet", notes = " `GET /call` will return a filtered list of `Call` JSON objects. Also See: `GET /callsets/{callsetsDbId}/calls` `GET /variants/{variantsDbId}/calls` `GET /variantsets/{variantsetsDbId}/calls` ", response = CallListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "A successful response.", response = CallListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = URL_BASE_PREFIX + "/calls",
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<CallListResponse> callsGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,@ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    @ApiOperation(value = "Gets a filtered list of `Calls`", nickname = "callsGet", notes = " `GET /call` will return a filtered list of `Call` JSON objects. Also See: `GET /callsets/{callsetsDbId}/calls` `GET /variants/{variantsDbId}/calls` `GET /variantsets/{variantsetsDbId}/calls` ", response = CallListResponse.class, authorizations = {
+//        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls", })
+//    @ApiResponses(value = { 
+//        @ApiResponse(code = 200, message = "A successful response.", response = CallListResponse.class),
+//        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+//        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+//        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+//    @RequestMapping(value = URL_BASE_PREFIX + "/calls",
+//        produces = { "application/json" }, 
+//        method = RequestMethod.GET)
+//    ResponseEntity<CallListResponse> callsGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,@ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }

@@ -27,16 +27,16 @@ import java.util.Map;
 @Api(value = "markerpositions", description = "the markerpositions API")
 public interface MarkerpositionsApi {
 
-    @ApiOperation(value = "Get marker position info", nickname = "markerpositionsGet", notes = "Get marker position information, based on Map, Linkage Group, and Marker ID", response = MarkerPositionListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Genome Maps", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = MarkerPositionListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/markerpositions",
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<MarkerPositionListResponse> markerpositionsGet(@ApiParam(value = "unique id of a map") @Valid @RequestParam(value = "mapDbId", required = false) String mapDbId,@ApiParam(value = "The chromosome identifier or the generic linkage group identifier if the chromosome is not applicable.") @Valid @RequestParam(value = "linkageGroupName", required = false) String linkageGroupName,@ApiParam(value = "The unique id for a marker") @Valid @RequestParam(value = "markerDbId", required = false) String markerDbId,@ApiParam(value = "The minimum position") @Valid @RequestParam(value = "minPosition", required = false) Integer minPosition,@ApiParam(value = "The maximum position") @Valid @RequestParam(value = "maxPosition", required = false) Integer maxPosition,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    @ApiOperation(value = "Get marker position info", nickname = "markerpositionsGet", notes = "Get marker position information, based on Map, Linkage Group, and Marker ID", response = MarkerPositionListResponse.class, authorizations = {
+//        @Authorization(value = "AuthorizationToken")    }, tags={ "Genome Maps", })
+//    @ApiResponses(value = { 
+//        @ApiResponse(code = 200, message = "OK", response = MarkerPositionListResponse.class),
+//        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+//        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+//        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/markerpositions",
+//        produces = { "application/json" }, 
+//        method = RequestMethod.GET)
+//    ResponseEntity<MarkerPositionListResponse> markerpositionsGet(@ApiParam(value = "unique id of a map") @Valid @RequestParam(value = "mapDbId", required = false) String mapDbId,@ApiParam(value = "The chromosome identifier or the generic linkage group identifier if the chromosome is not applicable.") @Valid @RequestParam(value = "linkageGroupName", required = false) String linkageGroupName,@ApiParam(value = "The unique id for a marker") @Valid @RequestParam(value = "markerDbId", required = false) String markerDbId,@ApiParam(value = "The minimum position") @Valid @RequestParam(value = "minPosition", required = false) Integer minPosition,@ApiParam(value = "The maximum position") @Valid @RequestParam(value = "maxPosition", required = false) Integer maxPosition,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }

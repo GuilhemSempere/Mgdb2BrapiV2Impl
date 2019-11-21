@@ -29,43 +29,43 @@ import java.util.Map;
 @Api(value = "callsets", description = "the callsets API")
 public interface CallsetsApi {
 
-    @ApiOperation(value = "Gets a list of `Calls` associated with a `CallSet`.", nickname = "callsetsCallSetDbIdCallsGet", notes = " Gets a list of `Calls` associated with a `CallSet`. Also See: `GET /calls?callSetDbId={callSetDbId}` ", response = CallListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = CallListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/callsets/{callSetDbId}/calls",
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<CallListResponse> callsetsCallSetDbIdCallsGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.",required=true) @PathVariable("callSetDbId") String callSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
-
-
-    @ApiOperation(value = "Gets a `CallSet` by ID.", nickname = "callsetsCallSetDbIdGet", notes = "`GET /callsets/{id}` will return a JSON version of `CallSet`.", response = CallSetResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = CallSetResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
-        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/callsets/{callSetDbId}",
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<CallSetResponse> callsetsCallSetDbIdGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.",required=true) @PathVariable("callSetDbId") String callSetDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
-
-
-    @ApiOperation(value = "Gets a filtered list of `CallSet` JSON objects.", nickname = "callsetsGet", notes = " Gets a filtered list of `CallSet` JSON objects. Also See: `GET /variantsets/{variantsetsDbId}/callsets` ", response = CallSetsListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "A successful response.", response = CallSetsListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/callsets",
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<CallSetsListResponse> callsetsGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,@ApiParam(value = "The human readbale name of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetName", required = false) String callSetName,@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "sampleDbId", required = false) String sampleDbId,@ApiParam(value = "Return only call sets generated from the Sample of this Germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    @ApiOperation(value = "Gets a list of `Calls` associated with a `CallSet`.", nickname = "callsetsCallSetDbIdCallsGet", notes = " Gets a list of `Calls` associated with a `CallSet`. Also See: `GET /calls?callSetDbId={callSetDbId}` ", response = CallListResponse.class, authorizations = {
+//        @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
+//    @ApiResponses(value = { 
+//        @ApiResponse(code = 200, message = "OK", response = CallListResponse.class),
+//        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+//        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+//        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/callsets/{callSetDbId}/calls",
+//        produces = { "application/json" }, 
+//        method = RequestMethod.GET)
+//    ResponseEntity<CallListResponse> callsetsCallSetDbIdCallsGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.",required=true) @PathVariable("callSetDbId") String callSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//
+//
+//    @ApiOperation(value = "Gets a `CallSet` by ID.", nickname = "callsetsCallSetDbIdGet", notes = "`GET /callsets/{id}` will return a JSON version of `CallSet`.", response = CallSetResponse.class, authorizations = {
+//        @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
+//    @ApiResponses(value = { 
+//        @ApiResponse(code = 200, message = "OK", response = CallSetResponse.class),
+//        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+//        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+//        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
+//        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/callsets/{callSetDbId}",
+//        produces = { "application/json" }, 
+//        method = RequestMethod.GET)
+//    ResponseEntity<CallSetResponse> callsetsCallSetDbIdGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.",required=true) @PathVariable("callSetDbId") String callSetDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//
+//
+//    @ApiOperation(value = "Gets a filtered list of `CallSet` JSON objects.", nickname = "callsetsGet", notes = " Gets a filtered list of `CallSet` JSON objects. Also See: `GET /variantsets/{variantsetsDbId}/callsets` ", response = CallSetsListResponse.class, authorizations = {
+//        @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
+//    @ApiResponses(value = { 
+//        @ApiResponse(code = 200, message = "A successful response.", response = CallSetsListResponse.class),
+//        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+//        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+//        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/callsets",
+//        produces = { "application/json" }, 
+//        method = RequestMethod.GET)
+//    ResponseEntity<CallSetsListResponse> callsetsGet(@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,@ApiParam(value = "The human readbale name of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetName", required = false) String callSetName,@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "sampleDbId", required = false) String sampleDbId,@ApiParam(value = "Return only call sets generated from the Sample of this Germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }
