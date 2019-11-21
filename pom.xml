@@ -6,7 +6,7 @@
     <name>brapi-schema</name>
     <version>2.0-snapshot</version>
     <properties>
-        <java.version>1.7</java.version>
+        <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <springfox-version>2.9.2</springfox-version>
@@ -34,6 +34,11 @@
         </plugins>
     </build>
     <dependencies>
+        <dependency>
+  			<groupId>fr.cirad</groupId>
+			<artifactId>Mgdb2BrapiImpl</artifactId>
+			<version>1.1-RC2</version>
+        </dependency>
         <dependency>
             <groupId>fr.cirad</groupId>
             <artifactId>Gigwa2ServiceImpl</artifactId>

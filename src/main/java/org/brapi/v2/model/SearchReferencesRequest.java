@@ -22,11 +22,11 @@ public class SearchReferencesRequest   {
   @JsonProperty("md5checksum")
   private String md5checksum = null;
 
-  @JsonProperty("page_size")
+  @JsonProperty("pageSize")
   private Integer pageSize = null;
 
-  @JsonProperty("page_token")
-  private String pageToken = null;
+  @JsonProperty("page")
+  private Integer page = null;
 
   @JsonProperty("referenceSetDbId")
   private String referenceSetDbId = null;
@@ -88,23 +88,18 @@ public class SearchReferencesRequest   {
     this.pageSize = pageSize;
   }
 
-  public SearchReferencesRequest pageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public SearchReferencesRequest page(Integer page) {
+    this.page = page;
     return this;
   }
 
-  /**
-   * The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.
-   * @return pageToken
-  **/
-  @ApiModelProperty(value = "The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.")
-  
-    public String getPageToken() {
-    return pageToken;
+  @ApiModelProperty(value = "The page number.")
+  public Integer getPage() {
+    return page;
   }
 
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public void setPage(Integer page) {
+    this.page = page;
   }
 
   public SearchReferencesRequest referenceSetDbId(String referenceSetDbId) {
@@ -139,13 +134,13 @@ public class SearchReferencesRequest   {
     return Objects.equals(this.accession, searchReferencesRequest.accession) &&
         Objects.equals(this.md5checksum, searchReferencesRequest.md5checksum) &&
         Objects.equals(this.pageSize, searchReferencesRequest.pageSize) &&
-        Objects.equals(this.pageToken, searchReferencesRequest.pageToken) &&
+        Objects.equals(this.page, searchReferencesRequest.page) &&
         Objects.equals(this.referenceSetDbId, searchReferencesRequest.referenceSetDbId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(accession, md5checksum, pageSize, pageToken, referenceSetDbId);
+    return Objects.hash(accession, md5checksum, pageSize, page, referenceSetDbId);
   }
 
   @Override
@@ -156,7 +151,7 @@ public class SearchReferencesRequest   {
     sb.append("    accession: ").append(toIndentedString(accession)).append("\n");
     sb.append("    md5checksum: ").append(toIndentedString(md5checksum)).append("\n");
     sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
-    sb.append("    pageToken: ").append(toIndentedString(pageToken)).append("\n");
+    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("    referenceSetDbId: ").append(toIndentedString(referenceSetDbId)).append("\n");
     sb.append("}");
     return sb.toString();

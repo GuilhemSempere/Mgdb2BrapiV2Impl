@@ -1,13 +1,16 @@
 package org.brapi.v2.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.DBCursor;
 
+import fr.cirad.controller.GigwaMethods;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.*;
 import jhi.brapi.api.germplasm.BrapiGermplasm;
 
@@ -67,14 +70,18 @@ import org.threeten.bp.format.DateTimeParseException;
 import javax.validation.constraints.*;
 import javax.validation.Valid;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import java.io.IOException;
 import java.sql.Date;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:08.794Z[GMT]")
 @CrossOrigin
@@ -89,6 +96,8 @@ public class SearchApiController implements SearchApi {
     private final HttpServletRequest request;
     
     @Autowired private GigwaGa4ghServiceImpl ga4ghService;
+    
+    @Autowired private BrapiRestController brapiV1Service;
     
     @Autowired AbstractTokenManager tokenManager;
 
@@ -123,9 +132,12 @@ public class SearchApiController implements SearchApi {
         	CallSetsListResponse cslr = new CallSetsListResponse();
         	CallSetsListResponseResult result = new CallSetsListResponseResult();
         	boolean fAllowedToReadAnything = false;
+        	int nTotalCallSetsEncountered = 0;
         	for (String variantSetDbId : body.getVariantSetDbIds()) {
             	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
-        		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), body.getPageToken())).getCallSets())
+            	List<org.ga4gh.models.CallSet> ga4ghCallSets = ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage()))).getCallSets();
+            	nTotalCallSetsEncountered += ga4ghCallSets.size();
+        		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghCallSets)
         			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
         				fAllowedToReadAnything = true;
 		            	result.addDataItem(new CallSet() {{
@@ -138,7 +150,7 @@ public class SearchApiController implements SearchApi {
 		            		}} );
                 	}
         	}
-        	if (!fAllowedToReadAnything)
+        	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
         		return new ResponseEntity<CallSetsListResponse>(HttpStatus.FORBIDDEN);
         	
 			cslr.setResult(result);
@@ -212,15 +224,24 @@ public class SearchApiController implements SearchApi {
 //        }
 //    }
 
-    public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = ""  )  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    private String integerToString(Integer n) {
+		return n == null ? null : String.valueOf(n);
+	}
+
+	public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
 
+    	// TODO: implement or forbid searching by germplasm id / observation unit id
         try {
         	SampleListResponse slr = new SampleListResponse();
         	SampleListResponseResult result = new SampleListResponseResult();
         	String refSetDbId = null;
         	Integer variantSetId = null;
         	Collection<Integer> sampleIds = new HashSet<>();
+        	
+        	if (body.getSampleDbIds() == null)
+        		throw new Exception("You must provide a list of sample IDs");
+
         	for (String spId : body.getSampleDbIds()) {
         		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 4);
 				if (refSetDbId == null)
@@ -238,7 +259,16 @@ public class SearchApiController implements SearchApi {
    				return new ResponseEntity<SampleListResponse>(HttpStatus.FORBIDDEN);
 
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
-        	for (GenotypingSample mgdbSample : mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class)) {
+        	Query q = new Query(Criteria.where("_id").in(sampleIds));        	
+            if (body.getPageSize() != null)
+            {
+            	q.limit(body.getPageSize());
+                if (body.getPage() != null)
+                	q.skip(body.getPage() * body.getPageSize());
+            }
+            
+            List<GenotypingSample> genotypingSamples = mongoTemplate.find(q, GenotypingSample.class);
+        	for (GenotypingSample mgdbSample : genotypingSamples) {
         		Sample sample = new Sample();
         		sample.sampleDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual(), mgdbSample.getId()));
         		sample.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual()));
@@ -286,7 +316,7 @@ public class SearchApiController implements SearchApi {
         	VariantSetListResponse cslr = new VariantSetListResponse();
         	VariantSetListResponseResult result = new VariantSetListResponseResult();
         	for (String refSetDbId : body.getReferenceSetDbIds())
-        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, body.getPageSize(), body.getPageToken())).getVariantSets())
+        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, body.getPageSize(), integerToString(body.getPage()))).getVariantSets())
         			if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), ga4ghVariantSet.getReferenceSetId()))
 		            	result.addDataItem(new VariantSet() {{
 			            		setVariantSetDbId(ga4ghVariantSet.getId());
@@ -323,9 +353,22 @@ public class SearchApiController implements SearchApi {
 //        }
 //    }
     
-    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(@ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization)  throws Exception {
+    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization)  throws Exception {
     	String token = ServerinfoApiController.readToken(authorization);
-    	
+
+		if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0)
+			return new ResponseEntity<GermplasmListResponse>(HttpStatus.OK);	// not supported
+
+		fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
+    	gsr.accessionNumbers = body.getAccessionNumbers();
+    	gsr.germplasmPUIs = body.getGermplasmPUIs();
+    	gsr.germplasmGenus = body.getGermplasmGenus();
+    	gsr.germplasmSpecies = body.getGermplasmSpecies();
+    	gsr.germplasmNames = body.getGermplasmNames() == null ? null : body.getGermplasmNames().stream().map(nm -> nm.substring(1 + nm.lastIndexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
+    	gsr.germplasmDbIds = body.getGermplasmDbIds() == null ? null : body.getGermplasmDbIds().stream().map(id -> id.substring(1 + id.lastIndexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
+    	gsr.page = body.getPage();
+    	gsr.pageSize = body.getPageSize();
+
     	try {
 			GermplasmListResponse glr = new GermplasmListResponse();
 			GermplasmListResponseResult result = new GermplasmListResponseResult();
@@ -348,20 +391,30 @@ public class SearchApiController implements SearchApi {
 			
    			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
    				return new ResponseEntity<GermplasmListResponse>(HttpStatus.FORBIDDEN);
-
-			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
-			for (Individual ind : mongoTemplate.find(new Query(Criteria.where("_id").in(germplasmIds)), Individual.class)) {
-				Germplasm germplasm = new Germplasm();
-				germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, ind.getId()));
-				for (String key : ind.getAdditionalInfo().keySet()) {
-					String sLCkey = key.toLowerCase();
-					Comparable val = ind.getAdditionalInfo().get(key);
-					if (!BrapiGermplasm.germplasmFields.containsKey(sLCkey))
-						germplasm.putAdditionalInfoItem(key, val.toString());
+   			
+   	    	Map<String, Object> v1Result = (Map<String, Object>) brapiV1Service.germplasmSearch(response, refSetDbId, gsr).get("result");
+   	    	ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
+   	    	for (Map<String, Object> v1germplasmRecord : v1data) {
+    			Germplasm germplasm = new Germplasm();
+    			
+   	    		for (String key : v1germplasmRecord.keySet()) {
+   	    			String sLCkey = key.toLowerCase();
+   	    			Object val = v1germplasmRecord.get(key);
+					if (!BrapiGermplasm.germplasmFields.containsKey(sLCkey) && !"germplasmdbid".equals(sLCkey)) {
+						if ("additionalinfo".equals(sLCkey)) {
+							for (String aiKey : ((HashMap<String, String>) val).keySet())
+								germplasm.putAdditionalInfoItem(aiKey, ((HashMap<String, String>) val).get(aiKey));
+						}
+						else	
+							germplasm.putAdditionalInfoItem(key, val.toString());
+					}
 					else {
 						switch (sLCkey) {
+							case "germplasmdbid":
+								germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, val.toString()));
+								break;
 							case "germplasmname":
-								germplasm.setGermplasmName(val.toString());
+								germplasm.setGermplasmName(ga4ghService.createId(refSetDbId, variantSetId, val.toString()));
 								break;
 							case "defaultdisplayname":
 								germplasm.setDefaultDisplayName(val.toString());
@@ -419,13 +472,13 @@ public class SearchApiController implements SearchApi {
 									log.error("Unable to parse germplasm acquisition date: " + val);
 								}
 								break;
+							default:
+								System.err.println(key);
 						}
-
-						
 					}
-				}
+   	    		}
 				result.addDataItem(germplasm);
-			}
+   	    	}
 			glr.setResult(result);
 			return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.OK);
 		} catch (Exception e) {

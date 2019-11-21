@@ -30,11 +30,11 @@ public class VariantSetsSearchRequest   {
   @Valid
   private List<String> variantSetDbIds = null;
   
-  @JsonProperty("page_size")
+  @JsonProperty("pageSize")
   private Integer pageSize = null;
 
-  @JsonProperty("page_token")
-  private String pageToken = null;
+  @JsonProperty("page")
+  private Integer page = null;
 
   public VariantSetsSearchRequest studyDbIds(List<String> studyDbIds) {
     this.studyDbIds = studyDbIds;
@@ -131,23 +131,18 @@ public class VariantSetsSearchRequest   {
     this.pageSize = pageSize;
   }
 
-  public VariantSetsSearchRequest pageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public VariantSetsSearchRequest page(Integer page) {
+    this.page = page;
     return this;
   }
 
-  /**
-   * The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.
-   * @return pageToken
-  **/
-  @ApiModelProperty(value = "The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.")
-  
-    public String getPageToken() {
-    return pageToken;
+  @ApiModelProperty(value = "The page number.")  
+  public Integer getPage() {
+    return page;
   }
 
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public void setPage(Integer page) {
+    this.page = page;
   }
 
 
@@ -164,12 +159,12 @@ public class VariantSetsSearchRequest   {
         Objects.equals(this.variantSetDbIds, variantSetsSearchRequest.variantSetDbIds) &&
         Objects.equals(this.referenceSetDbIds, variantSetsSearchRequest.referenceSetDbIds) &&
         Objects.equals(this.pageSize, variantSetsSearchRequest.pageSize) &&
-        Objects.equals(this.pageToken, variantSetsSearchRequest.pageToken);
+        Objects.equals(this.page, variantSetsSearchRequest.page);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(studyDbIds, variantSetDbIds, referenceSetDbIds, pageSize, pageToken);
+    return Objects.hash(studyDbIds, variantSetDbIds, referenceSetDbIds, pageSize, page);
   }
 
   @Override
@@ -181,7 +176,7 @@ public class VariantSetsSearchRequest   {
     sb.append("    variantSetDbIds: ").append(toIndentedString(variantSetDbIds)).append("\n");
     sb.append("    referenceSetDbIds: ").append(toIndentedString(referenceSetDbIds)).append("\n");
     sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
-    sb.append("    pageToken: ").append(toIndentedString(pageToken)).append("\n");
+    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("}");
     return sb.toString();
   }

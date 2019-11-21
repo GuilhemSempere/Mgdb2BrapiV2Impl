@@ -33,6 +33,12 @@ public class SampleSearchRequest   {
   @Valid
   private List<String> sampleDbIds = null;
 
+  @JsonProperty("pageSize")
+  private Integer pageSize = null;
+
+  @JsonProperty("page")
+  private Integer page = null;
+  
   public SampleSearchRequest germplasmDbIds(List<String> germplasmDbIds) {
     this.germplasmDbIds = germplasmDbIds;
     return this;
@@ -140,7 +146,33 @@ public class SampleSearchRequest   {
   public void setSampleDbIds(List<String> sampleDbIds) {
     this.sampleDbIds = sampleDbIds;
   }
+  
+  public SampleSearchRequest pageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+    return this;
+  }
 
+  public Integer getPageSize() {
+    return pageSize;
+  }
+
+  public void setPageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+  }
+
+  public SampleSearchRequest page(Integer page) {
+    this.page = page;
+    return this;
+  }
+
+  @ApiModelProperty(value = "The page number.")
+  public Integer getPage() {
+    return page;
+  }
+
+  public void setPage(Integer page) {
+    this.page = page;
+  }
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -154,12 +186,14 @@ public class SampleSearchRequest   {
     return Objects.equals(this.germplasmDbIds, sampleSearchRequest.germplasmDbIds) &&
         Objects.equals(this.observationUnitDbIds, sampleSearchRequest.observationUnitDbIds) &&
         Objects.equals(this.plateDbIds, sampleSearchRequest.plateDbIds) &&
-        Objects.equals(this.sampleDbIds, sampleSearchRequest.sampleDbIds);
+        Objects.equals(this.sampleDbIds, sampleSearchRequest.sampleDbIds) && 
+        Objects.equals(this.pageSize, sampleSearchRequest.pageSize) &&
+        Objects.equals(this.page, sampleSearchRequest.page);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(germplasmDbIds, observationUnitDbIds, plateDbIds, sampleDbIds);
+    return Objects.hash(germplasmDbIds, observationUnitDbIds, plateDbIds, sampleDbIds, pageSize, page);
   }
 
   @Override
@@ -171,6 +205,8 @@ public class SampleSearchRequest   {
     sb.append("    observationUnitDbIds: ").append(toIndentedString(observationUnitDbIds)).append("\n");
     sb.append("    plateDbIds: ").append(toIndentedString(plateDbIds)).append("\n");
     sb.append("    sampleDbIds: ").append(toIndentedString(sampleDbIds)).append("\n");
+    sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
+    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("}");
     return sb.toString();
   }

@@ -16,8 +16,6 @@ import javax.validation.constraints.*;
 @Validated
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 public class ReferenceBases   {
-  @JsonProperty("nextPageToken")
-  private String nextPageToken = null;
 
   @JsonProperty("offset")
   private String offset = null;
@@ -26,26 +24,6 @@ public class ReferenceBases   {
   private String sequence = null;
 
   public ReferenceBases nextPageToken(String nextPageToken) {
-    this.nextPageToken = nextPageToken;
-    return this;
-  }
-
-  /**
-   * The continuation token, which is used to page through large result sets. Provide this value in a subsequent request to return the next page of results. This field will be empty if there aren't any additional results.
-   * @return nextPageToken
-  **/
-  @ApiModelProperty(value = "The continuation token, which is used to page through large result sets. Provide this value in a subsequent request to return the next page of results. This field will be empty if there aren't any additional results.")
-  
-    public String getNextPageToken() {
-    return nextPageToken;
-  }
-
-  public void setNextPageToken(String nextPageToken) {
-    this.nextPageToken = nextPageToken;
-  }
-
-  public ReferenceBases offset(String offset) {
-    this.offset = offset;
     return this;
   }
 
@@ -92,22 +70,14 @@ public class ReferenceBases   {
       return false;
     }
     ReferenceBases referenceBases = (ReferenceBases) o;
-    return Objects.equals(this.nextPageToken, referenceBases.nextPageToken) &&
-        Objects.equals(this.offset, referenceBases.offset) &&
+    return Objects.equals(this.offset, referenceBases.offset) &&
         Objects.equals(this.sequence, referenceBases.sequence);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(nextPageToken, offset, sequence);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append("class ReferenceBases {\n");
-    
-    sb.append("    nextPageToken: ").append(toIndentedString(nextPageToken)).append("\n");
     sb.append("    offset: ").append(toIndentedString(offset)).append("\n");
     sb.append("    sequence: ").append(toIndentedString(sequence)).append("\n");
     sb.append("}");

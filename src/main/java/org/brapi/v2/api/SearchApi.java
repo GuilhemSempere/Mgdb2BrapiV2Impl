@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import javax.validation.constraints.*;
 import java.util.List;
@@ -280,7 +281,7 @@ public interface SearchApi {
             produces = { "application/json" }, 
             consumes = { "application/json" },
             method = RequestMethod.POST)
-        ResponseEntity<GermplasmListResponse> searchGermplasmPost(@ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws Exception;
+        ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws Exception;
 
 
 //        @ApiOperation(value = "Get the results of a Germplasm search request", nickname = "searchGermplasmSearchResultsDbIdGet", notes = "See Search Services for additional implementation details.  Addresses these needs:   1. General germplasm search mechanism that accepts POST for complex queries   2. possibility to search germplasm by more parameters than those allowed by the existing germplasm search   3. possibility to get MCPD details by PUID rather than dbId", response = GermplasmListResponse.class, authorizations = {

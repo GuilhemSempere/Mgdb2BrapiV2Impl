@@ -25,11 +25,11 @@ public class SearchReferenceSetsRequest   {
   @JsonProperty("md5checksum")
   private String md5checksum = null;
 
-  @JsonProperty("page_size")
+  @JsonProperty("pageSize")
   private Integer pageSize = null;
 
-  @JsonProperty("page_token")
-  private String pageToken = null;
+  @JsonProperty("page")
+  private Integer page = null;
 
   public SearchReferenceSetsRequest accession(String accession) {
     this.accession = accession;
@@ -107,23 +107,18 @@ public class SearchReferenceSetsRequest   {
     this.pageSize = pageSize;
   }
 
-  public SearchReferenceSetsRequest pageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public SearchReferenceSetsRequest page(Integer page) {
+    this.page = page;
     return this;
   }
 
-  /**
-   * The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.
-   * @return pageToken
-  **/
-  @ApiModelProperty(value = "The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.")
-  
-    public String getPageToken() {
-    return pageToken;
+  @ApiModelProperty(value = "The page number.")  
+  public Integer getPage() {
+    return page;
   }
 
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public void setPage(Integer page) {
+    this.page = page;
   }
 
 
@@ -140,12 +135,12 @@ public class SearchReferenceSetsRequest   {
         Objects.equals(this.assemblyPUI, searchReferenceSetsRequest.assemblyPUI) &&
         Objects.equals(this.md5checksum, searchReferenceSetsRequest.md5checksum) &&
         Objects.equals(this.pageSize, searchReferenceSetsRequest.pageSize) &&
-        Objects.equals(this.pageToken, searchReferenceSetsRequest.pageToken);
+        Objects.equals(this.page, searchReferenceSetsRequest.page);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(accession, assemblyPUI, md5checksum, pageSize, pageToken);
+    return Objects.hash(accession, assemblyPUI, md5checksum, pageSize, page);
   }
 
   @Override
@@ -157,7 +152,7 @@ public class SearchReferenceSetsRequest   {
     sb.append("    assemblyPUI: ").append(toIndentedString(assemblyPUI)).append("\n");
     sb.append("    md5checksum: ").append(toIndentedString(md5checksum)).append("\n");
     sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
-    sb.append("    pageToken: ").append(toIndentedString(pageToken)).append("\n");
+    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("}");
     return sb.toString();
   }

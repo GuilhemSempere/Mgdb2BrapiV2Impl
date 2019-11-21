@@ -46,11 +46,11 @@ public class CallSetsSearchRequest   {
   @Valid
   private List<String> variantSetDbIds = null;
   
-  @JsonProperty("page_size")
+  @JsonProperty("pageSize")
   private Integer pageSize = null;
 
-  @JsonProperty("page_token")
-  private String pageToken = null;
+  @JsonProperty("page")
+  private Integer page = null;
 
   public CallSetsSearchRequest callSetDbIds(List<String> callSetDbIds) {
     this.callSetDbIds = callSetDbIds;
@@ -252,7 +252,7 @@ public class CallSetsSearchRequest   {
   **/
   @ApiModelProperty(value = "Specifies the maximum number of results to return in a single page. If unspecified, a system default will be used.")
   
-    public Integer getPageSize() {
+  public Integer getPageSize() {
     return pageSize;
   }
 
@@ -260,23 +260,18 @@ public class CallSetsSearchRequest   {
     this.pageSize = pageSize;
   }
 
-  public CallSetsSearchRequest pageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public CallSetsSearchRequest page(Integer page) {
+    this.page = page;
     return this;
   }
 
-  /**
-   * The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.
-   * @return pageToken
-  **/
-  @ApiModelProperty(value = "The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.")
-  
-    public String getPageToken() {
-    return pageToken;
+  @ApiModelProperty(value = "The page number.")
+  public Integer getPage() {
+    return page;
   }
 
-  public void setPageToken(String pageToken) {
-    this.pageToken = pageToken;
+  public void setPage(Integer page) {
+    this.page = page;
   }
 
   @Override
@@ -296,12 +291,12 @@ public class CallSetsSearchRequest   {
         Objects.equals(this.sampleNames, callSetsSearchRequest.sampleNames) &&
         Objects.equals(this.variantSetDbIds, callSetsSearchRequest.variantSetDbIds) &&
         Objects.equals(this.pageSize, callSetsSearchRequest.pageSize) &&
-        Objects.equals(this.pageToken, callSetsSearchRequest.pageToken);
+        Objects.equals(this.page, callSetsSearchRequest.page);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(callSetDbIds, callSetNames, germplasmDbIds, germplasmNames, sampleDbIds, sampleNames, variantSetDbIds, pageSize, pageToken);
+    return Objects.hash(callSetDbIds, callSetNames, germplasmDbIds, germplasmNames, sampleDbIds, sampleNames, variantSetDbIds, pageSize, page);
   }
 
   @Override
@@ -317,7 +312,7 @@ public class CallSetsSearchRequest   {
     sb.append("    sampleNames: ").append(toIndentedString(sampleNames)).append("\n");
     sb.append("    variantSetDbIds: ").append(toIndentedString(variantSetDbIds)).append("\n");
     sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
-    sb.append("    pageToken: ").append(toIndentedString(pageToken)).append("\n");
+    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("}");
     return sb.toString();
   }

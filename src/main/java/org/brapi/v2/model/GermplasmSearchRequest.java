@@ -64,6 +64,12 @@ public class GermplasmSearchRequest   {
   @JsonProperty("xrefs")
   @Valid
   private List<String> xrefs = null;
+  
+  @JsonProperty("pageSize")
+  private Integer pageSize = null;
+
+  @JsonProperty("page")
+  private Integer page = null;
 
   public GermplasmSearchRequest accessionNumbers(List<String> accessionNumbers) {
     this.accessionNumbers = accessionNumbers;
@@ -389,7 +395,33 @@ public class GermplasmSearchRequest   {
     this.xrefs = xrefs;
   }
 
+  public GermplasmSearchRequest pageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+    return this;
+  }
 
+  public Integer getPageSize() {
+    return pageSize;
+  }
+
+  public void setPageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+  }
+
+  public GermplasmSearchRequest page(Integer page) {
+    this.page = page;
+    return this;
+  }
+
+  @ApiModelProperty(value = "The page number.")
+  public Integer getPage() {
+    return page;
+  }
+
+  public void setPage(Integer page) {
+    this.page = page;
+  }
+  
   @Override
   public boolean equals(java.lang.Object o) {
     if (this == o) {
@@ -410,7 +442,9 @@ public class GermplasmSearchRequest   {
         Objects.equals(this.progenyDbIds, germplasmSearchRequest.progenyDbIds) &&
         Objects.equals(this.studyDbIds, germplasmSearchRequest.studyDbIds) &&
         Objects.equals(this.synonyms, germplasmSearchRequest.synonyms) &&
-        Objects.equals(this.xrefs, germplasmSearchRequest.xrefs);
+        Objects.equals(this.xrefs, germplasmSearchRequest.xrefs) && 
+        Objects.equals(this.pageSize, germplasmSearchRequest.pageSize) &&
+        Objects.equals(this.page, germplasmSearchRequest.page);
   }
 
   @Override
@@ -421,8 +455,7 @@ public class GermplasmSearchRequest   {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class GermplasmSearchRequest {\n");
-    
+    sb.append("class GermplasmSearchRequest {\n");    
     sb.append("    accessionNumbers: ").append(toIndentedString(accessionNumbers)).append("\n");
     sb.append("    commonCropNames: ").append(toIndentedString(commonCropNames)).append("\n");
     sb.append("    germplasmDbIds: ").append(toIndentedString(germplasmDbIds)).append("\n");
@@ -435,6 +468,8 @@ public class GermplasmSearchRequest   {
     sb.append("    studyDbIds: ").append(toIndentedString(studyDbIds)).append("\n");
     sb.append("    synonyms: ").append(toIndentedString(synonyms)).append("\n");
     sb.append("    xrefs: ").append(toIndentedString(xrefs)).append("\n");
+    sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
+    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("}");
     return sb.toString();
   }
