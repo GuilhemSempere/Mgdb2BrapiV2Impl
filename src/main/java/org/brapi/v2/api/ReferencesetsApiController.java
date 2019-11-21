@@ -3,6 +3,7 @@ package org.brapi.v2.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.*;
 
 import org.apache.avro.AvroRemoteException;
@@ -46,6 +47,8 @@ public class ReferencesetsApiController implements ReferencesetsApi {
 
     private final HttpServletRequest request;
     
+    @Autowired AbstractTokenManager tokenManager;
+    
     @Autowired private GigwaGa4ghServiceImpl ga4ghService;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -54,20 +57,23 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         this.request = request;
     }
 
-    public ResponseEntity<ReferenceListResponse1> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) { 
+    public ResponseEntity<ReferenceListResponse1> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+		String token = ServerinfoApiController.readToken(authorization);
+    	
         try {
         	ReferenceListResponse1 rlr = new ReferenceListResponse1();
         	ReferenceListResponseResult1 result = new ReferenceListResponseResult1();
         	List<org.ga4gh.models.ReferenceSet> ga4ghRefSets = ga4ghService.searchReferenceSets(new SearchReferenceSetsRequest()).getReferenceSets();
         	for (final org.ga4gh.models.ReferenceSet ga4ghRefSet : ga4ghRefSets)
-        		result.addDataItem(new ReferenceSet() {{
-            			setReferenceSetDbId(ga4ghRefSet.getId());
-            			setReferenceSetName(ga4ghRefSet.getName());
-            			setDescription(ga4ghRefSet.getDescription());
-            		}} );
+        		if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), ga4ghRefSet.getId()))
+	        		result.addDataItem(new ReferenceSet() {{
+	            			setReferenceSetDbId(ga4ghRefSet.getId());
+	            			setReferenceSetName(ga4ghRefSet.getName());
+	            			setDescription(ga4ghRefSet.getDescription());
+	            		}} );
 			rlr.setResult(result);
             return new ResponseEntity<ReferenceListResponse1>(rlr, HttpStatus.OK);
-        } catch (AvroRemoteException e) {
+        } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<ReferenceListResponse1>(HttpStatus.INTERNAL_SERVER_ERROR);
         }

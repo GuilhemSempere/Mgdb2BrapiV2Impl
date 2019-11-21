@@ -1,6 +1,8 @@
 package org.brapi.v2.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.*;
 
 import org.brapi.v2.model.CallsResponse;
@@ -11,6 +13,7 @@ import org.brapi.v2.model.Service.MethodsEnum;
 import org.brapi.v2.model.Service.VersionsEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -60,5 +63,9 @@ public class ServerinfoApiController implements ServerinfoApi {
 		cr.setResult(result);
         return new ResponseEntity<CallsResponse>(cr, HttpStatus.OK);
     }
+
+	public static String readToken(String authorization) {
+		return authorization != null && authorization.startsWith("Bearer ") ? authorization = authorization.substring(7) : null;
+	}
 
 }

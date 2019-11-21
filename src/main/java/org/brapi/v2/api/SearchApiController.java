@@ -7,6 +7,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
+import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.*;
 import jhi.brapi.api.germplasm.BrapiGermplasm;
 
@@ -88,6 +89,8 @@ public class SearchApiController implements SearchApi {
     private final HttpServletRequest request;
     
     @Autowired private GigwaGa4ghServiceImpl ga4ghService;
+    
+    @Autowired AbstractTokenManager tokenManager;
 
     @org.springframework.beans.factory.annotation.Autowired
     public SearchApiController(ObjectMapper objectMapper, HttpServletRequest request) {
@@ -114,19 +117,30 @@ public class SearchApiController implements SearchApi {
 //    }
 
     public ResponseEntity<CallSetsListResponse> searchCallsetsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody CallSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	String token = ServerinfoApiController.readToken(authorization);
+    	
         try {
         	CallSetsListResponse cslr = new CallSetsListResponse();
         	CallSetsListResponseResult result = new CallSetsListResponseResult();
-        	for (String variantSetDbId : body.getVariantSetDbIds())
+        	boolean fAllowedToReadAnything = false;
+        	for (String variantSetDbId : body.getVariantSetDbIds()) {
+            	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
         		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), body.getPageToken())).getCallSets())
-	            	result.addDataItem(new CallSet() {{
-	            			setCallSetDbId(ga4ghCallSet.getId());
-	            			setCallSetName(ga4ghCallSet.getName());
-	            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
-		            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
-		            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
-		            		setSampleDbId(ga4ghCallSet.getSampleId());
-	            		}} );
+        			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
+        				fAllowedToReadAnything = true;
+		            	result.addDataItem(new CallSet() {{
+		            			setCallSetDbId(ga4ghCallSet.getId());
+		            			setCallSetName(ga4ghCallSet.getName());
+		            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
+			            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
+			            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
+			            		setSampleDbId(ga4ghCallSet.getSampleId());
+		            		}} );
+                	}
+        	}
+        	if (!fAllowedToReadAnything)
+        		return new ResponseEntity<CallSetsListResponse>(HttpStatus.FORBIDDEN);
+        	
 			cslr.setResult(result);
             return new ResponseEntity<CallSetsListResponse>(cslr, HttpStatus.OK);
         } catch (IOException e) {
@@ -199,6 +213,8 @@ public class SearchApiController implements SearchApi {
 //    }
 
     public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = ""  )  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	String token = ServerinfoApiController.readToken(authorization);
+
         try {
         	SampleListResponse slr = new SampleListResponse();
         	SampleListResponseResult result = new SampleListResponseResult();
@@ -217,6 +233,9 @@ public class SearchApiController implements SearchApi {
 					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
 				sampleIds.add(Integer.parseInt(info[3]));
         	}
+        	
+   			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
+   				return new ResponseEntity<SampleListResponse>(HttpStatus.FORBIDDEN);
 
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
         	for (GenotypingSample mgdbSample : mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class)) {
@@ -261,30 +280,35 @@ public class SearchApiController implements SearchApi {
 //    }
 
     public ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	String token = ServerinfoApiController.readToken(authorization);
+    	
         try {
         	VariantSetListResponse cslr = new VariantSetListResponse();
         	VariantSetListResponseResult result = new VariantSetListResponseResult();
         	for (String refSetDbId : body.getReferenceSetDbIds())
         		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, body.getPageSize(), body.getPageToken())).getVariantSets())
-	            	result.addDataItem(new VariantSet() {{
-		            		setVariantSetDbId(ga4ghVariantSet.getId());
-		            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
-		            		setVariantSetName(ga4ghVariantSet.getName());
-		            		Analysis analysisItem = new Analysis();
-		            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
-		            			if ("description".equals(metadata.getKey()))
-		            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
-		            			else
-		            				analysisItem.description(metadata.getValue());
-		            		}
-			            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
-			            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
-			            	analysisItem.setType("TODO: check how to deal with this field");
-		            		addAnalysisItem(analysisItem);
-	            		}} );
+        			if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), ga4ghVariantSet.getReferenceSetId()))
+		            	result.addDataItem(new VariantSet() {{
+			            		setVariantSetDbId(ga4ghVariantSet.getId());
+			            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
+			            		setVariantSetName(ga4ghVariantSet.getName());
+			            		Analysis analysisItem = new Analysis();
+			            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
+			            			if ("description".equals(metadata.getKey()))
+			            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
+			            			else
+			            				analysisItem.description(metadata.getValue());
+			            		}
+				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
+				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
+				            	analysisItem.setType("TODO: check how to deal with this field");
+			            		addAnalysisItem(analysisItem);
+		            		}} );
+        			else
+        				return new ResponseEntity<VariantSetListResponse>(HttpStatus.FORBIDDEN);
 			cslr.setResult(result);
             return new ResponseEntity<VariantSetListResponse>(cslr, HttpStatus.OK);
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -299,8 +323,10 @@ public class SearchApiController implements SearchApi {
 //        }
 //    }
     
-    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(@ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-		try {
+    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(@ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization)  throws Exception {
+    	String token = ServerinfoApiController.readToken(authorization);
+    	
+    	try {
 			GermplasmListResponse glr = new GermplasmListResponse();
 			GermplasmListResponseResult result = new GermplasmListResponseResult();
 			String refSetDbId = null;
@@ -311,6 +337,7 @@ public class SearchApiController implements SearchApi {
 				if (refSetDbId == null)
 					refSetDbId = info[0];
 				else if (!refSetDbId.equals(info[0]))
+//					return new ResponseEntity<GermplasmListResponse>(objectMapper.readValue("{\"error\":\"You may only ask for germplasm records from one referenceSet at a time!\"}", HashMap.class), HttpStatus.BAD_REQUEST);
 					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
 				if (variantSetId == null)
 					variantSetId = Integer.parseInt(info[1]);
@@ -318,6 +345,9 @@ public class SearchApiController implements SearchApi {
 					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
 				germplasmIds.add(info[2]);
 			}
+			
+   			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
+   				return new ResponseEntity<GermplasmListResponse>(HttpStatus.FORBIDDEN);
 
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
 			for (Individual ind : mongoTemplate.find(new Query(Criteria.where("_id").in(germplasmIds)), Individual.class)) {
