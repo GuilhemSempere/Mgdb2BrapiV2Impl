@@ -20,6 +20,7 @@ import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmListResponseResult;
+import org.brapi.v2.model.GermplasmMCPD;
 import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.MarkerPositionListResponse;
 import org.brapi.v2.model.MarkerPositionSearchRequest;
@@ -360,7 +361,7 @@ public ResponseEntity<SuccessfulSearchResponse> searchReferencesPost(@ApiParam(v
 								germplasm.setCountryOfOriginCode(val.toString());
 								break;
 							case "typeofgermplasmstoragecode":
-								germplasm.setTypeOfGermplasmStorageCode(Arrays.asList(val.toString()));
+								germplasm.setTypeOfGermplasmStorageCode(Arrays.asList(GermplasmMCPD.StorageTypeCodesEnum.fromValue(val.toString()).toString()));
 								break;
 							case "genus":
 								germplasm.setGermplasmGenus(val.toString());
