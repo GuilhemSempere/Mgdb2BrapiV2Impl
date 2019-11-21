@@ -38,6 +38,7 @@ import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetListResponseResult;
 import org.brapi.v2.model.VariantSetsSearchRequest;
 import org.brapi.v2.model.VariantsSearchRequest;
+import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.ga4gh.methods.SearchCallSetsRequest;
 import org.ga4gh.methods.SearchVariantSetsRequest;
 import org.ga4gh.models.VariantSetMetadata;
@@ -57,11 +58,15 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
+import org.threeten.bp.LocalDate;
+import org.threeten.bp.format.DateTimeParseException;
 
 import javax.validation.constraints.*;
 import javax.validation.Valid;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.sql.Date;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -198,16 +203,15 @@ public ResponseEntity<SuccessfulSearchResponse> searchReferencesPost(@ApiParam(v
         	Collection<Integer> sampleIds = new HashSet<>();
         	for (String spId : body.getSampleDbIds()) {
         		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 4);
-        		if (refSetDbId == null) {
-        			refSetDbId = info[0];
-            		if (variantSetId == null)
-            			variantSetId = Integer.parseInt(info[1]);
-            		else if (!refSetDbId.equals(info[0]))
-            			throw new Exception("You may only ask for samples from one variantSet at a time!");
-        		}
-        		else if (!refSetDbId.equals(info[0]))
-        			throw new Exception("You may only ask for samples from one referenceSet at a time!");
-    			sampleIds.add(Integer.parseInt(info[3]));
+				if (refSetDbId == null)
+					refSetDbId = info[0];
+				else if (!refSetDbId.equals(info[0]))
+					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
+				if (variantSetId == null)
+					variantSetId = Integer.parseInt(info[1]);
+				else if (!variantSetId.equals(Integer.parseInt(info[1])))
+					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
+				sampleIds.add(Integer.parseInt(info[3]));
         	}
 
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
@@ -300,52 +304,90 @@ public ResponseEntity<SuccessfulSearchResponse> searchReferencesPost(@ApiParam(v
 			Collection<String> germplasmIds = new HashSet<>();
 			for (String spId : body.getGermplasmDbIds()) {
 				String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 3);
-				if (refSetDbId == null) {
+				if (refSetDbId == null)
 					refSetDbId = info[0];
-					if (variantSetId == null)
-						variantSetId = Integer.parseInt(info[1]);
-					else if (!refSetDbId.equals(info[0]))
-						throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
-				} else if (!refSetDbId.equals(info[0]))
+				else if (!refSetDbId.equals(info[0]))
 					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
+				if (variantSetId == null)
+					variantSetId = Integer.parseInt(info[1]);
+				else if (!variantSetId.equals(Integer.parseInt(info[1])))
+					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
 				germplasmIds.add(info[2]);
 			}
 
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
-//			final Map<Integer, String> sampleIdToIndividualMap = new HashMap<>();
-//			for (GenotypingSample sample : mongoTemplate.find(new Query(Criteria.where("_id").in(germplasmIds)),GenotypingSample.class))
-//				sampleIdToIndividualMap.put(sample.getId(), sample.getIndividual());
-
-			// germplasmFields.put("germplasmname", "germplasmName");
-			// germplasmFields.put("defaultdisplayname", "defaultDisplayName");
-			// germplasmFields.put("accessionnumber", "accessionNumber");
-			// germplasmFields.put("germplasmpui", "germplasmPUI");
-			// germplasmFields.put("pedigree", "pedigree");
-			// germplasmFields.put("seedsource", "seedSource");
-			// germplasmFields.put("commoncropname", "commonCropName");
-			// germplasmFields.put("institutecode", "instituteCode");
-			// germplasmFields.put("institutename", "instituteName");
-			// germplasmFields.put("biologicalstatusofaccessioncode",
-			// "biologicalStatusOfAccessionCode");
-			// germplasmFields.put("countryoforigincode",
-			// "countryOfOriginCode");
-			// germplasmFields.put("typeofgermplasmstoragecode",
-			// "typeOfGermplasmStorageCode");
-			// germplasmFields.put("genus", "genus");
-			// germplasmFields.put("species", "species");
-			// germplasmFields.put("speciesauthority", "speciesAuthority");
-			// germplasmFields.put("subtaxa", "subtaxa");
-			// germplasmFields.put("subtaxaauthority", "subtaxaAuthority");
-			// germplasmFields.put("acquisitiondate", "acquisitionDate");
-
 			for (Individual ind : mongoTemplate.find(new Query(Criteria.where("_id").in(germplasmIds)), Individual.class)) {
 				Germplasm germplasm = new Germplasm();
 				germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, ind.getId()));
 				for (String key : ind.getAdditionalInfo().keySet()) {
-					if (!BrapiGermplasm.germplasmFields.containsKey(key))
-						germplasm.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key).toString());
+					String sLCkey = key.toLowerCase();
+					Comparable val = ind.getAdditionalInfo().get(key);
+					if (!BrapiGermplasm.germplasmFields.containsKey(sLCkey))
+						germplasm.putAdditionalInfoItem(key, val.toString());
 					else {
-						System.err.println(key);
+						switch (sLCkey) {
+							case "germplasmname":
+								germplasm.setGermplasmName(val.toString());
+								break;
+							case "defaultdisplayname":
+								germplasm.setDefaultDisplayName(val.toString());
+								break;
+							case "accessionnumber":
+								germplasm.setAccessionNumber(val.toString());
+								break;
+							case "germplasmpui":
+								germplasm.setGermplasmPUI(val.toString());
+								break;
+							case "pedigree":
+								germplasm.setPedigree(val.toString());
+								break;
+							case "seedsource":
+								germplasm.setSeedSource(val.toString());
+								break;
+							case "commoncropname":
+								germplasm.setCommonCropName(val.toString());
+								break;
+							case "institutecode":
+								germplasm.setInstituteCode(val.toString());
+								break;
+							case "institutename":
+								germplasm.setInstituteName(val.toString());
+								break;
+							case "biologicalstatusofaccessioncode":
+								germplasm.setBiologicalStatusOfAccessionCode(BiologicalStatusOfAccessionCodeEnum.fromValue(val.toString()));
+								break;
+							case "countryoforigincode":
+								germplasm.setCountryOfOriginCode(val.toString());
+								break;
+							case "typeofgermplasmstoragecode":
+								germplasm.setTypeOfGermplasmStorageCode(Arrays.asList(val.toString()));
+								break;
+							case "genus":
+								germplasm.setGermplasmGenus(val.toString());
+								break;
+							case "species":
+								germplasm.setGermplasmSpecies(val.toString());
+								break;
+							case "speciesauthority":
+								germplasm.setSpeciesAuthority(val.toString());
+								break;
+							case "subtaxa":
+								germplasm.setSubtaxa(val.toString());
+								break;
+							case "subtaxaauthority":
+								germplasm.setSubtaxaAuthority(val.toString());
+								break;
+							case "acquisitiondate":
+								try {
+									germplasm.setAcquisitionDate(LocalDate.parse(val.toString()));
+								}
+								catch (DateTimeParseException dtpe){
+									log.error("Unable to parse germplasm acquisition date: " + val);
+								}
+								break;
+						}
+
+						
 					}
 				}
 				result.addDataItem(germplasm);
