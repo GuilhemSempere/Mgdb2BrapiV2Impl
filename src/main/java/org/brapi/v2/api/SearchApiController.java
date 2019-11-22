@@ -7,6 +7,7 @@ import fr.cirad.controller.GigwaMethods;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl.SearchCallSetsResponseWrapper;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -28,6 +29,8 @@ import org.brapi.v2.model.GermplasmMCPD;
 import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.MarkerPositionListResponse;
 import org.brapi.v2.model.MarkerPositionSearchRequest;
+import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.Pagination;
 import org.brapi.v2.model.ReferenceListResponse;
 import org.brapi.v2.model.ReferenceListResponse1;
 import org.brapi.v2.model.Sample;
@@ -45,6 +48,7 @@ import org.brapi.v2.model.VariantSetsSearchRequest;
 import org.brapi.v2.model.VariantsSearchRequest;
 import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.ga4gh.methods.SearchCallSetsRequest;
+import org.ga4gh.methods.SearchCallSetsResponse;
 import org.ga4gh.methods.SearchVariantSetsRequest;
 import org.ga4gh.models.VariantSetMetadata;
 import org.slf4j.Logger;
@@ -132,30 +136,44 @@ public class SearchApiController implements SearchApi {
         	CallSetsListResponse cslr = new CallSetsListResponse();
         	CallSetsListResponseResult result = new CallSetsListResponseResult();
         	boolean fAllowedToReadAnything = false;
+        	
+        	if (body.getVariantSetDbIds().size() != 1)
+				throw new Exception("You may only ask for callset records from a single variantSet at a time!");    	
+        	
         	int nTotalCallSetsEncountered = 0;
-        	for (String variantSetDbId : body.getVariantSetDbIds()) {
-            	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
-            	List<org.ga4gh.models.CallSet> ga4ghCallSets = ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage()))).getCallSets();
-            	nTotalCallSetsEncountered += ga4ghCallSets.size();
-        		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghCallSets)
-        			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
-        				fAllowedToReadAnything = true;
-		            	result.addDataItem(new CallSet() {{
-		            			setCallSetDbId(ga4ghCallSet.getId());
-		            			setCallSetName(ga4ghCallSet.getName());
-		            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
-			            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
-			            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
-			            		setSampleDbId(ga4ghCallSet.getSampleId());
-		            		}} );
-                	}
-        	}
+    		String variantSetDbId = body.getVariantSetDbIds().get(0);
+        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	SearchCallSetsResponseWrapper v1responseWrapper = ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage())));
+        	SearchCallSetsResponse v1response = v1responseWrapper.getResponse();
+        	List<org.ga4gh.models.CallSet> ga4ghCallSets = v1response.getCallSets();
+        	nTotalCallSetsEncountered += ga4ghCallSets.size();
+    		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghCallSets)
+    			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
+    				fAllowedToReadAnything = true;
+	            	result.addDataItem(new CallSet() {{
+	            			setCallSetDbId(ga4ghCallSet.getId());
+	            			setCallSetName(ga4ghCallSet.getName());
+	            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
+		            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
+		            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
+		            		setSampleDbId(ga4ghCallSet.getSampleId());
+	            		}} );
+            	}
         	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
         		return new ResponseEntity<CallSetsListResponse>(HttpStatus.FORBIDDEN);
-        	
+
+			Metadata metadata = new Metadata();
+			Pagination pagination = new Pagination();
+			pagination.setPageSize(String.valueOf(result.getData().size()));
+			pagination.setCurrentPage(body.getPage());
+			pagination.setTotalPages((int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
+			pagination.setTotalCount(v1responseWrapper.getTotalCount());
+			metadata.setPagination(pagination);
+			cslr.setMetadata(metadata);
+			
 			cslr.setResult(result);
             return new ResponseEntity<CallSetsListResponse>(cslr, HttpStatus.OK);
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<CallSetsListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -259,7 +277,8 @@ public class SearchApiController implements SearchApi {
    				return new ResponseEntity<SampleListResponse>(HttpStatus.FORBIDDEN);
 
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
-        	Query q = new Query(Criteria.where("_id").in(sampleIds));        	
+        	Query q = new Query(Criteria.where("_id").in(sampleIds));
+        	long count = mongoTemplate.count(q, GenotypingSample.class);
             if (body.getPageSize() != null)
             {
             	q.limit(body.getPageSize());
@@ -274,6 +293,16 @@ public class SearchApiController implements SearchApi {
         		sample.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual()));
         		result.addDataItem(sample);
         	}
+
+			Metadata metadata = new Metadata();
+			Pagination pagination = new Pagination();
+			pagination.setPageSize(String.valueOf(body.getPageSize()));
+			pagination.setCurrentPage(body.getPage());
+			pagination.setTotalPages((int) Math.ceil((float) count / body.getPageSize()));
+			pagination.setTotalCount((int) count);
+			metadata.setPagination(pagination);
+			slr.setMetadata(metadata);
+        	
 			slr.setResult(result);
             return new ResponseEntity<SampleListResponse>(slr, HttpStatus.OK);
         } catch (Exception e) {
@@ -392,7 +421,8 @@ public class SearchApiController implements SearchApi {
    			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
    				return new ResponseEntity<GermplasmListResponse>(HttpStatus.FORBIDDEN);
    			
-   	    	Map<String, Object> v1Result = (Map<String, Object>) brapiV1Service.germplasmSearch(response, refSetDbId, gsr).get("result");
+   			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.germplasmSearch(response, refSetDbId, gsr);
+   			Map<String, Object> v1Result = (Map<String, Object>) v1response.get("result");
    	    	ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
    	    	for (Map<String, Object> v1germplasmRecord : v1data) {
     			Germplasm germplasm = new Germplasm();
@@ -472,14 +502,23 @@ public class SearchApiController implements SearchApi {
 									log.error("Unable to parse germplasm acquisition date: " + val);
 								}
 								break;
-							default:
-								System.err.println(key);
 						}
 					}
    	    		}
 				result.addDataItem(germplasm);
    	    	}
 			glr.setResult(result);
+			
+			Metadata metadata = new Metadata();
+			Pagination pagination = new Pagination();
+			jhi.brapi.api.Metadata v1Metadata = (jhi.brapi.api.Metadata) v1response.get("metadata");
+			pagination.setPageSize(String.valueOf(v1Metadata.getPagination().getPageSize()));
+			pagination.setCurrentPage(v1Metadata.getPagination().getCurrentPage());
+			pagination.setTotalPages(v1Metadata.getPagination().getTotalPages());
+			pagination.setTotalCount((int) v1Metadata.getPagination().getTotalCount());
+			metadata.setPagination(pagination);
+			glr.setMetadata(metadata);
+			
 			return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.OK);
 		} catch (Exception e) {
 			log.error("Couldn't serialize response for content type application/json", e);
