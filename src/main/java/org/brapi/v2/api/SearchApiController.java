@@ -50,6 +50,7 @@ import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnu
 import org.ga4gh.methods.SearchCallSetsRequest;
 import org.ga4gh.methods.SearchCallSetsResponse;
 import org.ga4gh.methods.SearchVariantSetsRequest;
+import org.ga4gh.methods.SearchVariantSetsResponse;
 import org.ga4gh.models.VariantSetMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,7 +144,7 @@ public class SearchApiController implements SearchApi {
         	int nTotalCallSetsEncountered = 0;
     		String variantSetDbId = body.getVariantSetDbIds().get(0);
         	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
-        	SearchCallSetsResponseWrapper v1responseWrapper = ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage())));
+        	SearchCallSetsResponseWrapper v1responseWrapper = (SearchCallSetsResponseWrapper) ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage())));
         	SearchCallSetsResponse v1response = v1responseWrapper.getResponse();
         	List<org.ga4gh.models.CallSet> ga4ghCallSets = v1response.getCallSets();
         	nTotalCallSetsEncountered += ga4ghCallSets.size();
@@ -342,31 +343,50 @@ public class SearchApiController implements SearchApi {
     	String token = ServerinfoApiController.readToken(authorization);
     	
         try {
-        	VariantSetListResponse cslr = new VariantSetListResponse();
+        	VariantSetListResponse vslr = new VariantSetListResponse();
         	VariantSetListResponseResult result = new VariantSetListResponseResult();
-        	for (String refSetDbId : body.getReferenceSetDbIds())
-        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, body.getPageSize(), integerToString(body.getPage()))).getVariantSets())
-        			if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), ga4ghVariantSet.getReferenceSetId()))
-		            	result.addDataItem(new VariantSet() {{
-			            		setVariantSetDbId(ga4ghVariantSet.getId());
-			            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
-			            		setVariantSetName(ga4ghVariantSet.getName());
-			            		Analysis analysisItem = new Analysis();
-			            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
-			            			if ("description".equals(metadata.getKey()))
-			            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
-			            			else
-			            				analysisItem.description(metadata.getValue());
-			            		}
-				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
-				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
-				            	analysisItem.setType("TODO: check how to deal with this field");
-			            		addAnalysisItem(analysisItem);
-		            		}} );
-        			else
-        				return new ResponseEntity<VariantSetListResponse>(HttpStatus.FORBIDDEN);
-			cslr.setResult(result);
-            return new ResponseEntity<VariantSetListResponse>(cslr, HttpStatus.OK);
+        	for (String refSetDbId : body.getReferenceSetDbIds()) {
+	        	List<org.ga4gh.models.VariantSet> ga4ghVariantSets = ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, null, null)).getVariantSets();
+	        	List<org.ga4gh.models.VariantSet> forbiddenVariantSets = new ArrayList<>();
+	        	for (org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets)
+	        	{
+	        		int variantSetId = Integer.parseInt(ga4ghVariantSet.getId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[1]);
+	        		if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
+	        			forbiddenVariantSets.add(ga4ghVariantSet);
+	        	}
+	        	ga4ghVariantSets.removeAll(forbiddenVariantSets);
+
+        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets) {
+	            	result.addDataItem(new VariantSet() {{
+		            		setVariantSetDbId(ga4ghVariantSet.getId());
+		            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
+		            		setVariantSetName(ga4ghVariantSet.getName());
+		            		Analysis analysisItem = new Analysis();
+		            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
+		            			if ("description".equals(metadata.getKey()))
+		            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
+		            			else
+		            				analysisItem.description(metadata.getValue());
+		            		}
+			            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
+			            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
+			            	analysisItem.setType("TODO: check how to deal with this field");
+		            		addAnalysisItem(analysisItem);
+	            		}} );
+        		}
+        	}
+        	
+			Metadata metadata = new Metadata();
+			Pagination pagination = new Pagination();
+			pagination.setPageSize(String.valueOf(result.getData().size()));
+			pagination.setCurrentPage(0);
+			pagination.setTotalPages(1);
+			pagination.setTotalCount(result.getData().size());
+			metadata.setPagination(pagination);
+			vslr.setMetadata(metadata);
+
+			vslr.setResult(result);
+            return new ResponseEntity<VariantSetListResponse>(vslr, HttpStatus.OK);
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);

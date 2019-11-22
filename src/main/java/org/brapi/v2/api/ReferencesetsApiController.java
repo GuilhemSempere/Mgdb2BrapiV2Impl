@@ -7,6 +7,8 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.*;
 
 import org.apache.avro.AvroRemoteException;
+import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.Pagination;
 import org.brapi.v2.model.ReferenceListResponse1;
 import org.brapi.v2.model.ReferenceListResponseResult1;
 import org.brapi.v2.model.ReferenceSet;
@@ -77,6 +79,16 @@ public class ReferencesetsApiController implements ReferencesetsApi {
 		            		}} );
         			nAllowedDbIndex++;
         		}
+
+			Metadata metadata = new Metadata();
+			Pagination pagination = new Pagination();
+			pagination.setPageSize(String.valueOf(result.getData().size()));
+			pagination.setCurrentPage(0);
+			pagination.setTotalPages(1);
+			pagination.setTotalCount(result.getData().size());
+			metadata.setPagination(pagination);
+			rlr.setMetadata(metadata);
+			
 			rlr.setResult(result);
             return new ResponseEntity<ReferenceListResponse1>(rlr, HttpStatus.OK);
         } catch (Exception e) {
