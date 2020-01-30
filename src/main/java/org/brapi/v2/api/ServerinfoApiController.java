@@ -35,7 +35,7 @@ import java.util.Map;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
 @CrossOrigin
-@Controller
+@RestController
 public class ServerinfoApiController implements ServerinfoApi {
 
     private static final Logger log = LoggerFactory.getLogger(ServerinfoApiController.class);
@@ -60,6 +60,7 @@ public class ServerinfoApiController implements ServerinfoApi {
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.POST); setService(SearchApi.searchCallsetsPost_url); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.POST); setService(SearchApi.searchSamplesPost_url); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.POST); setService(SearchApi.searchGermplasmPost_url); }});
+		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.POST); setService(AttributesApi.attributesGet_url); }});
 		cr.setResult(result);
         return new ResponseEntity<CallsResponse>(cr, HttpStatus.OK);
     }

@@ -39,6 +39,7 @@ import org.brapi.v2.model.SampleListResponseResult;
 import org.brapi.v2.model.SampleSearchRequest;
 import org.brapi.v2.model.SearchReferenceSetsRequest;
 import org.brapi.v2.model.SearchReferencesRequest;
+import org.brapi.v2.model.Status;
 import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.brapi.v2.model.VariantListResponse;
 import org.brapi.v2.model.VariantSet;
@@ -91,7 +92,6 @@ import java.util.stream.Collectors;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:08.794Z[GMT]")
 @CrossOrigin
 @RestController
-//@Api(tags = {"BrAPIv2"}, description = "BrAPI v2 compliant methods")
 public class SearchApiController implements SearchApi {
 
     private static final Logger log = LoggerFactory.getLogger(SearchApiController.class);
@@ -136,8 +136,18 @@ public class SearchApiController implements SearchApi {
         try {
         	CallSetsListResponse cslr = new CallSetsListResponse();
         	CallSetsListResponseResult result = new CallSetsListResponseResult();
+			Metadata metadata = new Metadata();
+			cslr.setMetadata(metadata);
+			
         	boolean fAllowedToReadAnything = false;
         	
+			if (body.getVariantSetDbIds() == null || body.getVariantSetDbIds().isEmpty()) {
+				Status status = new Status();
+				status.setMessage("Some variantSetDbIds must be specified as parameter!");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<CallSetsListResponse>(cslr, HttpStatus.BAD_REQUEST);
+			}
+
         	if (body.getVariantSetDbIds().size() != 1)
 				throw new Exception("You may only ask for callset records from a single variantSet at a time!");    	
         	
@@ -163,14 +173,12 @@ public class SearchApiController implements SearchApi {
         	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
         		return new ResponseEntity<CallSetsListResponse>(HttpStatus.FORBIDDEN);
 
-			Metadata metadata = new Metadata();
 			Pagination pagination = new Pagination();
 			pagination.setPageSize(String.valueOf(result.getData().size()));
 			pagination.setCurrentPage(body.getPage());
-			pagination.setTotalPages((int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
+			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
 			pagination.setTotalCount(v1responseWrapper.getTotalCount());
 			metadata.setPagination(pagination);
-			cslr.setMetadata(metadata);
 			
 			cslr.setResult(result);
             return new ResponseEntity<CallSetsListResponse>(cslr, HttpStatus.OK);
@@ -299,7 +307,7 @@ public class SearchApiController implements SearchApi {
 			Pagination pagination = new Pagination();
 			pagination.setPageSize(String.valueOf(body.getPageSize()));
 			pagination.setCurrentPage(body.getPage());
-			pagination.setTotalPages((int) Math.ceil((float) count / body.getPageSize()));
+			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) count / body.getPageSize()));
 			pagination.setTotalCount((int) count);
 			metadata.setPagination(pagination);
 			slr.setMetadata(metadata);
@@ -421,11 +429,21 @@ public class SearchApiController implements SearchApi {
     	try {
 			GermplasmListResponse glr = new GermplasmListResponse();
 			GermplasmListResponseResult result = new GermplasmListResponseResult();
+			Metadata metadata = new Metadata();
+			glr.setMetadata(metadata);
+
 			String refSetDbId = null;
 			Integer variantSetId = null;
 			Collection<String> germplasmIds = new HashSet<>();
-			for (String spId : body.getGermplasmDbIds()) {
-				String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 3);
+			if (body.getGermplasmDbIds() == null || body.getGermplasmDbIds().isEmpty()) {
+				Status status = new Status();
+				status.setMessage("Some germplasmDbIds must be specified as parameter!");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
+			}
+
+			for (String gpId : body.getGermplasmDbIds()) {
+				String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
 				if (refSetDbId == null)
 					refSetDbId = info[0];
 				else if (!refSetDbId.equals(info[0]))
@@ -441,7 +459,11 @@ public class SearchApiController implements SearchApi {
    			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
    				return new ResponseEntity<GermplasmListResponse>(HttpStatus.FORBIDDEN);
    			
-   			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.germplasmSearch(response, refSetDbId, gsr);
+//   			Map<String, Object> intermediateV1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, refSetDbId, gsr);
+//			Map<String, Object> intermediateV1Result = (Map<String, Object>) intermediateV1response.get("result");
+//			System.err.println(intermediateV1Result.get("searchResultsDbId"));
+ 			
+   			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, refSetDbId, gsr);
    			Map<String, Object> v1Result = (Map<String, Object>) v1response.get("result");
    	    	ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
    	    	for (Map<String, Object> v1germplasmRecord : v1data) {
@@ -528,16 +550,13 @@ public class SearchApiController implements SearchApi {
 				result.addDataItem(germplasm);
    	    	}
 			glr.setResult(result);
-			
-			Metadata metadata = new Metadata();
 			Pagination pagination = new Pagination();
 			jhi.brapi.api.Metadata v1Metadata = (jhi.brapi.api.Metadata) v1response.get("metadata");
 			pagination.setPageSize(String.valueOf(v1Metadata.getPagination().getPageSize()));
 			pagination.setCurrentPage(v1Metadata.getPagination().getCurrentPage());
 			pagination.setTotalPages(v1Metadata.getPagination().getTotalPages());
 			pagination.setTotalCount((int) v1Metadata.getPagination().getTotalCount());
-			metadata.setPagination(pagination);
-			glr.setMetadata(metadata);
+			metadata.setPagination(pagination);			
 			
 			return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.OK);
 		} catch (Exception e) {

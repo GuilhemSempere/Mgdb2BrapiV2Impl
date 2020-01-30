@@ -10,7 +10,7 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <springfox-version>2.9.2</springfox-version>
-        <Gigwa2ServiceImpl.version>2.2-RELEASE</Gigwa2ServiceImpl.version>
+        <Gigwa2ServiceImpl.version>2.3-SNAPSHOT</Gigwa2ServiceImpl.version>
     </properties>
     <parent>
         <groupId>org.springframework.boot</groupId>

@@ -28,7 +28,7 @@ import java.util.Map;
 @Api(value = "referencesets", description = "the referencesets API")
 public interface ReferencesetsApi {
 
-	public static final String referencesetsGet_url = CallsApi.URL_BASE_PREFIX + "/referencesets";
+	public static final String referencesetsGet_url = ServerinfoApi.URL_BASE_PREFIX + "/referencesets";
 
     @ApiOperation(value = "Gets a `ReferenceSet` by ID.", nickname = "referencesetsGet", notes = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.", response = ReferenceListResponse1.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets", })

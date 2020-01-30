@@ -47,11 +47,11 @@ import java.util.Map;
 public interface SearchApi {
 
 //    public static final String searchReferencesetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/referencesets";
-    public static final String searchCallsetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/callsets";
-    public static final String searchVariantsetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/variantsets";
+    public static final String searchCallsetsPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/callsets";
+    public static final String searchVariantsetsPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/variantsets";
 //    public static final String searchCallsPost_url = CallsApi.URL_BASE_PREFIX + "/search/calls";
-    public static final String searchSamplesPost_url = CallsApi.URL_BASE_PREFIX + "/search/samples";
-    public static final String searchGermplasmPost_url = CallsApi.URL_BASE_PREFIX + "/search/germplasm";
+    public static final String searchSamplesPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/samples";
+    public static final String searchGermplasmPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/germplasm";
 
 //	@ApiOperation(value = "Submit a search request for `Calls`", nickname = "searchCallsPost", notes = "`GET /callsets/{id}` will return a JSON version of `CallSet`.", response = SuccessfulSearchResponse.class, authorizations = {
 //        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls", })
@@ -195,7 +195,7 @@ public interface SearchApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/search/samples",
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/search/samples",
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)

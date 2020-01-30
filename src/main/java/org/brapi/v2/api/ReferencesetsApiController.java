@@ -40,7 +40,7 @@ import java.util.Map;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
-@Controller
+@RestController
 public class ReferencesetsApiController implements ReferencesetsApi {
 
     private static final Logger log = LoggerFactory.getLogger(ReferencesetsApiController.class);
