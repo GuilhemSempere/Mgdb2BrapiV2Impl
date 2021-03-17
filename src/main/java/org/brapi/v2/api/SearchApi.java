@@ -21,6 +21,8 @@ import org.brapi.v2.model.SampleListResponse;
 import org.brapi.v2.model.SampleSearchRequest;
 import org.brapi.v2.model.SearchReferenceSetsRequest;
 import org.brapi.v2.model.SearchReferencesRequest;
+import org.brapi.v2.model.StudyListResponse;
+import org.brapi.v2.model.StudySearchRequest;
 import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.brapi.v2.model.VariantListResponse;
 import org.brapi.v2.model.VariantSetListResponse;
@@ -47,11 +49,12 @@ import java.util.Map;
 public interface SearchApi {
 
 //    public static final String searchReferencesetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/referencesets";
-    public static final String searchCallsetsPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/callsets";
-    public static final String searchVariantsetsPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/variantsets";
+    public static final String searchCallsetsPost_url = "search/callsets";
+    public static final String searchStudiesPost_url = "search/studies";
+    public static final String searchVariantsetsPost_url = "search/variantsets";
 //    public static final String searchCallsPost_url = CallsApi.URL_BASE_PREFIX + "/search/calls";
-    public static final String searchSamplesPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/samples";
-    public static final String searchGermplasmPost_url = ServerinfoApi.URL_BASE_PREFIX + "/search/germplasm";
+    public static final String searchSamplesPost_url = "search/samples";
+    public static final String searchGermplasmPost_url = "search/germplasm";
 
 //	@ApiOperation(value = "Submit a search request for `Calls`", nickname = "searchCallsPost", notes = "`GET /callsets/{id}` will return a JSON version of `CallSet`.", response = SuccessfulSearchResponse.class, authorizations = {
 //        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls", })
@@ -87,7 +90,7 @@ public interface SearchApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = searchCallsetsPost_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + searchCallsetsPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)
@@ -242,19 +245,31 @@ public interface SearchApi {
 //        method = RequestMethod.GET)
 //    ResponseEntity<VariantListResponse> searchVariantsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
-
     @ApiOperation(value = "Gets a list of `VariantSet` matching the search criteria.", nickname = "searchVariantsetsPost", notes = "`POST /variantsets/search` must accept a JSON version of `SearchVariantSetsRequest` as the post body and will return a JSON version of `SearchVariantSetsResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets", })
+            @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets", })
+        @ApiResponses(value = { 
+            @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
+            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+        @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + searchVariantsetsPost_url,
+            produces = { "application/json" }, 
+            consumes = { "application/json" },
+            method = RequestMethod.POST)
+        ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+
+    @ApiOperation(value = "Gets a list of `Study` matching the search criteria.", nickname = "searchStudiesPost", notes = "`POST /studies/search` must accept a JSON version of `SearchStudysRequest` as the post body and will return a JSON version of `SearchStudiesResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
+        @Authorization(value = "AuthorizationToken")    }, tags={ "Studies", })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = searchVariantsetsPost_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + searchStudiesPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)
-    ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody StudySearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
 //    @ApiOperation(value = "Gets a list of `VariantSet` matching the search criteria.", nickname = "searchVariantsetsSearchResultsDbIdGet", notes = "`POST /variantsets/search` must accept a JSON version of `SearchVariantSetsRequest` as the post body and will return a JSON version of `SearchVariantSetsResponse`.", response = VariantSetListResponse.class, authorizations = {
@@ -277,7 +292,7 @@ public interface SearchApi {
             @ApiResponse(code = 400, message = "Bad Request", response = String.class),
             @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
             @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-        @RequestMapping(value = searchGermplasmPost_url,
+        @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + searchGermplasmPost_url,
             produces = { "application/json" }, 
             consumes = { "application/json" },
             method = RequestMethod.POST)

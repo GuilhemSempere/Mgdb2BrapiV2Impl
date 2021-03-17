@@ -12,29 +12,32 @@ import javax.validation.Valid;
 import javax.validation.constraints.*;
 
 /**
- * ******************  /variantsets  ********************* This request maps to the body of &#x60;POST /search/variantsets&#x60; as JSON.
+ * VariantSetsSearchRequest
  */
-@ApiModel(description = "******************  /variantsets  ********************* This request maps to the body of `POST /search/variantsets` as JSON.")
 @Validated
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-public class VariantSetsSearchRequest   {
+@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T14:44:43.460Z[GMT]")
+
+
+public class VariantSetsSearchRequest extends SearchRequestParametersPaging  {
   @JsonProperty("studyDbIds")
   @Valid
   private List<String> studyDbIds = null;
 
-  @JsonProperty("referenceSetDbIds")
+  @JsonProperty("studyNames")
   @Valid
-  private List<String> referenceSetDbIds = null;
-  
+  private List<String> studyNames = null;
+
+  @JsonProperty("callSetDbIds")
+  @Valid
+  private List<String> callSetDbIds = null;
+
+  @JsonProperty("variantDbIds")
+  @Valid
+  private List<String> variantDbIds = null;
+
   @JsonProperty("variantSetDbIds")
   @Valid
   private List<String> variantSetDbIds = null;
-  
-  @JsonProperty("pageSize")
-  private Integer pageSize = null;
-
-  @JsonProperty("page")
-  private Integer page = null;
 
   public VariantSetsSearchRequest studyDbIds(List<String> studyDbIds) {
     this.studyDbIds = studyDbIds;
@@ -50,10 +53,10 @@ public class VariantSetsSearchRequest   {
   }
 
   /**
-   * The `Dataset` to search.
+   * List of study identifiers to search for
    * @return studyDbIds
-  **/
-  @ApiModelProperty(value = "The `Dataset` to search.")
+   **/
+  //@Schema(example = "[\"cf6c4bd4\",\"691e69d6\"]", description = "List of study identifiers to search for")
   
     public List<String> getStudyDbIds() {
     return studyDbIds;
@@ -62,26 +65,86 @@ public class VariantSetsSearchRequest   {
   public void setStudyDbIds(List<String> studyDbIds) {
     this.studyDbIds = studyDbIds;
   }
-  
-  public VariantSetsSearchRequest referenceSetDbIds(List<String> referenceSetDbIds) {
-    this.referenceSetDbIds = referenceSetDbIds;
+
+  public VariantSetsSearchRequest studyNames(List<String> studyNames) {
+    this.studyNames = studyNames;
     return this;
   }
 
-  public VariantSetsSearchRequest addReferenceSetDbIdsItem(String referenceSetDbIdsItem) {
-    if (this.referenceSetDbIds == null) {
-      this.referenceSetDbIds = new ArrayList<String>();
+  public VariantSetsSearchRequest addStudyNamesItem(String studyNamesItem) {
+    if (this.studyNames == null) {
+      this.studyNames = new ArrayList<String>();
     }
-    this.referenceSetDbIds.add(referenceSetDbIdsItem);
+    this.studyNames.add(studyNamesItem);
     return this;
   }
+
+  /**
+   * List of study names to filter search results
+   * @return studyNames
+   **/
+  //@Schema(example = "[\"The First Bob Study 2017\",\"Wheat Yield Trial 246\"]", description = "List of study names to filter search results")
   
-  public List<String> getReferenceSetDbIds() {
-    return referenceSetDbIds;
+    public List<String> getStudyNames() {
+    return studyNames;
   }
 
-  public void setReferenceSetDbIds(List<String> referenceSetDbIds) {
-    this.referenceSetDbIds = referenceSetDbIds;
+  public void setStudyNames(List<String> studyNames) {
+    this.studyNames = studyNames;
+  }
+
+  public VariantSetsSearchRequest callSetDbIds(List<String> callSetDbIds) {
+    this.callSetDbIds = callSetDbIds;
+    return this;
+  }
+
+  public VariantSetsSearchRequest addCallSetDbIdsItem(String callSetDbIdsItem) {
+    if (this.callSetDbIds == null) {
+      this.callSetDbIds = new ArrayList<String>();
+    }
+    this.callSetDbIds.add(callSetDbIdsItem);
+    return this;
+  }
+
+  /**
+   * The CallSet to search.
+   * @return callSetDbIds
+   **/
+  //@Schema(example = "[\"9569cfc4\",\"da1e888c\"]", description = "The CallSet to search.")
+  
+    public List<String> getCallSetDbIds() {
+    return callSetDbIds;
+  }
+
+  public void setCallSetDbIds(List<String> callSetDbIds) {
+    this.callSetDbIds = callSetDbIds;
+  }
+
+  public VariantSetsSearchRequest variantDbIds(List<String> variantDbIds) {
+    this.variantDbIds = variantDbIds;
+    return this;
+  }
+
+  public VariantSetsSearchRequest addVariantDbIdsItem(String variantDbIdsItem) {
+    if (this.variantDbIds == null) {
+      this.variantDbIds = new ArrayList<String>();
+    }
+    this.variantDbIds.add(variantDbIdsItem);
+    return this;
+  }
+
+  /**
+   * The Variant to search.
+   * @return variantDbIds
+   **/
+  //@Schema(example = "[\"c80f068b\",\"eb7c5f50\"]", description = "The Variant to search.")
+  
+    public List<String> getVariantDbIds() {
+    return variantDbIds;
+  }
+
+  public void setVariantDbIds(List<String> variantDbIds) {
+    this.variantDbIds = variantDbIds;
   }
 
   public VariantSetsSearchRequest variantSetDbIds(List<String> variantSetDbIds) {
@@ -100,8 +163,8 @@ public class VariantSetsSearchRequest   {
   /**
    * The VariantSet to search.
    * @return variantSetDbIds
-  **/
-  @ApiModelProperty(value = "The VariantSet to search.")
+   **/
+  //@Schema(example = "[\"b2903842\",\"dcbb8558\"]", description = "The VariantSet to search.")
   
     public List<String> getVariantSetDbIds() {
     return variantSetDbIds;
@@ -109,40 +172,6 @@ public class VariantSetsSearchRequest   {
 
   public void setVariantSetDbIds(List<String> variantSetDbIds) {
     this.variantSetDbIds = variantSetDbIds;
-  }
-
-
-  public VariantSetsSearchRequest pageSize(Integer pageSize) {
-    this.pageSize = pageSize;
-    return this;
-  }
-
-  /**
-   * Specifies the maximum number of results to return in a single page. If unspecified, a system default will be used.
-   * @return pageSize
-  **/
-  @ApiModelProperty(value = "Specifies the maximum number of results to return in a single page. If unspecified, a system default will be used.")
-  
-    public Integer getPageSize() {
-    return pageSize;
-  }
-
-  public void setPageSize(Integer pageSize) {
-    this.pageSize = pageSize;
-  }
-
-  public VariantSetsSearchRequest page(Integer page) {
-    this.page = page;
-    return this;
-  }
-
-  @ApiModelProperty(value = "The page number.")  
-  public Integer getPage() {
-    return page;
-  }
-
-  public void setPage(Integer page) {
-    this.page = page;
   }
 
 
@@ -156,27 +185,28 @@ public class VariantSetsSearchRequest   {
     }
     VariantSetsSearchRequest variantSetsSearchRequest = (VariantSetsSearchRequest) o;
     return Objects.equals(this.studyDbIds, variantSetsSearchRequest.studyDbIds) &&
+        Objects.equals(this.studyNames, variantSetsSearchRequest.studyNames) &&
+        Objects.equals(this.callSetDbIds, variantSetsSearchRequest.callSetDbIds) &&
+        Objects.equals(this.variantDbIds, variantSetsSearchRequest.variantDbIds) &&
         Objects.equals(this.variantSetDbIds, variantSetsSearchRequest.variantSetDbIds) &&
-        Objects.equals(this.referenceSetDbIds, variantSetsSearchRequest.referenceSetDbIds) &&
-        Objects.equals(this.pageSize, variantSetsSearchRequest.pageSize) &&
-        Objects.equals(this.page, variantSetsSearchRequest.page);
+        super.equals(o);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(studyDbIds, variantSetDbIds, referenceSetDbIds, pageSize, page);
+    return Objects.hash(studyDbIds, studyNames, callSetDbIds, variantDbIds, variantSetDbIds, super.hashCode());
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append("class VariantSetsSearchRequest {\n");
-    
+    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
     sb.append("    studyDbIds: ").append(toIndentedString(studyDbIds)).append("\n");
+    sb.append("    studyNames: ").append(toIndentedString(studyNames)).append("\n");
+    sb.append("    callSetDbIds: ").append(toIndentedString(callSetDbIds)).append("\n");
+    sb.append("    variantDbIds: ").append(toIndentedString(variantDbIds)).append("\n");
     sb.append("    variantSetDbIds: ").append(toIndentedString(variantSetDbIds)).append("\n");
-    sb.append("    referenceSetDbIds: ").append(toIndentedString(referenceSetDbIds)).append("\n");
-    sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
-    sb.append("    page: ").append(toIndentedString(page)).append("\n");
     sb.append("}");
     return sb.toString();
   }

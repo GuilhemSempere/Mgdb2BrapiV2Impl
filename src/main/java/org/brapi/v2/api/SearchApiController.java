@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,6 +32,10 @@ import org.brapi.v2.model.SampleListResponse;
 import org.brapi.v2.model.SampleListResponseResult;
 import org.brapi.v2.model.SampleSearchRequest;
 import org.brapi.v2.model.Status;
+import org.brapi.v2.model.Study;
+import org.brapi.v2.model.StudyListResponse;
+import org.brapi.v2.model.StudyListResponseResult;
+import org.brapi.v2.model.StudySearchRequest;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetListResponseResult;
@@ -57,7 +62,9 @@ import org.threeten.bp.format.DateTimeParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.controller.GigwaMethods;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl.SearchCallSetsResponseWrapper;
 import fr.cirad.model.GigwaSearchVariantsRequest;
@@ -152,7 +159,7 @@ public class SearchApiController implements SearchApi {
         		return new ResponseEntity<CallSetsListResponse>(HttpStatus.FORBIDDEN);
 
 			Pagination pagination = new Pagination();
-			pagination.setPageSize(String.valueOf(result.getData().size()));
+			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(body.getPage());
 			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
 			pagination.setTotalCount(v1responseWrapper.getTotalCount());
@@ -283,7 +290,7 @@ public class SearchApiController implements SearchApi {
 
 			Metadata metadata = new Metadata();
 			Pagination pagination = new Pagination();
-			pagination.setPageSize(String.valueOf(body.getPageSize()));
+			pagination.setPageSize(body.getPageSize());
 			pagination.setCurrentPage(body.getPage());
 			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) count / body.getPageSize()));
 			pagination.setTotalCount((int) count);
@@ -325,47 +332,129 @@ public class SearchApiController implements SearchApi {
 //        }
 //    }
 
-    public ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    public ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Variantset Search request") @Valid @RequestBody VariantSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
     	
         try {
         	VariantSetListResponse vslr = new VariantSetListResponse();
         	VariantSetListResponseResult result = new VariantSetListResponseResult();
-        	for (String refSetDbId : body.getReferenceSetDbIds()) {
-	        	List<org.ga4gh.models.VariantSet> ga4ghVariantSets = ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, null, null)).getVariantSets();
-	        	List<org.ga4gh.models.VariantSet> forbiddenVariantSets = new ArrayList<>();
-	        	for (org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets)
-	        	{
-	        		int variantSetId = Integer.parseInt(ga4ghVariantSet.getId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[1]);
-	        		if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
-	        			forbiddenVariantSets.add(ga4ghVariantSet);
-	        	}
-	        	ga4ghVariantSets.removeAll(forbiddenVariantSets);
+        	
+	        int start;
+	        int end;
+	        int pageSize;
+	        int pageToken = 0;
+	        String nextPageToken;
+	        
+        	if (body.getVariantSetDbIds() != null || body.getStudyDbIds() != null) {
+        		List<String> projectIDs = body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : body.getStudyDbIds();
+    			String refSetDbId = null;
+//    			Integer variantSetId = null;
+    			Collection<Integer> pjIDs = new HashSet<>();
 
-        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets) {
-	            	result.addDataItem(new VariantSet() {{
-		            		setVariantSetDbId(ga4ghVariantSet.getId());
-		            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
-		            		setVariantSetName(ga4ghVariantSet.getName());
-		            		Analysis analysisItem = new Analysis();
-		            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
-		            			if ("description".equals(metadata.getKey()))
-		            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
-		            			else
-		            				analysisItem.description(metadata.getValue());
-		            		}
-			            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
-			            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
-			            	analysisItem.setType("TODO: check how to deal with this field");
-		            		addAnalysisItem(analysisItem);
-	            		}} );
-        		}
+    			for (String pjId : projectIDs) {
+    				String[] info = GigwaSearchVariantsRequest.getInfoFromId(pjId, 2);
+    				if (refSetDbId == null)
+    					refSetDbId = info[0];
+    				else if (!refSetDbId.equals(info[0]))
+    					throw new Exception("You may only ask for variantSet records from one referenceSet at a time!");
+//    				if (variantSetId == null)
+//    					variantSetId = Integer.parseInt(info[1]);
+//    				else if (!variantSetId.equals(Integer.parseInt(info[1])))
+//    					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
+    				
+            		if (tokenManager.canUserReadProject(token, refSetDbId, info[1]))
+            			pjIDs.add(Integer.parseInt(info[1]));
+    			}        		
+        		
+    			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
+    	        Query q = new Query(Criteria.where("_id").in(pjIDs));
+    	        q.fields().include(GenotypingProject.FIELDNAME_NAME);
+    	        q.fields().include(GenotypingProject.FIELDNAME_DESCRIPTION);
+    	        List<GenotypingProject> listProj = mongoTemplate.find(q, GenotypingProject.class);    	        
+    	        int size = listProj.size();
+    	        // if page size is not specified, return all results
+    	        if (body.getPageSize() != null) {
+    	            pageSize = body.getPageSize();
+    	        } else {
+    	            pageSize = size;
+    	        }
+    	        if (body.getPage() != null) {
+    	            pageToken = body.getPage();
+    	        }
+
+    	        start = pageSize * pageToken;
+    	        if (size - start <= pageSize) {
+    	            end = size;
+    	            nextPageToken = null;
+    	        } else {
+    	        	end = pageSize * (pageToken + 1);
+    	            nextPageToken = Integer.toString(pageToken + 1);
+    	        }
+
+    	        for (int i = start; i < end; i++) {
+    	        	GenotypingProject proj = listProj.get(i);
+    	            List<VariantSetMetadata> metadata = new ArrayList<>();
+    	            if (proj.getDescription() != null) {
+    	            	VariantSetMetadata vsmd = new VariantSetMetadata();
+    	            	vsmd.setKey("description");
+    	            	vsmd.setValue(proj.getDescription());
+    	            	metadata.add(vsmd);
+    	            }
+    	            VariantSet variantSet = new VariantSet();
+    	            variantSet.setVariantSetDbId(refSetDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + proj.getId());
+    	            variantSet.setStudyDbId(variantSet.getVariantSetDbId());
+    	            variantSet.setReferenceSetDbId(refSetDbId);
+    	            variantSet.setVariantSetName(proj.getName());
+    	            variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
+    	            variantSet.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount() /*FIXME : count variants involved in project*/);
+    	            result.addDataItem(variantSet);
+    	        }
+        		
+        		
+//	        	for (String variantSetDbId : (body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : body.getStudyDbIds())) {
+//		        	List<org.ga4gh.models.VariantSet> ga4ghVariantSets = ga4ghService.searchVariantSets(new SearchVariantSetsRequest(variantSetDbId, null, null)).getVariantSets();
+//		        	List<org.ga4gh.models.VariantSet> forbiddenVariantSets = new ArrayList<>();
+//		        	for (org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets)
+//		        	{
+//		        		int variantSetId = Integer.parseInt(ga4ghVariantSet.getId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[1]);
+//		        		if (!tokenManager.canUserReadProject(token, variantSetDbId, variantSetId))
+//		        			forbiddenVariantSets.add(ga4ghVariantSet);
+//		        	}
+//		        	ga4ghVariantSets.removeAll(forbiddenVariantSets);
+//	
+//	        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets) {
+//		            	result.addDataItem(new VariantSet() {{
+//			            		setVariantSetDbId(ga4ghVariantSet.getId());
+//			            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
+//			            		setVariantSetName(ga4ghVariantSet.getName());
+//			            		Analysis analysisItem = new Analysis();
+//			            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
+//			            			if ("description".equals(metadata.getKey()))
+//			            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
+//			            			else
+//			            				analysisItem.description(metadata.getValue());
+//			            		}
+//				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
+//				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
+//	//			            	analysisItem.setType("TODO: check how to deal with this field");
+//			            		addAnalysisItem(analysisItem);
+//		            		}} );
+//	        		}
+//	        	}
+        	}
+        	else if (body.getCallSetDbIds() != null) {
+        		body.setStudyDbIds(body.getCallSetDbIds());
+        		return searchVariantsetsPost(body, authorization);
+//        		throw new Exception("Searching VariantSets by CallSetDbIds is currently not implemented.");
+        	}
+        	else if (body.getStudyNames() != null) {
+        		throw new Exception("Searching VariantSets by StudyNames is currently not implemented.");
         	}
         	
 			Metadata metadata = new Metadata();
 			Pagination pagination = new Pagination();
-			pagination.setPageSize(String.valueOf(result.getData().size()));
-			pagination.setCurrentPage(0);
+			pagination.setPageSize(result.getData().size());
+			pagination.setCurrentPage(pageToken);
 			pagination.setTotalPages(1);
 			pagination.setTotalCount(result.getData().size());
 			metadata.setPagination(pagination);
@@ -378,6 +467,20 @@ public class SearchApiController implements SearchApi {
             return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+    
+    private Map<String /* module */, List<Integer /* project */>> parseVariantSetDbIDs(List<String> variantSetDbIds) {
+    	Map<String, List<Integer>> result = new HashMap<>();
+    	for (String variantSetId : variantSetDbIds) {
+    		String[] splitId = variantSetId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+    		List<Integer> moduleProjects = result.get(splitId[0]);
+    		if (moduleProjects == null) {
+    			moduleProjects = new ArrayList<>();
+    			result.put(splitId[0], moduleProjects);
+    		}
+    		moduleProjects.add(Integer.parseInt(splitId[1]));
+    	}
+    	return result;
+    }
 
 //    public ResponseEntity<VariantSetListResponse> searchVariantsetsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        try {
@@ -387,8 +490,63 @@ public class SearchApiController implements SearchApi {
 //            return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
 //        }
 //    }
-    
-    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam(value = ""  )  @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization)  throws Exception {
+
+	public ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam(value = "Study Search request")  @Valid @RequestBody StudySearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	String token = ServerinfoApiController.readToken(authorization);
+
+    	try {
+	    	StudyListResponse slr = new StudyListResponse();
+	    	StudyListResponseResult result = new StudyListResponseResult();
+	    	for (String refSetDbId : MongoTemplateManager.getAvailableModules()) {
+	        	List<org.ga4gh.models.VariantSet> ga4ghVariantSets = ga4ghService.searchVariantSets(new SearchVariantSetsRequest(refSetDbId, null, null)).getVariantSets();
+	        	List<org.ga4gh.models.VariantSet> forbiddenVariantSets = new ArrayList<>();
+	        	for (org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets)
+	        	{
+	        		int variantSetId = Integer.parseInt(ga4ghVariantSet.getId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[1]);
+	        		if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
+	        			forbiddenVariantSets.add(ga4ghVariantSet);
+	        	}
+	        	ga4ghVariantSets.removeAll(forbiddenVariantSets);
+	
+	    		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets) {
+	            	result.addDataItem(new Study() {{
+		            		setStudyDbId(ga4ghVariantSet.getId());
+		            		setStudyType("genotype");
+		            		setStudyName(ga4ghVariantSet.getName());
+	//	            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
+	//	            		Analysis analysisItem = new Analysis();
+	//	            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
+	//	            			if ("description".equals(metadata.getKey()))
+	//	            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
+	//	            			else
+	//	            				analysisItem.description(metadata.getValue());
+	//	            		}
+	//		            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
+	//		            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
+	//		            	analysisItem.setType("TODO: check how to deal with this field");
+	//	            		addAnalysisItem(analysisItem);
+	            		}} );
+	    		}
+	    	}
+	    	
+			Metadata metadata = new Metadata();
+			Pagination pagination = new Pagination();
+			pagination.setPageSize(result.getData().size());
+			pagination.setCurrentPage(0);
+			pagination.setTotalPages(1);
+			pagination.setTotalCount(result.getData().size());
+			metadata.setPagination(pagination);
+			slr.setMetadata(metadata);
+	
+			slr.setResult(result);		
+            return new ResponseEntity<StudyListResponse>(slr, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<StudyListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam(value = "Germplasm Search request") @Valid @RequestBody GermplasmSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization)  throws Exception {
     	String token = ServerinfoApiController.readToken(authorization);
 
 		if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0)
@@ -530,7 +688,7 @@ public class SearchApiController implements SearchApi {
 			glr.setResult(result);
 			Pagination pagination = new Pagination();
 			jhi.brapi.api.Metadata v1Metadata = (jhi.brapi.api.Metadata) v1response.get("metadata");
-			pagination.setPageSize(String.valueOf(v1Metadata.getPagination().getPageSize()));
+			pagination.setPageSize(v1Metadata.getPagination().getPageSize());
 			pagination.setCurrentPage(v1Metadata.getPagination().getCurrentPage());
 			pagination.setTotalPages(v1Metadata.getPagination().getTotalPages());
 			pagination.setTotalCount((int) v1Metadata.getPagination().getTotalCount());
@@ -551,5 +709,4 @@ public class SearchApiController implements SearchApi {
 //            return new ResponseEntity<GermplasmListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
 //        }
 //    }
-
 }

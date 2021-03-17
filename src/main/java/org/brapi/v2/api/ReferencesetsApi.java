@@ -28,7 +28,7 @@ import java.util.Map;
 @Api(value = "referencesets", description = "the referencesets API")
 public interface ReferencesetsApi {
 
-	public static final String referencesetsGet_url = ServerinfoApi.URL_BASE_PREFIX + "/referencesets";
+	public static final String referencesetsGet_url = "referencesets";
 
     @ApiOperation(value = "Gets a `ReferenceSet` by ID.", nickname = "referencesetsGet", notes = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.", response = ReferenceListResponse1.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets", })
@@ -37,7 +37,7 @@ public interface ReferencesetsApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = referencesetsGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + referencesetsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<ReferenceListResponse1> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);

@@ -125,7 +125,7 @@ public class AttributesApiController implements AttributesApi {
 
 			Metadata metadata = new Metadata();
 			Pagination pagination = new Pagination();
-			pagination.setPageSize(String.valueOf(result.getData().size()));
+			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);
 			pagination.setTotalPages(1);
 			pagination.setTotalCount(result.getData().size());

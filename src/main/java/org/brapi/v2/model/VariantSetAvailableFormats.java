@@ -21,14 +21,11 @@ public class VariantSetAvailableFormats   {
    * dataFormat defines the structure of the data within a file (ie DartSeq, VCF, Hapmap, tabular, etc)
    */
   public enum DataFormatEnum {
-    DARTSEQ("DartSeq"),
-    
+    FLAPJACK("Flapjack"),
+    DARTSEQ("DartSeq"),    
     VCF("VCF"),
-    
     HAPMAP("Hapmap"),
-    
     TABULAR("tabular"),
-    
     JSON("JSON");
 
     private String value;

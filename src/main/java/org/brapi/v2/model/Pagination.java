@@ -20,7 +20,7 @@ public class Pagination   {
   private Integer currentPage = 0;
 
   @JsonProperty("pageSize")
-  private String pageSize = "1000";
+  private Integer pageSize = 1000;
 
   @JsonProperty("totalCount")
   private Integer totalCount = null;
@@ -48,7 +48,7 @@ public class Pagination   {
     this.currentPage = currentPage;
   }
 
-  public Pagination pageSize(String pageSize) {
+  public Pagination pageSize(Integer pageSize) {
     this.pageSize = pageSize;
     return this;
   }
@@ -60,11 +60,11 @@ public class Pagination   {
   @ApiModelProperty(example = "1000", required = true, value = "")
       @NotNull
 
-    public String getPageSize() {
+    public Integer getPageSize() {
     return pageSize;
   }
 
-  public void setPageSize(String pageSize) {
+  public void setPageSize(Integer pageSize) {
     this.pageSize = pageSize;
   }
 
