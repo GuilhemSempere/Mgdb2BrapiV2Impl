@@ -6,6 +6,7 @@
 package org.brapi.v2.api;
 
 import io.swagger.annotations.*;
+import springfox.documentation.annotations.ApiIgnore;
 
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallSetsListResponse;
@@ -29,6 +30,7 @@ import javax.validation.Valid;
 import javax.validation.constraints.*;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
@@ -108,7 +110,7 @@ public interface VariantsetsApi {
     																	@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,
     																	@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
     																	@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
-    																	@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    																	@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws UnsupportedEncodingException;
 //
 //
 //    @ApiOperation(value = "Gets a list of `CallSets` associated with a `VariantSet`.", nickname = "variantsetsVariantSetDbIdCallsetsGet", notes = " Gets a list of `CallSets` associated with a `VariantSet`. Also See: `GET /callsets?variantSetDbId={variantSetDbId}` ", response = CallSetsListResponse.class, authorizations = {
@@ -150,8 +152,12 @@ public interface VariantsetsApi {
 //        method = RequestMethod.GET)
 //    ResponseEntity<VariantListResponse> variantsetsVariantSetDbIdVariantsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,@ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
+    @ApiIgnore
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsetsGetExportFile_url,
             produces = { "application/json" }, 
             method = RequestMethod.GET)
-        void variantsetsExportIntoFormat(HttpServletResponse response, @PathVariable("variantSetDbId") String variantSetDbId, @PathVariable("dataFormat") String dataFormat) throws Exception;
+        void variantsetsExportIntoFormat(HttpServletResponse response,
+        		@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,
+        		@ApiParam(value = "The data format retrieve data in (only 'flapjack' is supported at the moment).",required=true) @PathVariable("dataFormat") String dataFormat,
+        		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws Exception;
 }

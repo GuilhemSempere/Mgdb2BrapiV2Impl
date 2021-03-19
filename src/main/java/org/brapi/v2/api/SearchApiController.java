@@ -32,6 +32,7 @@ import org.brapi.v2.model.SampleListResponse;
 import org.brapi.v2.model.SampleListResponseResult;
 import org.brapi.v2.model.SampleSearchRequest;
 import org.brapi.v2.model.Status;
+import org.brapi.v2.model.Status.MessageTypeEnum;
 import org.brapi.v2.model.Study;
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyListResponseResult;
@@ -116,9 +117,13 @@ public class SearchApiController implements SearchApi {
 //    }
 
     public ResponseEntity<CallSetsListResponse> searchCallsetsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody CallSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+
+    	/*FIXME: test me!!*/
     	String token = ServerinfoApiController.readToken(authorization);
-    	
         try {
+    		Status status = new Status();
+    		HttpStatus httpCode = null;
+    		
         	CallSetsListResponse cslr = new CallSetsListResponse();
         	CallSetsListResponseResult result = new CallSetsListResponseResult();
 			Metadata metadata = new Metadata();
@@ -127,49 +132,53 @@ public class SearchApiController implements SearchApi {
         	boolean fAllowedToReadAnything = false;
         	
 			if (body.getVariantSetDbIds() == null || body.getVariantSetDbIds().isEmpty()) {
-				Status status = new Status();
 				status.setMessage("Some variantSetDbIds must be specified as parameter!");
 				metadata.addStatusItem(status);
-				return new ResponseEntity<CallSetsListResponse>(cslr, HttpStatus.BAD_REQUEST);
+				httpCode = HttpStatus.BAD_REQUEST;
+			}
+			else if (body.getVariantSetDbIds().size() != 1){
+				status.setMessage("You may only ask for callset records from a single variantSet at a time!");
+				metadata.addStatusItem(status);
+				httpCode = HttpStatus.BAD_REQUEST;
+			}
+			else {
+	        	int nTotalCallSetsEncountered = 0;
+	    		String variantSetDbId = body.getVariantSetDbIds().get(0);
+	        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	        	SearchCallSetsResponseWrapper v1responseWrapper = (SearchCallSetsResponseWrapper) ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage())));
+	        	SearchCallSetsResponse v1response = v1responseWrapper.getResponse();
+	        	List<org.ga4gh.models.CallSet> ga4ghCallSets = v1response.getCallSets();
+	        	nTotalCallSetsEncountered += ga4ghCallSets.size();
+	    		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghCallSets)
+	    			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
+	    				fAllowedToReadAnything = true;
+		            	result.addDataItem(new CallSet() {{
+		            			setCallSetDbId(ga4ghCallSet.getId());
+		            			setCallSetName(ga4ghCallSet.getName());
+		            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
+			            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
+			            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
+			            		setSampleDbId(ga4ghCallSet.getSampleId());
+		            		}} );
+	            	}
+	        	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
+	        		httpCode = HttpStatus.FORBIDDEN;
+	        	else {
+	    			Pagination pagination = new Pagination();
+	    			pagination.setPageSize(result.getData().size());
+	    			pagination.setCurrentPage(body.getPage());
+	    			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
+	    			pagination.setTotalCount(v1responseWrapper.getTotalCount());
+	    			metadata.setPagination(pagination);
+	        	}
 			}
 
-        	if (body.getVariantSetDbIds().size() != 1)
-				throw new Exception("You may only ask for callset records from a single variantSet at a time!");    	
-        	
-        	int nTotalCallSetsEncountered = 0;
-    		String variantSetDbId = body.getVariantSetDbIds().get(0);
-        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
-        	SearchCallSetsResponseWrapper v1responseWrapper = (SearchCallSetsResponseWrapper) ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage())));
-        	SearchCallSetsResponse v1response = v1responseWrapper.getResponse();
-        	List<org.ga4gh.models.CallSet> ga4ghCallSets = v1response.getCallSets();
-        	nTotalCallSetsEncountered += ga4ghCallSets.size();
-    		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghCallSets)
-    			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
-    				fAllowedToReadAnything = true;
-	            	result.addDataItem(new CallSet() {{
-	            			setCallSetDbId(ga4ghCallSet.getId());
-	            			setCallSetName(ga4ghCallSet.getName());
-	            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
-		            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
-		            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
-		            		setSampleDbId(ga4ghCallSet.getSampleId());
-	            		}} );
-            	}
-        	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
-        		return new ResponseEntity<CallSetsListResponse>(HttpStatus.FORBIDDEN);
-
-			Pagination pagination = new Pagination();
-			pagination.setPageSize(result.getData().size());
-			pagination.setCurrentPage(body.getPage());
-			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
-			pagination.setTotalCount(v1responseWrapper.getTotalCount());
-			metadata.setPagination(pagination);
-			
 			cslr.setResult(result);
-            return new ResponseEntity<CallSetsListResponse>(cslr, HttpStatus.OK);
+            return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
+
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<CallSetsListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -334,7 +343,9 @@ public class SearchApiController implements SearchApi {
 
     public ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Variantset Search request") @Valid @RequestBody VariantSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
-    	
+		Status status = new Status();
+		HttpStatus httpCode = null;
+
         try {
         	VariantSetListResponse vslr = new VariantSetListResponse();
         	VariantSetListResponseResult result = new VariantSetListResponseResult();
@@ -409,46 +420,21 @@ public class SearchApiController implements SearchApi {
     	            variantSet.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount() /*FIXME : count variants involved in project*/);
     	            result.addDataItem(variantSet);
     	        }
-        		
-        		
-//	        	for (String variantSetDbId : (body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : body.getStudyDbIds())) {
-//		        	List<org.ga4gh.models.VariantSet> ga4ghVariantSets = ga4ghService.searchVariantSets(new SearchVariantSetsRequest(variantSetDbId, null, null)).getVariantSets();
-//		        	List<org.ga4gh.models.VariantSet> forbiddenVariantSets = new ArrayList<>();
-//		        	for (org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets)
-//		        	{
-//		        		int variantSetId = Integer.parseInt(ga4ghVariantSet.getId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[1]);
-//		        		if (!tokenManager.canUserReadProject(token, variantSetDbId, variantSetId))
-//		        			forbiddenVariantSets.add(ga4ghVariantSet);
-//		        	}
-//		        	ga4ghVariantSets.removeAll(forbiddenVariantSets);
-//	
-//	        		for (final org.ga4gh.models.VariantSet ga4ghVariantSet : ga4ghVariantSets) {
-//		            	result.addDataItem(new VariantSet() {{
-//			            		setVariantSetDbId(ga4ghVariantSet.getId());
-//			            		setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
-//			            		setVariantSetName(ga4ghVariantSet.getName());
-//			            		Analysis analysisItem = new Analysis();
-//			            		for (VariantSetMetadata metadata : ga4ghVariantSet.getMetadata()) {
-//			            			if ("description".equals(metadata.getKey()))
-//			            				putAdditionalInfoItem(metadata.getKey(), metadata.getValue());
-//			            			else
-//			            				analysisItem.description(metadata.getValue());
-//			            		}
-//				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
-//				            	analysisItem.setAnalysisDbId(ga4ghVariantSet.getName());
-//	//			            	analysisItem.setType("TODO: check how to deal with this field");
-//			            		addAnalysisItem(analysisItem);
-//		            		}} );
-//	        		}
-//	        	}
         	}
         	else if (body.getCallSetDbIds() != null) {
-        		body.setStudyDbIds(body.getCallSetDbIds());
-        		return searchVariantsetsPost(body, authorization);
-//        		throw new Exception("Searching VariantSets by CallSetDbIds is currently not implemented.");
+        		status.setMessage("Searching VariantSets by CallSetDbIds is currently not implemented.");
+        		status.setMessageType(MessageTypeEnum.ERROR);
+        		httpCode = HttpStatus.NOT_IMPLEMENTED;
         	}
         	else if (body.getStudyNames() != null) {
-        		throw new Exception("Searching VariantSets by StudyNames is currently not implemented.");
+        		status.setMessage("Searching VariantSets by StudyNames is currently not implemented.");
+        		status.setMessageType(MessageTypeEnum.ERROR);
+        		httpCode = HttpStatus.NOT_IMPLEMENTED;
+        	}
+        	else {
+        		status.setMessage("You may only ask for variantSet records from one referenceSet at a time.");
+        		status.setMessageType(MessageTypeEnum.ERROR);
+        		httpCode = HttpStatus.NOT_ACCEPTABLE;
         	}
         	
 			Metadata metadata = new Metadata();
@@ -458,10 +444,11 @@ public class SearchApiController implements SearchApi {
 			pagination.setTotalPages(1);
 			pagination.setTotalCount(result.getData().size());
 			metadata.setPagination(pagination);
+			metadata.setStatus(Arrays.asList(status));
 			vslr.setMetadata(metadata);
 
 			vslr.setResult(result);
-            return new ResponseEntity<VariantSetListResponse>(vslr, HttpStatus.OK);
+            return new ResponseEntity<VariantSetListResponse>(vslr, httpCode == null ? HttpStatus.OK : httpCode);
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -550,7 +537,7 @@ public class SearchApiController implements SearchApi {
     	String token = ServerinfoApiController.readToken(authorization);
 
 		if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0)
-			return new ResponseEntity<GermplasmListResponse>(HttpStatus.OK);	// not supported
+			return new ResponseEntity<>(HttpStatus.OK);	// not supported
 
 		fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
     	gsr.accessionNumbers = body.getAccessionNumbers();
