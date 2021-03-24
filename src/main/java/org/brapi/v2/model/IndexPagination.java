@@ -19,36 +19,32 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import org.brapi.v2.model.DataFile;
-import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.MetadataBase;
-import org.brapi.v2.model.Status;
+import org.brapi.v2.model.BasePagination;
 import java.io.IOException;
-import java.util.List;
 /**
- * Metadata
+ * IndexPagination
  */
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-22T15:23:22.792Z[GMT]")
-public class Metadata extends MetadataBase {
-  @SerializedName("pagination")
-  private IndexPagination pagination = null;
+public class IndexPagination extends BasePagination {
+  @SerializedName("currentPage")
+  private Integer currentPage = 0;
 
-  public Metadata pagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  public IndexPagination currentPage(Integer currentPage) {
+    this.currentPage = currentPage;
     return this;
   }
 
    /**
-   * Get pagination
-   * @return pagination
+   * The index number for the returned page of data. This should always match the requested page number or the default page (0).
+   * @return currentPage
   **/
-  public IndexPagination getPagination() {
-    return pagination;
+  public Integer getCurrentPage() {
+    return currentPage;
   }
 
-  public void setPagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  public void setCurrentPage(Integer currentPage) {
+    this.currentPage = currentPage;
   }
 
 
@@ -60,23 +56,23 @@ public class Metadata extends MetadataBase {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Metadata metadata = (Metadata) o;
-    return Objects.equals(this.pagination, metadata.pagination) &&
+    IndexPagination indexPagination = (IndexPagination) o;
+    return Objects.equals(this.currentPage, indexPagination.currentPage) &&
         super.equals(o);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(pagination, super.hashCode());
+    return Objects.hash(currentPage, super.hashCode());
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Metadata {\n");
+    sb.append("class IndexPagination {\n");
     sb.append("    ").append(toIndentedString(super.toString())).append("\n");
-    sb.append("    pagination: ").append(toIndentedString(pagination)).append("\n");
+    sb.append("    currentPage: ").append(toIndentedString(currentPage)).append("\n");
     sb.append("}");
     return sb.toString();
   }

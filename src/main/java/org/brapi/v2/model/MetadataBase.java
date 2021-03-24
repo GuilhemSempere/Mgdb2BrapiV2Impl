@@ -20,35 +20,70 @@ import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import org.brapi.v2.model.DataFile;
-import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.MetadataBase;
 import org.brapi.v2.model.Status;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 /**
- * Metadata
+ * MetadataBase
  */
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-22T15:23:22.792Z[GMT]")
-public class Metadata extends MetadataBase {
-  @SerializedName("pagination")
-  private IndexPagination pagination = null;
+public class MetadataBase {
+  @SerializedName("datafiles")
+  private List<DataFile> datafiles = null;
 
-  public Metadata pagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  @SerializedName("status")
+  private List<Status> status = null;
+
+  public MetadataBase datafiles(List<DataFile> datafiles) {
+    this.datafiles = datafiles;
+    return this;
+  }
+
+  public MetadataBase addDatafilesItem(DataFile datafilesItem) {
+    if (this.datafiles == null) {
+      this.datafiles = new ArrayList<DataFile>();
+    }
+    this.datafiles.add(datafilesItem);
     return this;
   }
 
    /**
-   * Get pagination
-   * @return pagination
+   * The datafiles contains a list of file URLs and metadata.  These files contain additional information related to the returned object and can be retrieved by a subsequent call.  This could be a supplementary data file, an informational file, the uploaded file where the data originated from, a generated file representing the whole dataset in a particular format, or any other related file. 
+   * @return datafiles
   **/
-  public IndexPagination getPagination() {
-    return pagination;
+  public List<DataFile> getDatafiles() {
+    return datafiles;
   }
 
-  public void setPagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  public void setDatafiles(List<DataFile> datafiles) {
+    this.datafiles = datafiles;
+  }
+
+  public MetadataBase status(List<Status> status) {
+    this.status = status;
+    return this;
+  }
+
+  public MetadataBase addStatusItem(Status statusItem) {
+    if (this.status == null) {
+      this.status = new ArrayList<Status>();
+    }
+    this.status.add(statusItem);
+    return this;
+  }
+
+   /**
+   * The status field contains a list of informational status messages from the server.  If no status is reported, an empty list should be returned. See Error Reporting for more information.
+   * @return status
+  **/
+  public List<Status> getStatus() {
+    return status;
+  }
+
+  public void setStatus(List<Status> status) {
+    this.status = status;
   }
 
 
@@ -60,23 +95,24 @@ public class Metadata extends MetadataBase {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Metadata metadata = (Metadata) o;
-    return Objects.equals(this.pagination, metadata.pagination) &&
-        super.equals(o);
+    MetadataBase metadataBase = (MetadataBase) o;
+    return Objects.equals(this.datafiles, metadataBase.datafiles) &&
+        Objects.equals(this.status, metadataBase.status);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(pagination, super.hashCode());
+    return Objects.hash(datafiles, status);
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Metadata {\n");
-    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
-    sb.append("    pagination: ").append(toIndentedString(pagination)).append("\n");
+    sb.append("class MetadataBase {\n");
+    
+    sb.append("    datafiles: ").append(toIndentedString(datafiles)).append("\n");
+    sb.append("    status: ").append(toIndentedString(status)).append("\n");
     sb.append("}");
     return sb.toString();
   }

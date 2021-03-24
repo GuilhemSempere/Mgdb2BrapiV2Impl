@@ -19,36 +19,71 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import org.brapi.v2.model.DataFile;
-import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.MetadataBase;
-import org.brapi.v2.model.Status;
 import java.io.IOException;
-import java.util.List;
 /**
- * Metadata
+ * BasePagination
  */
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-22T15:23:22.792Z[GMT]")
-public class Metadata extends MetadataBase {
-  @SerializedName("pagination")
-  private IndexPagination pagination = null;
+public class BasePagination {
+  @SerializedName("pageSize")
+  private Integer pageSize = 1000;
 
-  public Metadata pagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  @SerializedName("totalCount")
+  private Integer totalCount = null;
+
+  @SerializedName("totalPages")
+  private Integer totalPages = null;
+
+  public BasePagination pageSize(Integer pageSize) {
+    this.pageSize = pageSize;
     return this;
   }
 
    /**
-   * Get pagination
-   * @return pagination
+   * The number of data elements returned, aka the size of the current page. If the requested page does not have enough elements to fill a page at the requested page size, this field should indicate the actual number of elements returned.
+   * @return pageSize
   **/
-  public IndexPagination getPagination() {
-    return pagination;
+  public Integer getPageSize() {
+    return pageSize;
   }
 
-  public void setPagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  public void setPageSize(Integer pageSize) {
+    this.pageSize = pageSize;
+  }
+
+  public BasePagination totalCount(Integer totalCount) {
+    this.totalCount = totalCount;
+    return this;
+  }
+
+   /**
+   * The total number of elements that are available on the server and match the requested query parameters.
+   * @return totalCount
+  **/
+  public Integer getTotalCount() {
+    return totalCount;
+  }
+
+  public void setTotalCount(Integer totalCount) {
+    this.totalCount = totalCount;
+  }
+
+  public BasePagination totalPages(Integer totalPages) {
+    this.totalPages = totalPages;
+    return this;
+  }
+
+   /**
+   * The total number of pages of elements available on the server. This should be calculated with the following formula.   totalPages &#x3D; CEILING( totalCount / requested_page_size)
+   * @return totalPages
+  **/
+  public Integer getTotalPages() {
+    return totalPages;
+  }
+
+  public void setTotalPages(Integer totalPages) {
+    this.totalPages = totalPages;
   }
 
 
@@ -60,23 +95,26 @@ public class Metadata extends MetadataBase {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Metadata metadata = (Metadata) o;
-    return Objects.equals(this.pagination, metadata.pagination) &&
-        super.equals(o);
+    BasePagination basePagination = (BasePagination) o;
+    return Objects.equals(this.pageSize, basePagination.pageSize) &&
+        Objects.equals(this.totalCount, basePagination.totalCount) &&
+        Objects.equals(this.totalPages, basePagination.totalPages);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(pagination, super.hashCode());
+    return Objects.hash(pageSize, totalCount, totalPages);
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Metadata {\n");
-    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
-    sb.append("    pagination: ").append(toIndentedString(pagination)).append("\n");
+    sb.append("class BasePagination {\n");
+    
+    sb.append("    pageSize: ").append(toIndentedString(pageSize)).append("\n");
+    sb.append("    totalCount: ").append(toIndentedString(totalCount)).append("\n");
+    sb.append("    totalPages: ").append(toIndentedString(totalPages)).append("\n");
     sb.append("}");
     return sb.toString();
   }

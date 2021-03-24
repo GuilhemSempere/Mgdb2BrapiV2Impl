@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.brapi.v2.model.Analysis;
 import org.brapi.v2.model.VariantSetAvailableFormats;
+import org.springframework.data.annotation.Id;
 import org.springframework.validation.annotation.Validated;
 import javax.validation.Valid;
 import javax.validation.constraints.*;
@@ -48,6 +49,7 @@ public class VariantSet   {
   @JsonProperty("variantCount")
   private Integer variantCount = null;
 
+  @Id
   @JsonProperty("variantSetDbId")
   private String variantSetDbId = null;
 

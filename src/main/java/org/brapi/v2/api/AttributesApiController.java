@@ -17,7 +17,7 @@ import org.brapi.v2.model.GermplasmAttributeNewRequest;
 import org.brapi.v2.model.GermplasmAttributeSingleResponse;
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Pagination;
+import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.ReferenceListResponse1;
 import org.brapi.v2.model.ReferenceListResponseResult1;
 import org.brapi.v2.model.ReferenceSet;
@@ -124,7 +124,7 @@ public class AttributesApiController implements AttributesApi {
         	}
 
 			Metadata metadata = new Metadata();
-			Pagination pagination = new Pagination();
+			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);
 			pagination.setTotalPages(1);

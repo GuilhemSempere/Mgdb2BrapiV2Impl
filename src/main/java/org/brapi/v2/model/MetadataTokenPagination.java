@@ -20,21 +20,21 @@ import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import org.brapi.v2.model.DataFile;
-import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.MetadataBase;
 import org.brapi.v2.model.Status;
+import org.brapi.v2.model.TokenPagination;
 import java.io.IOException;
 import java.util.List;
 /**
- * Metadata
+ * MetadataTokenPagination
  */
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-22T15:23:22.792Z[GMT]")
-public class Metadata extends MetadataBase {
+public class MetadataTokenPagination extends MetadataBase {
   @SerializedName("pagination")
-  private IndexPagination pagination = null;
+  private TokenPagination pagination = null;
 
-  public Metadata pagination(IndexPagination pagination) {
+  public MetadataTokenPagination pagination(TokenPagination pagination) {
     this.pagination = pagination;
     return this;
   }
@@ -43,11 +43,11 @@ public class Metadata extends MetadataBase {
    * Get pagination
    * @return pagination
   **/
-  public IndexPagination getPagination() {
+  public TokenPagination getPagination() {
     return pagination;
   }
 
-  public void setPagination(IndexPagination pagination) {
+  public void setPagination(TokenPagination pagination) {
     this.pagination = pagination;
   }
 
@@ -60,8 +60,8 @@ public class Metadata extends MetadataBase {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Metadata metadata = (Metadata) o;
-    return Objects.equals(this.pagination, metadata.pagination) &&
+    MetadataTokenPagination metadataTokenPagination = (MetadataTokenPagination) o;
+    return Objects.equals(this.pagination, metadataTokenPagination.pagination) &&
         super.equals(o);
   }
 
@@ -74,7 +74,7 @@ public class Metadata extends MetadataBase {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Metadata {\n");
+    sb.append("class MetadataTokenPagination {\n");
     sb.append("    ").append(toIndentedString(super.toString())).append("\n");
     sb.append("    pagination: ").append(toIndentedString(pagination)).append("\n");
     sb.append("}");

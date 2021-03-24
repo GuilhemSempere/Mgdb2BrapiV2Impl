@@ -2,13 +2,7 @@ package org.brapi.v2.model;
 
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-
-import org.brapi.v2.model.CallsListResponseResult;
-import org.brapi.v2.model.Context;
-import org.brapi.v2.model.Metadata;
 import org.springframework.validation.annotation.Validated;
 import javax.validation.Valid;
 import javax.validation.constraints.*;
@@ -23,7 +17,7 @@ public class CallListResponse   {
   private Context _atContext = null;
 
   @JsonProperty("metadata")
-  private Metadata metadata = null;
+  private MetadataBase metadata = null;
 
   @JsonProperty("result")
   private CallsListResponseResult result = null;
@@ -48,7 +42,7 @@ public class CallListResponse   {
     this._atContext = _atContext;
   }
 
-  public CallListResponse metadata(Metadata metadata) {
+  public CallListResponse metadata(MetadataBase metadata) {
     this.metadata = metadata;
     return this;
   }
@@ -61,11 +55,11 @@ public class CallListResponse   {
       @NotNull
 
     @Valid
-    public Metadata getMetadata() {
+    public MetadataBase getMetadata() {
     return metadata;
   }
 
-  public void setMetadata(Metadata metadata) {
+  public void setMetadata(MetadataBase metadata) {
     this.metadata = metadata;
   }
 

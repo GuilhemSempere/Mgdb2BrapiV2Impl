@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.SocketException;
 import java.net.URLDecoder;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -14,19 +16,24 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
+import java.util.TreeMap;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.validation.Valid;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
+import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallsListResponseResult;
 import org.brapi.v2.model.ListValue;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Pagination;
+import org.brapi.v2.model.MetadataTokenPagination;
+import org.brapi.v2.model.TokenPagination;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetAvailableFormats;
 import org.brapi.v2.model.VariantSetAvailableFormats.DataFormatEnum;
@@ -45,6 +52,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.context.ServletContextAware;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,15 +61,18 @@ import com.mongodb.client.MongoCollection;
 import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.AbstractIndividualOrientedExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.FlapjackExportHandler;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
+import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.AppConfig;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.ProgressIndicator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -85,9 +96,13 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     
     @Autowired private AppConfig appConfig;
     
+    @Autowired MongoBrapiCache cache;
+    
 	private ServletContext servletContext;
 	static final private String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
 	static final private long EXPORT_FILE_EXPIRATION_DELAY_MILLIS = 1000*60*60*24;	/* 1 day */
+
+//	static private HashMap<String, Integer> variantCounts = new HashMap<>();
 	
     private static HashMap<String /*export id*/, FlapjackExportThread /*temporary file generation thread */> exportThreads = new HashMap<>();
 
@@ -154,15 +169,42 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 //
 //		return searchApiController.searchStudiesPost(null, authorization);
 //	}
-
+	
 	@Override
-	public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, Integer page, Integer pageSize, String authorization) throws UnsupportedEncodingException {
+	public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize, String authorization) throws UnsupportedEncodingException, SocketException, UnknownHostException {
 		/* FIXME: check security implementation */	
 		String token = ServerinfoApiController.readToken(authorization);
-		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 2);
+		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
 		if (!tokenManager.canUserReadProject(token, info[0], info[1]))
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 		
+    	final int MAX_SUPPORTED_MATRIX_SIZE = 30000;
+
+        if (pageSize == null || pageSize > MAX_SUPPORTED_MATRIX_SIZE)
+        	pageSize = MAX_SUPPORTED_MATRIX_SIZE;
+        int page = pageToken == null ? 0 : Integer.parseInt(pageToken);
+        
+    	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
+    	int projId = Integer.parseInt(info[1]);
+    	Query runQuery = new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
+    	
+    	
+    	VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+
+    	
+//        long b4 = System.currentTimeMillis();
+//    	List<String> variants = mongoTemplate.findDistinct(runQuery, "_id.vi", VariantRunData.class, String.class);
+//    	System.err.println((System.currentTimeMillis() - b4) + " / " + variants.size()/* + ": " + variants*/);
+    	
+    	
+    	
+//        List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
+    	long nCallSetCount = mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
+        int numberOfMarkersToReturn = (int) Math.ceil(pageSize / nCallSetCount);
+//        int totalMarkerCount = (int) (markerDbIDs != null ? markerDbIDs.size() : Helper.estimDocCount(mongoTemplate,VariantData.class));
+
+//        wantedMarkerIDs = wantedMarkerIDs.subList(page*numberOfMarkersToReturn, Math.min(wantedMarkerIDs.size(), (page+1)*numberOfMarkersToReturn));
+        
     	String unknownGtCode = unknownString == null ? "-" : unknownString;
     	String unPhasedSeparator = sepUnphased == null ? "/" : sepUnphased;
     	String phasedSeparator = sepPhased == null ? "|" : URLDecoder.decode(sepPhased, "UTF-8");
@@ -172,18 +214,29 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     	result.setSepUnphased(unPhasedSeparator);
 		
         try {
-        	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);	/*FIXME: variantSetDbId must become module§run*/
-        	Iterator<VariantRunData> runIt = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1]))/*, Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])*/)), VariantRunData.class).iterator();
+//	        long b4 = System.currentTimeMillis();
+        	List<AbstractVariantData> varList = IExportHandler.getMarkerListWithCorrectCollation(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersToReturn, numberOfMarkersToReturn);
+//        	System.err.println((System.currentTimeMillis() - b4) + " / " + variants.size()/* + ": " + variants*/);
+//        	Iterator<VariantRunData> runIt = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]))), VariantRunData.class).iterator();
         	HashMap<Integer, String> previousPhasingIds = new HashMap<>();
-        	while (runIt.hasNext()) {
-        		VariantRunData vrd = runIt.next();
+        	HashMap<Integer, String> sampleToIndividualMap = new HashMap<>();
+//        	while (runIt.hasNext()) {
+        	for (AbstractVariantData v : varList) {
+//        		VariantRunData vrd = runIt.next();
+        		VariantRunData vrd = (VariantRunData) v;
+//        		System.err.println(vrd.getId().getVariantId());
         		for (Integer spId : vrd.getSampleGenotypes().keySet()) {
+        			String ind = sampleToIndividualMap.get(spId);
+        			if (ind == null) {
+        				ind = mongoTemplate.findDistinct(new Query(Criteria.where("_id").is(spId)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).iterator().next();
+        				sampleToIndividualMap.put(spId, ind);
+        			}
         			SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
 					String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
 					boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
 					previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/
 
-					String gtCode= sg.getCode(), genotype;
+					String gtCode = sg.getCode(), genotype;
 					if (gtCode.length() == 0)
 						genotype = unknownGtCode;
 					else
@@ -200,34 +253,34 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			call.setGenotype(lv);
         			call.setVariantDbId(vrd.getId().getVariantId());
         			call.setVariantName(call.getVariantDbId());
-        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
+        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
         			call.setCallSetName(call.getCallSetDbId());
         			
+        			if ("175d162182c000001800".equals(vrd.getId().getVariantId()))
+        				System.err.println(call);
+        				
                 	result.addDataItem(call);
         		}
         	}
-        	
-        	
-//        	Map<String, Object> v1Attributes = brapiV1Service.germplasmAttributes(request, response, info[0], info[2], pageSize, pageSize);
-//        	Collection<Map<String, String>> dataDoc = (Collection<Map<String, String>>) ((Map<String, Object>) v1Attributes.get("result")).get("data");
-//        	for (Map<String, String> v1DataItem : dataDoc) {
-//	        	Call dataItem = new Call();
-//	        	dataItem.setAttributeDbId(v1DataItem.get("attributeDbId"));
-//	        	dataItem.setDefaultValue(v1DataItem.get("value"));
-//	        	result.addDataItem(dataItem);
-//        	}
-        	
 
-			Metadata metadata = new Metadata();
-			Pagination pagination = new Pagination();
-			pagination.setPageSize(result.getData().size());
-			pagination.setCurrentPage(0);
-			pagination.setTotalPages(1);
-			pagination.setTotalCount(result.getData().size());
+        	int nNextPage = page + 1;
+        	MetadataTokenPagination metadata = new MetadataTokenPagination();
+        	TokenPagination pagination = new TokenPagination();
+			pagination.setPageSize(pageSize);
+			pagination.setTotalCount((int) (variantSet.getVariantCount() * nCallSetCount));
+			pagination.setTotalPages((int) Math.ceil((float) pagination.getTotalCount() / pageSize));
+			pagination.setCurrentPageToken("" + page);
+			if (nNextPage < pagination.getTotalPages())
+				pagination.setNextPageToken("" + nNextPage);
+			if (page > 0)
+				pagination.setPrevPageToken("" + (page - 1));
 			metadata.setPagination(pagination);
 			clr.setMetadata(metadata);
-			
+		
 			clr.setResult(result);
+			
+//        	System.out.println(metadata);
+
             return new ResponseEntity<CallListResponse>(clr, HttpStatus.OK);
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
@@ -295,69 +348,56 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		String token = ServerinfoApiController.readToken(authorization);
     	
         try {
-        	VariantSetResponse rlr = new VariantSetResponse();
-//        	VariantSetResponseResult result = new VariantSetResponseResult();
-        	org.ga4gh.models.VariantSet ga4ghVariantSet = ga4ghService.getVariantSet(variantSetDbId);
-//        	if (page == null)
-//        		page = 0;
-//        	int nAllowedDbIndex = 0;
-//        	for (final org.ga4gh.models.VariantSet ga4ghRefSet : ga4ghRefSets)
-        	VariantSet result = null;
-        		if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), ga4ghVariantSet.getId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0])) {
-        			result = new VariantSet() {{
-            			setVariantSetDbId(ga4ghVariantSet.getId());
-            			setVariantSetName(ga4ghVariantSet.getName());
-            			setReferenceSetDbId(ga4ghVariantSet.getReferenceSetId());
-            			List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
-            			VariantSetAvailableFormats format = new VariantSetAvailableFormats();
-            			format.setDataFormat(DataFormatEnum.FLAPJACK);
-            			format.setFileFormat(FileFormatEnum.TEXT_TSV);
-            			String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
-            			format.setFileURL((sWebAppRoot == null ? BackOfficeController.determinePublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + variantsetsGetExportFile_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
-            			formatList.add(format);
-            			setAvailableFormats(formatList);
-            		}};
-        		}
-
-			Metadata metadata = new Metadata();
-			Pagination pagination = new Pagination();
-			pagination.setPageSize(0);
-			pagination.setCurrentPage(0);
-			pagination.setTotalPages(1);
-			pagination.setTotalCount(1);
-			metadata.setPagination(pagination);
-			rlr.setMetadata(metadata);
+        	VariantSetResponse rlr = new VariantSetResponse();        	
+        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
+			int projId = Integer.parseInt(splitId[1]);
+//        	VariantSet variantSet = null;
+//    		if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), splitId[0])) {
+//    			variantSet = new VariantSet();
+//    			List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
+//        		VariantSetAvailableFormats format = new VariantSetAvailableFormats();
+//            	format.setDataFormat(DataFormatEnum.FLAPJACK);
+//            	format.setFileFormat(FileFormatEnum.TEXT_TSV);
+//            	String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
+//            	format.setFileURL((sWebAppRoot == null ? BackOfficeController.determinePublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
+//            	formatList.add(format);
+//    			variantSet.setAvailableFormats(formatList);
+////	            Analysis analysisItem = new Analysis();
+////		        analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
+////		        analysisItem.setType("TODO: check how to deal with this field");
+////	            addAnalysisItem(analysisItem);
+//    			
+//    			
+//    			variantSet.setReferenceSetDbId(splitId[0]);
+//    			variantSet.setStudyDbId(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + projId);
+//    			variantSet.setVariantSetDbId(variantSetDbId);
+//    			variantSet.setVariantSetName(splitId[2]);
+////        	        result.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
+//    			variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class));
+////        	        result.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount() /* this counts all variants in the database */);
+////    	        long b4 = System.currentTimeMillis();
+//    			variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(splitId[2]))), VariantRunData.class));
+////    	        System.err.println(System.currentTimeMillis() - b4);
+//    		}
 			
-			rlr.setResult(result);
+			VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+
+//			Metadata metadata = new Metadata();
+//			Pagination pagination = new Pagination();
+//			pagination.setPageSize(0);
+//			pagination.setCurrentPage(0);
+//			pagination.setTotalPages(1);
+//			pagination.setTotalCount(1);
+//			metadata.setPagination(pagination);
+//			rlr.setMetadata(metadata);
+			
+			rlr.setResult(variantSet);
             return new ResponseEntity<VariantSetResponse>(rlr, HttpStatus.OK);
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<VariantSetResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
-	}
-	
-	/**
-	 * Cleanup old export data.
-	 *
-	 * @param request the request
-	 * @throws Exception
-	 */
-	private void cleanupOldExportData(HttpServletRequest request) throws Exception
-	{
-		if (request.getSession() == null)
-			throw new Exception("Invalid request object");
-
-		long nowMillis = new Date().getTime();
-		File filterOutputLocation = new File(servletContext.getRealPath(File.separator + TMP_OUTPUT_FOLDER));
-		if (filterOutputLocation.exists() && filterOutputLocation.isDirectory())
-			for (File f : filterOutputLocation.listFiles())
-				if (!f.isDirectory() && nowMillis - f.lastModified() > EXPORT_FILE_EXPIRATION_DELAY_MILLIS)
-				{
-					if (!f.delete())
-						log.warn("Unable to delete " + f.getPath());
-					else
-						log.info("BrAPI export file was deleted: " + f.getPath());
-				}
 	}
 
 	@Override
@@ -365,7 +405,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		
 		/* FIXME: check security implementation */	
 		String token = ServerinfoApiController.readToken(authorization);
-		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 2);
+		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
 		if (!tokenManager.canUserReadProject(token, info[0], info[1])){
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			response.getWriter().write("You are not allowed to access this content");
@@ -391,17 +431,38 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	FlapjackExportThread tempFileGenerationThread = exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
+            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
+        		
         		if (exportFile.exists()) {	// seems complete
-        			FileInputStream is = new FileInputStream(exportFile);
-        			IOUtils.copy(is, response.getOutputStream());
-        			is.close();
+        			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
+        			for (GenotypingSample sp : runSamples)
+        				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+
+        			Scanner scanner = new Scanner(exportFile);
+        			int i = 0;
+        			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
+        				String sLine  = scanner.nextLine();
+        				if (++i <= 2)
+        					response.getWriter().write(sLine + "\n");	// header or marker line
+        				else {
+        					int nFirstTabPos = sLine.indexOf("\t");
+        					String ind = sLine.substring(0, nFirstTabPos);
+        					response.getWriter().write(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nFirstTabPos) + "\n");
+        				}
+        			}
+        			scanner.close();
+//        			FileInputStream is = new FileInputStream(exportFile);
+//        			IOUtils.copy(is, response.getOutputStream());
+//        			is.close();
+        			response.getWriter().close();
         			return;
         		}
 
         		// start it
             	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
-            	ProgressIndicator.registerProgressIndicator(progress);            	
-        		tempFileGenerationThread = new FlapjackExportThread(fjExportHandler, exportFile, splitId[0], varColl, exportId, MgdbDao.getSamplesForProject(splitId[0], projId, MgdbDao.getProjectIndividuals(splitId[0], projId)), progress);
+            	ProgressIndicator.registerProgressIndicator(progress);
+            	
+        		tempFileGenerationThread = new FlapjackExportThread(fjExportHandler, exportFile, splitId[0], varColl, exportId, runSamples, progress);
         		exportThreads.put(exportId, tempFileGenerationThread);
         		tempFileGenerationThread.start();
         	}
@@ -472,6 +533,30 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		Exception getException() {
 			return exception;
 		}
+	}
+	
+	/**
+	 * Cleanup old export data.
+	 *
+	 * @param request the request
+	 * @throws Exception
+	 */
+	private void cleanupOldExportData(HttpServletRequest request) throws Exception
+	{
+		if (request.getSession() == null)
+			throw new Exception("Invalid request object");
+
+		long nowMillis = new Date().getTime();
+		File filterOutputLocation = new File(servletContext.getRealPath(File.separator + TMP_OUTPUT_FOLDER));
+		if (filterOutputLocation.exists() && filterOutputLocation.isDirectory())
+			for (File f : filterOutputLocation.listFiles())
+				if (!f.isDirectory() && nowMillis - f.lastModified() > EXPORT_FILE_EXPIRATION_DELAY_MILLIS)
+				{
+					if (!f.delete())
+						log.warn("Unable to delete " + f.getPath());
+					else
+						log.info("BrAPI export file was deleted: " + f.getPath());
+				}
 	}
 
 	@Override

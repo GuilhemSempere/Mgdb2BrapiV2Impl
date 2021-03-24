@@ -8,7 +8,7 @@ import io.swagger.annotations.*;
 
 import org.apache.avro.AvroRemoteException;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Pagination;
+import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.ReferenceListResponse1;
 import org.brapi.v2.model.ReferenceListResponseResult1;
 import org.brapi.v2.model.ReferenceSet;
@@ -81,7 +81,7 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         		}
 
 			Metadata metadata = new Metadata();
-			Pagination pagination = new Pagination();
+			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);
 			pagination.setTotalPages(1);

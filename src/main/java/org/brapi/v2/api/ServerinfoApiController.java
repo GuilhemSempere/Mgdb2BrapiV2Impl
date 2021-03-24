@@ -7,7 +7,7 @@ import io.swagger.annotations.*;
 
 import org.brapi.v2.model.CallsResponse;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Pagination;
+import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.ServerInfo;
 import org.brapi.v2.model.Service;
 import org.brapi.v2.model.WSMIMEDataTypes;
@@ -67,7 +67,7 @@ public class ServerinfoApiController implements ServerinfoApi {
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.POST); setService(SearchApi.searchGermplasmPost_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.POST); setService(AttributesApi.attributesGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
 		Metadata metadata = new Metadata();
-		Pagination pagination = new Pagination();
+		IndexPagination pagination = new IndexPagination();
 		pagination.setPageSize(0);
 		pagination.setCurrentPage(0);
 		pagination.setTotalPages(1);

@@ -19,36 +19,72 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import org.brapi.v2.model.DataFile;
-import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.MetadataBase;
-import org.brapi.v2.model.Status;
+import org.brapi.v2.model.BasePagination;
 import java.io.IOException;
-import java.util.List;
 /**
- * Metadata
+ * TokenPagination
  */
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-22T15:23:22.792Z[GMT]")
-public class Metadata extends MetadataBase {
-  @SerializedName("pagination")
-  private IndexPagination pagination = null;
+public class TokenPagination extends BasePagination {
+  @SerializedName("currentPageToken")
+  private String currentPageToken = null;
 
-  public Metadata pagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  @SerializedName("nextPageToken")
+  private String nextPageToken = null;
+
+  @SerializedName("prevPageToken")
+  private String prevPageToken = null;
+
+  public TokenPagination currentPageToken(String currentPageToken) {
+    this.currentPageToken = currentPageToken;
     return this;
   }
 
    /**
-   * Get pagination
-   * @return pagination
+   * The string token used to query the current page of data.
+   * @return currentPageToken
   **/
-  public IndexPagination getPagination() {
-    return pagination;
+  public String getCurrentPageToken() {
+    return currentPageToken;
   }
 
-  public void setPagination(IndexPagination pagination) {
-    this.pagination = pagination;
+  public void setCurrentPageToken(String currentPageToken) {
+    this.currentPageToken = currentPageToken;
+  }
+
+  public TokenPagination nextPageToken(String nextPageToken) {
+    this.nextPageToken = nextPageToken;
+    return this;
+  }
+
+   /**
+   * The string token used to query the next page of data.
+   * @return nextPageToken
+  **/
+  public String getNextPageToken() {
+    return nextPageToken;
+  }
+
+  public void setNextPageToken(String nextPageToken) {
+    this.nextPageToken = nextPageToken;
+  }
+
+  public TokenPagination prevPageToken(String prevPageToken) {
+    this.prevPageToken = prevPageToken;
+    return this;
+  }
+
+   /**
+   * The string token used to query the previous page of data.
+   * @return prevPageToken
+  **/
+  public String getPrevPageToken() {
+    return prevPageToken;
+  }
+
+  public void setPrevPageToken(String prevPageToken) {
+    this.prevPageToken = prevPageToken;
   }
 
 
@@ -60,23 +96,27 @@ public class Metadata extends MetadataBase {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Metadata metadata = (Metadata) o;
-    return Objects.equals(this.pagination, metadata.pagination) &&
+    TokenPagination tokenPagination = (TokenPagination) o;
+    return Objects.equals(this.currentPageToken, tokenPagination.currentPageToken) &&
+        Objects.equals(this.nextPageToken, tokenPagination.nextPageToken) &&
+        Objects.equals(this.prevPageToken, tokenPagination.prevPageToken) &&
         super.equals(o);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(pagination, super.hashCode());
+    return Objects.hash(currentPageToken, nextPageToken, prevPageToken, super.hashCode());
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Metadata {\n");
+    sb.append("class TokenPagination {\n");
     sb.append("    ").append(toIndentedString(super.toString())).append("\n");
-    sb.append("    pagination: ").append(toIndentedString(pagination)).append("\n");
+    sb.append("    currentPageToken: ").append(toIndentedString(currentPageToken)).append("\n");
+    sb.append("    nextPageToken: ").append(toIndentedString(nextPageToken)).append("\n");
+    sb.append("    prevPageToken: ").append(toIndentedString(prevPageToken)).append("\n");
     sb.append("}");
     return sb.toString();
   }
