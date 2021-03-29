@@ -3,32 +3,28 @@ package org.brapi.v2.model;
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
-
-import org.brapi.v2.model.Context;
-import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.VariantListResponseResult;
 import org.springframework.validation.annotation.Validated;
 import javax.validation.Valid;
 import javax.validation.constraints.*;
 
 /**
- * VariantListResponse
+ * VariantSingleResponse
  */
 @Validated
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-public class VariantListResponse   {
+@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
+
+
+public class VariantSingleResponse   {
   @JsonProperty("@context")
   private Context _atContext = null;
 
   @JsonProperty("metadata")
-  private MetadataTokenPagination metadata = null;
+  private Metadata metadata = null;
 
   @JsonProperty("result")
-  private VariantListResponseResult result = null;
+  private Variant result = null;
 
-  public VariantListResponse _atContext(Context _atContext) {
+  public VariantSingleResponse _atContext(Context _atContext) {
     this._atContext = _atContext;
     return this;
   }
@@ -36,8 +32,7 @@ public class VariantListResponse   {
   /**
    * Get _atContext
    * @return _atContext
-  **/
-  @ApiModelProperty(value = "")
+   **/
   
     @Valid
     public Context getAtContext() {
@@ -48,7 +43,7 @@ public class VariantListResponse   {
     this._atContext = _atContext;
   }
 
-  public VariantListResponse metadata(MetadataTokenPagination metadata) {
+  public VariantSingleResponse metadata(Metadata metadata) {
     this.metadata = metadata;
     return this;
   }
@@ -56,20 +51,18 @@ public class VariantListResponse   {
   /**
    * Get metadata
    * @return metadata
-  **/
-  @ApiModelProperty(required = true, value = "")
-      @NotNull
-
+   **/
+    @NotNull
     @Valid
-    public MetadataTokenPagination getMetadata() {
+    public Metadata getMetadata() {
     return metadata;
   }
 
-  public void setMetadata(MetadataTokenPagination metadata) {
+  public void setMetadata(Metadata metadata) {
     this.metadata = metadata;
   }
 
-  public VariantListResponse result(VariantListResponseResult result) {
+  public VariantSingleResponse result(Variant result) {
     this.result = result;
     return this;
   }
@@ -77,16 +70,14 @@ public class VariantListResponse   {
   /**
    * Get result
    * @return result
-  **/
-  @ApiModelProperty(required = true, value = "")
-      @NotNull
-
+   **/
+    @NotNull
     @Valid
-    public VariantListResponseResult getResult() {
+    public Variant getResult() {
     return result;
   }
 
-  public void setResult(VariantListResponseResult result) {
+  public void setResult(Variant result) {
     this.result = result;
   }
 
@@ -99,10 +90,10 @@ public class VariantListResponse   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    VariantListResponse variantListResponse = (VariantListResponse) o;
-    return Objects.equals(this._atContext, variantListResponse._atContext) &&
-        Objects.equals(this.metadata, variantListResponse.metadata) &&
-        Objects.equals(this.result, variantListResponse.result);
+    VariantSingleResponse variantSingleResponse = (VariantSingleResponse) o;
+    return Objects.equals(this._atContext, variantSingleResponse._atContext) &&
+        Objects.equals(this.metadata, variantSingleResponse.metadata) &&
+        Objects.equals(this.result, variantSingleResponse.result);
   }
 
   @Override
@@ -113,7 +104,7 @@ public class VariantListResponse   {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class VariantListResponse {\n");
+    sb.append("class VariantSingleResponse {\n");
     
     sb.append("    _atContext: ").append(toIndentedString(_atContext)).append("\n");
     sb.append("    metadata: ").append(toIndentedString(metadata)).append("\n");

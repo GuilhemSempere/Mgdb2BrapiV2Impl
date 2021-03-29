@@ -96,12 +96,13 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     
     @Autowired private AppConfig appConfig;
     
-    @Autowired MongoBrapiCache cache;
+    @Autowired private MongoBrapiCache cache;
     
 	private ServletContext servletContext;
 	static final private String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
 	static final private long EXPORT_FILE_EXPIRATION_DELAY_MILLIS = 1000*60*60*24;	/* 1 day */
-
+	final int MAX_SUPPORTED_MATRIX_SIZE = 30000;
+	
 //	static private HashMap<String, Integer> variantCounts = new HashMap<>();
 	
     private static HashMap<String /*export id*/, FlapjackExportThread /*temporary file generation thread */> exportThreads = new HashMap<>();
@@ -177,8 +178,6 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
 		if (!tokenManager.canUserReadProject(token, info[0], info[1]))
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-		
-    	final int MAX_SUPPORTED_MATRIX_SIZE = 30000;
 
         if (pageSize == null || pageSize > MAX_SUPPORTED_MATRIX_SIZE)
         	pageSize = MAX_SUPPORTED_MATRIX_SIZE;
@@ -187,23 +186,11 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
     	int projId = Integer.parseInt(info[1]);
     	Query runQuery = new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
-    	
-    	
+
     	VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
 
-    	
-//        long b4 = System.currentTimeMillis();
-//    	List<String> variants = mongoTemplate.findDistinct(runQuery, "_id.vi", VariantRunData.class, String.class);
-//    	System.err.println((System.currentTimeMillis() - b4) + " / " + variants.size()/* + ": " + variants*/);
-    	
-    	
-    	
-//        List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
     	long nCallSetCount = mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
         int numberOfMarkersToReturn = (int) Math.ceil(pageSize / nCallSetCount);
-//        int totalMarkerCount = (int) (markerDbIDs != null ? markerDbIDs.size() : Helper.estimDocCount(mongoTemplate,VariantData.class));
-
-//        wantedMarkerIDs = wantedMarkerIDs.subList(page*numberOfMarkersToReturn, Math.min(wantedMarkerIDs.size(), (page+1)*numberOfMarkersToReturn));
         
     	String unknownGtCode = unknownString == null ? "-" : unknownString;
     	String unPhasedSeparator = sepUnphased == null ? "/" : sepUnphased;
@@ -217,14 +204,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 //	        long b4 = System.currentTimeMillis();
         	List<AbstractVariantData> varList = IExportHandler.getMarkerListWithCorrectCollation(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersToReturn, numberOfMarkersToReturn);
 //        	System.err.println((System.currentTimeMillis() - b4) + " / " + variants.size()/* + ": " + variants*/);
-//        	Iterator<VariantRunData> runIt = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]))), VariantRunData.class).iterator();
         	HashMap<Integer, String> previousPhasingIds = new HashMap<>();
         	HashMap<Integer, String> sampleToIndividualMap = new HashMap<>();
-//        	while (runIt.hasNext()) {
         	for (AbstractVariantData v : varList) {
-//        		VariantRunData vrd = runIt.next();
         		VariantRunData vrd = (VariantRunData) v;
-//        		System.err.println(vrd.getId().getVariantId());
         		for (Integer spId : vrd.getSampleGenotypes().keySet()) {
         			String ind = sampleToIndividualMap.get(spId);
         			if (ind == null) {
@@ -251,14 +234,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			ListValue lv = new ListValue();
         			lv.addValuesItem(genotype);
         			call.setGenotype(lv);
-        			call.setVariantDbId(vrd.getId().getVariantId());
+        			call.setVariantDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
         			call.setVariantName(call.getVariantDbId());
         			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
         			call.setCallSetName(call.getCallSetDbId());
-        			
-        			if ("175d162182c000001800".equals(vrd.getId().getVariantId()))
-        				System.err.println(call);
-        				
                 	result.addDataItem(call);
         		}
         	}
@@ -278,10 +257,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			clr.setMetadata(metadata);
 		
 			clr.setResult(result);
-			
-//        	System.out.println(metadata);
-
-            return new ResponseEntity<CallListResponse>(clr, HttpStatus.OK);
+			return new ResponseEntity<CallListResponse>(clr, HttpStatus.OK);
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<CallListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);

@@ -40,7 +40,7 @@ public class Variant   {
   private String created = null;
 
   @JsonProperty("end")
-  private String end = null;
+  private Integer end = null;
 
   @JsonProperty("filtersApplied")
   private Boolean filtersApplied = null;
@@ -59,10 +59,10 @@ public class Variant   {
   private String referenceName = null;
 
   @JsonProperty("start")
-  private String start = null;
+  private Integer start = null;
 
   @JsonProperty("svlen")
-  private String svlen = null;
+  private Integer svlen = null;
 
   @JsonProperty("updated")
   private String updated = null;
@@ -208,7 +208,7 @@ public class Variant   {
     this.created = created;
   }
 
-  public Variant end(String end) {
+  public Variant end(Integer end) {
     this.end = end;
     return this;
   }
@@ -219,11 +219,11 @@ public class Variant   {
   **/
   @ApiModelProperty(example = "518", value = "The end position (exclusive), resulting in [start, end) closed-open interval. This is typically calculated by `start + referenceBases.length`.")
   
-    public String getEnd() {
+    public Integer getEnd() {
     return end;
   }
 
-  public void setEnd(String end) {
+  public void setEnd(Integer end) {
     this.end = end;
   }
 
@@ -330,7 +330,7 @@ public class Variant   {
     this.referenceName = referenceName;
   }
 
-  public Variant start(String start) {
+  public Variant start(Integer start) {
     this.start = start;
     return this;
   }
@@ -341,15 +341,15 @@ public class Variant   {
   **/
   @ApiModelProperty(example = "500", value = "The start position at which this variant occurs (0-based). This corresponds to the first base of the string of reference bases. Genomic positions are non-negative integers less than reference length. Variants spanning the join of circular genomes are represented as two variants one on each side of the join (position 0).")
   
-    public String getStart() {
+    public Integer getStart() {
     return start;
   }
 
-  public void setStart(String start) {
+  public void setStart(Integer start) {
     this.start = start;
   }
 
-  public Variant svlen(String svlen) {
+  public Variant svlen(Integer svlen) {
     this.svlen = svlen;
     return this;
   }
@@ -360,11 +360,11 @@ public class Variant   {
   **/
   @ApiModelProperty(example = "1500", value = "Length of the - if labeled as such in variant_type - structural variation. Based on the use in VCFv4.2")
   
-    public String getSvlen() {
+    public Integer getSvlen() {
     return svlen;
   }
 
-  public void setSvlen(String svlen) {
+  public void setSvlen(Integer svlen) {
     this.svlen = svlen;
   }
 

@@ -50,11 +50,14 @@ import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -65,10 +68,13 @@ import org.threeten.bp.format.DateTimeParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.controller.GigwaMethods;
+import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
+import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl.SearchCallSetsResponseWrapper;
@@ -122,10 +128,12 @@ public class SearchApiController implements SearchApi {
 //        }
 //    }
 
-    public ResponseEntity<CallSetsListResponse> searchCallsetsPost(@ApiParam(value = "CellSet Search request")  @Valid @RequestBody CallSetsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-
-    	/*FIXME: test me!!*/
+    public ResponseEntity<CallSetsListResponse> searchCallsetsPost(	@ApiParam(value = "CallSet Search request")  @Valid @RequestBody CallSetsSearchRequest body,
+    																@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
+    	Authentication auth = tokenManager.getAuthenticationFromToken(token);
+    	String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+    	
         try {
     		Status status = new Status();
     		HttpStatus httpCode = null;
@@ -142,41 +150,69 @@ public class SearchApiController implements SearchApi {
 				metadata.addStatusItem(status);
 				httpCode = HttpStatus.BAD_REQUEST;
 			}
-			else if (body.getVariantSetDbIds().size() != 1){
-				status.setMessage("You may only ask for callset records from a single variantSet at a time!");
-				metadata.addStatusItem(status);
-				httpCode = HttpStatus.BAD_REQUEST;
-			}
 			else {
-	        	int nTotalCallSetsEncountered = 0;
-	    		String variantSetDbId = body.getVariantSetDbIds().get(0);
-	        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
-	        	SearchCallSetsResponseWrapper v1responseWrapper = (SearchCallSetsResponseWrapper) ga4ghService.searchCallSets(new SearchCallSetsRequest(variantSetDbId, null, body.getPageSize(), integerToString(body.getPage())));
-	        	SearchCallSetsResponse v1response = v1responseWrapper.getResponse();
-	        	List<org.ga4gh.models.CallSet> ga4ghCallSets = v1response.getCallSets();
-	        	nTotalCallSetsEncountered += ga4ghCallSets.size();
-	    		for (final org.ga4gh.models.CallSet ga4ghCallSet : ga4ghCallSets)
-	    			if (tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
+				int nTotalCallSetsEncountered = 0;
+				for (String variantSetDbId : body.getVariantSetDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+		        	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
+		        	int projId = Integer.parseInt(info[1]);
+	    			if (tokenManager.canUserReadProject(token, info[0], projId)) {
 	    				fAllowedToReadAnything = true;
-		            	result.addDataItem(new CallSet() {{
-		            			setCallSetDbId(ga4ghCallSet.getId());
-		            			setCallSetName(ga4ghCallSet.getName());
-		            			setVariantSetIds(ga4ghCallSet.getVariantSetIds());    			
-			            		for (String infoKey : ga4ghCallSet.getInfo().keySet())
-			            			putAdditionalInfoItem(infoKey, ga4ghCallSet.getInfo().get(infoKey));
-			            		setSampleDbId(ga4ghCallSet.getSampleId());
-		            		}} );
-	            	}
-	        	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
-	        		httpCode = HttpStatus.FORBIDDEN;
-	        	else {
-	    			IndexPagination pagination = new IndexPagination();
-	    			pagination.setPageSize(result.getData().size());
-	    			pagination.setCurrentPage(body.getPage());
-	    			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) v1responseWrapper.getTotalCount() / body.getPageSize()));
-	    			pagination.setTotalCount(v1responseWrapper.getTotalCount());
-	    			metadata.setPagination(pagination);
-	        	}
+	    				
+	    				// build the list of individuals, to be able to provide additional info
+	    				Query q = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])));
+	    				q.fields().include(GenotypingSample.FIELDNAME_INDIVIDUAL);
+	    				
+	    				Map<String, Integer> indIdToSampleIdMap = new HashMap<>();
+	    				List<GenotypingSample> samples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
+	    				for (GenotypingSample sample : samples)
+	    					indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
+
+	    				q = new Query(Criteria.where("_id").in(indIdToSampleIdMap.keySet()));
+	    				q.with(Sort.by(Sort.Direction.ASC, "_id"));
+//	    				long totalCount = mongoTemplate.count(q, Individual.class);
+	    				List<Individual> listInd = mongoTemplate.find(q, Individual.class);
+	    				q = new Query(Criteria.where("_id." + CustomIndividualMetadataId.FIELDNAME_USER).is(sCurrentUser));
+	    				List<CustomIndividualMetadata> cimdList = mongoTemplate.find(q, CustomIndividualMetadata.class);
+	    				if(!cimdList.isEmpty()) {
+	    					HashMap<String /* indivID */, HashMap<String, Comparable> /* additional info */> indMetadataByIdMap = new HashMap<>();
+	    					for (CustomIndividualMetadata cimd : cimdList)
+	    						indMetadataByIdMap.put(cimd.getId().getIndividualId(), cimd.getAdditionalInfo());
+	    					
+	    					for( int i=0 ; i<listInd.size(); i++) {
+	    						String indId = listInd.get(i).getId();
+	    						HashMap<String, Comparable>  ai = indMetadataByIdMap.get(indId);
+	    		                if(ai != null && !ai.isEmpty())
+	    		                	listInd.get(i).getAdditionalInfo().putAll(ai);
+	    					}
+	    				}
+	    				
+						for (int i=0; i<samples.size(); i++) {
+							GenotypingSample sample = samples.get(i);
+							nTotalCallSetsEncountered++;
+			            	CallSet callset = new CallSet();
+			            	callset.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getIndividual() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getId());
+			            	callset.setCallSetName(callset.getCallSetDbId());
+			            	callset.setSampleDbId(callset.getCallSetDbId());
+			            	callset.setVariantSetIds(Arrays.asList(variantSetDbId));
+	            			final Individual ind = listInd.get(i);
+	            			if (!ind.getAdditionalInfo().isEmpty())
+	            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
+		            		result.addDataItem(callset);
+						}
+	    			}
+
+		        	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
+		        		httpCode = HttpStatus.FORBIDDEN;
+		        	else {
+		    			IndexPagination pagination = new IndexPagination();
+		    			pagination.setPageSize(result.getData().size());
+		    			pagination.setCurrentPage(body.getPage());
+		    			pagination.setTotalPages(1);
+		    			pagination.setTotalCount(result.getData().size());
+		    			metadata.setPagination(pagination);
+		        	}
+				}
 			}
 
 			cslr.setResult(result);
@@ -609,13 +645,13 @@ public class SearchApiController implements SearchApi {
 			glr.setMetadata(metadata);
 
 			String refSetDbId = null;
-			Integer variantSetId = null;
+			Integer projId = null;
 			Collection<String> germplasmIds = new HashSet<>();
 			if (body.getGermplasmDbIds() == null || body.getGermplasmDbIds().isEmpty()) {
 				Status status = new Status();
 				status.setMessage("Some germplasmDbIds must be specified as parameter!");
 				metadata.addStatusItem(status);
-				return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
+				return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
 			}
 
 			for (String gpId : body.getGermplasmDbIds()) {
@@ -625,15 +661,15 @@ public class SearchApiController implements SearchApi {
 				else if (!refSetDbId.equals(info[0]))
 //					return new ResponseEntity<GermplasmListResponse>(objectMapper.readValue("{\"error\":\"You may only ask for germplasm records from one referenceSet at a time!\"}", HashMap.class), HttpStatus.BAD_REQUEST);
 					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
-				if (variantSetId == null)
-					variantSetId = Integer.parseInt(info[1]);
-				else if (!variantSetId.equals(Integer.parseInt(info[1])))
-					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
+				if (projId == null)
+					projId = Integer.parseInt(info[1]);
+				else if (!projId.equals(Integer.parseInt(info[1])))
+					throw new Exception("You may only ask for germplasm records from one study at a time!");
 				germplasmIds.add(info[2]);
 			}
 			
-   			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
-   				return new ResponseEntity<GermplasmListResponse>(HttpStatus.FORBIDDEN);
+   			if (!tokenManager.canUserReadProject(token, refSetDbId, projId))
+   				return new ResponseEntity<>(HttpStatus.FORBIDDEN);
    			
 //   			Map<String, Object> intermediateV1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, refSetDbId, gsr);
 //			Map<String, Object> intermediateV1Result = (Map<String, Object>) intermediateV1response.get("result");
@@ -659,10 +695,10 @@ public class SearchApiController implements SearchApi {
 					else {
 						switch (sLCkey) {
 							case "germplasmdbid":
-								germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, val.toString()));
+								germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, projId, val.toString()));
 								break;
 							case "germplasmname":
-								germplasm.setGermplasmName(ga4ghService.createId(refSetDbId, variantSetId, val.toString()));
+								germplasm.setGermplasmName(ga4ghService.createId(refSetDbId, projId, val.toString()));
 								break;
 							case "defaultdisplayname":
 								germplasm.setDefaultDisplayName(val.toString());
@@ -734,10 +770,10 @@ public class SearchApiController implements SearchApi {
 			pagination.setTotalCount((int) v1Metadata.getPagination().getTotalCount());
 			metadata.setPagination(pagination);			
 			
-			return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.OK);
+			return new ResponseEntity<>(glr, HttpStatus.OK);
 		} catch (Exception e) {
 			log.error("Couldn't serialize response for content type application/json", e);
-			return new ResponseEntity<GermplasmListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+			return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
