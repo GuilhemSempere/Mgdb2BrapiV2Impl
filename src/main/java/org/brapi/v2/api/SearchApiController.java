@@ -1,5 +1,9 @@
 package org.brapi.v2.api;
 
+import java.io.UnsupportedEncodingException;
+import java.net.SocketException;
+import java.net.URLDecoder;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -14,12 +18,17 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
+import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.Analysis;
+import org.brapi.v2.model.Call;
+import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallSet;
 import org.brapi.v2.model.CallSetsListResponse;
 import org.brapi.v2.model.CallSetsListResponseResult;
 import org.brapi.v2.model.CallSetsSearchRequest;
+import org.brapi.v2.model.CallsListResponseResult;
+import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmListResponseResult;
@@ -27,7 +36,9 @@ import org.brapi.v2.model.GermplasmMCPD;
 import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.MetadataTokenPagination;
 import org.brapi.v2.model.IndexPagination;
+import org.brapi.v2.model.ListValue;
 import org.brapi.v2.model.Sample;
 import org.brapi.v2.model.SampleListResponse;
 import org.brapi.v2.model.SampleListResponseResult;
@@ -38,6 +49,8 @@ import org.brapi.v2.model.Study;
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyListResponseResult;
 import org.brapi.v2.model.StudySearchRequest;
+import org.brapi.v2.model.SuccessfulSearchResponse;
+import org.brapi.v2.model.TokenPagination;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetListResponseResult;
@@ -68,6 +81,7 @@ import org.threeten.bp.format.DateTimeParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.controller.GigwaMethods;
+import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
@@ -76,6 +90,8 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
+import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl.SearchCallSetsResponseWrapper;
 import fr.cirad.model.GigwaSearchVariantsRequest;
@@ -110,14 +126,139 @@ public class SearchApiController implements SearchApi {
         this.request = request;
     }
 
-//    public ResponseEntity<SuccessfulSearchResponse> searchCallsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody CallsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        try {
-//            return new ResponseEntity<SuccessfulSearchResponse>(objectMapper.readValue("{\n  \"result\" : {\n    \"searchResultsDbId\" : \"551ae08c\"\n  },\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", SuccessfulSearchResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//        } catch (IOException e) {
-//            log.error("Couldn't serialize response for content type application/json", e);
-//            return new ResponseEntity<SuccessfulSearchResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-//    }
+	@Override
+	public ResponseEntity<CallListResponse> searchCallsPost(CallsSearchRequest body, String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException {
+		String token = ServerinfoApiController.readToken(authorization);
+		String sRun = null;
+		Integer projId = null, nVariantCount = null;
+		Query runQuery;
+		
+    	CallListResponse clr = new CallListResponse();
+    	CallsListResponseResult result = new CallsListResponseResult();
+    	MetadataTokenPagination metadata = new MetadataTokenPagination();
+		clr.setMetadata(metadata);
+
+		List<Criteria> crits = new ArrayList<Criteria>();
+		String variantSetDbId = body.getVariantSetDbIds() == null || body.getVariantSetDbIds().size() != 1 ? null : body.getVariantSetDbIds().get(0);
+
+		// we expect at least one of variantSetDbIds and variantDbIds to contain a single element
+		if (variantSetDbId == null && (body.getVariantDbIds() == null || body.getVariantDbIds().isEmpty())) {
+			Status status = new Status();
+			status.setMessage("You must specify either a list of Variants or exactly one VariantSet!");
+			metadata.addStatusItem(status);
+			return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
+		}
+
+		String[] info = variantSetDbId != null ? variantSetDbId.split(GigwaMethods.ID_SEPARATOR) : body.getVariantDbIds().get(0).split(GigwaMethods.ID_SEPARATOR);
+    	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
+		if (info.length == 3) {
+	    	projId = Integer.parseInt(info[1]);
+	    	sRun = info[2];
+		}
+
+    	// if projId is null then we don't know which run(s) we're going to deal with
+    	List<Integer> projectIDs = projId != null ? Arrays.asList(projId) : mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
+
+		for (int pj : projectIDs)
+			if (!tokenManager.canUserReadProject(token, info[0], pj))
+				return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+
+		if (projectIDs.size() > 1)
+			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).in(projectIDs));
+		if (sRun != null)
+			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(sRun));
+
+		if (body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty()) {	// we might not want the whole VariantSet
+			List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
+			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
+			nVariantCount = (int) mongoTemplate.count(new Query(Criteria.where("_id").in(varIDs)), VariantData.class);
+		}
+
+		runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+		if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
+			runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELE_LIST);
+			for (String callSetDbId : body.getCallSetDbIds())
+				runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + callSetDbId.substring(1 + callSetDbId.lastIndexOf(GigwaMethods.ID_SEPARATOR)));
+		}
+
+		int pageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
+        int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
+        
+    	Query sampleQuery;
+		if (sRun == null)
+			sampleQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectIDs));
+		else
+			sampleQuery = new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(sRun)));
+
+		List<GenotypingSample> samples = mongoTemplate.find(sampleQuery, GenotypingSample.class);
+
+        int numberOfMarkersToReturn = (int) Math.ceil(1f * pageSize / samples.size());
+        
+    	String unknownGtCode = body.getUnknownString() == null ? "-" : body.getUnknownString();
+    	String phasedSeparator = body.getSepPhased() == null ? "|" : URLDecoder.decode(body.getSepPhased(), "UTF-8");
+    	String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();
+    	result.setSepUnphased(unPhasedSeparator);
+
+        try {
+        	List<AbstractVariantData> varList = IExportHandler.getMarkerListWithCorrectCollation(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersToReturn, numberOfMarkersToReturn);	/* warning: seq+position are not indexed in VariantRunData */
+        	HashMap<Integer, String> previousPhasingIds = new HashMap<>();
+
+        	HashMap<Integer, String> sampleIndividuals = new HashMap<>();	// we are going to need the individual each sample is related to, in order to build callSetDbIds
+        	for (GenotypingSample gs : samples)
+        		sampleIndividuals.put(gs.getId(), gs.getIndividual());
+
+        	for (AbstractVariantData v : varList) {
+        		VariantRunData vrd = (VariantRunData) v;
+        		for (Integer spId : vrd.getSampleGenotypes().keySet()) {
+        			SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
+					String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
+					boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
+					previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/
+
+					String gtCode = sg.getCode(), genotype;
+					if (gtCode == null || gtCode.length() == 0)
+						genotype = unknownGtCode;
+					else
+					{
+						List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
+						if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
+							genotype = alleles.get(0);
+						else
+							genotype = StringUtils.join(alleles, fPhased ? phasedSeparator : unPhasedSeparator);
+					}
+        			Call call = new Call();
+        			ListValue lv = new ListValue();
+        			lv.addValuesItem(genotype);
+        			call.setGenotype(lv);
+        			call.setVariantDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
+        			call.setVariantName(call.getVariantDbId());
+        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + sampleIndividuals.get(spId) + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
+        			call.setCallSetName(call.getCallSetDbId());
+        			for (String key : sg.getAdditionalInfo().keySet())
+        				call.putAdditionalInfoItem(key, sg.getAdditionalInfo().get(key).toString());
+                	result.addDataItem(call);
+        		}
+        	}
+
+        	int nNextPage = page + 1;
+        	TokenPagination pagination = new TokenPagination();
+			pagination.setPageSize(result.getData().size());
+			pagination.setTotalCount((int) (nVariantCount != null ? nVariantCount : (cache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount())) * samples.size());
+			pagination.setTotalPages(varList.isEmpty() ? 0 : (int) Math.ceil((float) pagination.getTotalCount() / pagination.getPageSize()));
+			pagination.setCurrentPageToken("" + page);
+			if (nNextPage < pagination.getTotalPages())
+				pagination.setNextPageToken("" + nNextPage);
+			if (page > 0)
+				pagination.setPrevPageToken("" + (page - 1));
+			metadata.setPagination(pagination);
+		
+			clr.setResult(result);
+			return new ResponseEntity<CallListResponse>(clr, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<CallListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+	}
 
 //    public ResponseEntity<CallListResponse> searchCallsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        try {
@@ -658,13 +799,20 @@ public class SearchApiController implements SearchApi {
 				String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
 				if (refSetDbId == null)
 					refSetDbId = info[0];
-				else if (!refSetDbId.equals(info[0]))
-//					return new ResponseEntity<GermplasmListResponse>(objectMapper.readValue("{\"error\":\"You may only ask for germplasm records from one referenceSet at a time!\"}", HashMap.class), HttpStatus.BAD_REQUEST);
-					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
+				else if (!refSetDbId.equals(info[0])) {
+					Status status = new Status();
+					status.setMessage("You may only ask for germplasm records from one referenceSet at a time!");
+					metadata.addStatusItem(status);
+					return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+				}
 				if (projId == null)
 					projId = Integer.parseInt(info[1]);
-				else if (!projId.equals(Integer.parseInt(info[1])))
-					throw new Exception("You may only ask for germplasm records from one study at a time!");
+				else if (!projId.equals(Integer.parseInt(info[1]))) {
+					Status status = new Status();
+					status.setMessage("You may only ask for germplasm records from one study at a time!");
+					metadata.addStatusItem(status);
+					return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+				}
 				germplasmIds.add(info[2]);
 			}
 			

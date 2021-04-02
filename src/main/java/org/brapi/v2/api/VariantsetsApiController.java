@@ -2,42 +2,29 @@ package org.brapi.v2.api;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.SocketException;
-import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.TreeMap;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.api.cache.MongoBrapiCache;
-import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallListResponse;
-import org.brapi.v2.model.CallsListResponseResult;
-import org.brapi.v2.model.ListValue;
+import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.MetadataTokenPagination;
-import org.brapi.v2.model.TokenPagination;
+import org.brapi.v2.model.Status;
 import org.brapi.v2.model.VariantSet;
-import org.brapi.v2.model.VariantSetAvailableFormats;
 import org.brapi.v2.model.VariantSetAvailableFormats.DataFormatEnum;
-import org.brapi.v2.model.VariantSetAvailableFormats.FileFormatEnum;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetResponse;
 import org.brapi.v2.model.VariantSetsSearchRequest;
@@ -52,7 +39,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.context.ServletContextAware;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,22 +47,14 @@ import com.mongodb.client.MongoCollection;
 import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.AbstractIndividualOrientedExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.FlapjackExportHandler;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
-import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
-import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
-import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
-import fr.cirad.tools.AppConfig;
-import fr.cirad.tools.Helper;
 import fr.cirad.tools.ProgressIndicator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.web.controller.BackOfficeController;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
 @Controller
@@ -87,21 +65,16 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     private final ObjectMapper objectMapper;
 
     private final HttpServletRequest request;
-    
-    @Autowired private GigwaGa4ghServiceImpl ga4ghService;
-    
+        
     @Autowired private AbstractTokenManager tokenManager;
     
     @Autowired private SearchApiController searchApiController;
-    
-    @Autowired private AppConfig appConfig;
-    
+       
     @Autowired private MongoBrapiCache cache;
     
 	private ServletContext servletContext;
 	static final private String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
 	static final private long EXPORT_FILE_EXPIRATION_DELAY_MILLIS = 1000*60*60*24;	/* 1 day */
-	final int MAX_SUPPORTED_MATRIX_SIZE = 30000;
 	
 //	static private HashMap<String, Integer> variantCounts = new HashMap<>();
 	
@@ -173,95 +146,16 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	
 	@Override
 	public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize, String authorization) throws UnsupportedEncodingException, SocketException, UnknownHostException {
-		/* FIXME: check security implementation */	
-		String token = ServerinfoApiController.readToken(authorization);
-		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
-		if (!tokenManager.canUserReadProject(token, info[0], info[1]))
-			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-
-        if (pageSize == null || pageSize > MAX_SUPPORTED_MATRIX_SIZE)
-        	pageSize = MAX_SUPPORTED_MATRIX_SIZE;
-        int page = pageToken == null ? 0 : Integer.parseInt(pageToken);
-        
-    	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
-    	int projId = Integer.parseInt(info[1]);
-    	Query runQuery = new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
-
-    	VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
-
-    	long nCallSetCount = mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
-        int numberOfMarkersToReturn = (int) Math.ceil(pageSize / nCallSetCount);
-        
-    	String unknownGtCode = unknownString == null ? "-" : unknownString;
-    	String unPhasedSeparator = sepUnphased == null ? "/" : sepUnphased;
-    	String phasedSeparator = sepPhased == null ? "|" : URLDecoder.decode(sepPhased, "UTF-8");
-    	
-    	CallListResponse clr = new CallListResponse();
-    	CallsListResponseResult result = new CallsListResponseResult();
-    	result.setSepUnphased(unPhasedSeparator);
+		CallsSearchRequest csr = new CallsSearchRequest();
+		csr.setExpandHomozygotes(expandHomozygotes);
+		csr.setUnknownString(unknownString);
+		csr.setSepUnphased(sepUnphased);
+		csr.setSepPhased(sepPhased);
+		csr.setPageSize(pageSize);
+		csr.setPageToken(pageToken);
+		csr.setVariantSetDbIds(Arrays.asList(variantSetDbId));
 		
-        try {
-//	        long b4 = System.currentTimeMillis();
-        	List<AbstractVariantData> varList = IExportHandler.getMarkerListWithCorrectCollation(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersToReturn, numberOfMarkersToReturn);
-//        	System.err.println((System.currentTimeMillis() - b4) + " / " + variants.size()/* + ": " + variants*/);
-        	HashMap<Integer, String> previousPhasingIds = new HashMap<>();
-        	HashMap<Integer, String> sampleToIndividualMap = new HashMap<>();
-        	for (AbstractVariantData v : varList) {
-        		VariantRunData vrd = (VariantRunData) v;
-        		for (Integer spId : vrd.getSampleGenotypes().keySet()) {
-        			String ind = sampleToIndividualMap.get(spId);
-        			if (ind == null) {
-        				ind = mongoTemplate.findDistinct(new Query(Criteria.where("_id").is(spId)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).iterator().next();
-        				sampleToIndividualMap.put(spId, ind);
-        			}
-        			SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
-					String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
-					boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-					previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/
-
-					String gtCode = sg.getCode(), genotype;
-					if (gtCode.length() == 0)
-						genotype = unknownGtCode;
-					else
-					{
-						List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-						if (!Boolean.TRUE.equals(expandHomozygotes) && new HashSet<String>(alleles).size() == 1)
-							genotype = alleles.get(0);
-						else
-							genotype = StringUtils.join(alleles, fPhased ? phasedSeparator : unPhasedSeparator);
-					}
-        			Call call = new Call();
-        			ListValue lv = new ListValue();
-        			lv.addValuesItem(genotype);
-        			call.setGenotype(lv);
-        			call.setVariantDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
-        			call.setVariantName(call.getVariantDbId());
-        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
-        			call.setCallSetName(call.getCallSetDbId());
-                	result.addDataItem(call);
-        		}
-        	}
-
-        	int nNextPage = page + 1;
-        	MetadataTokenPagination metadata = new MetadataTokenPagination();
-        	TokenPagination pagination = new TokenPagination();
-			pagination.setPageSize(pageSize);
-			pagination.setTotalCount((int) (variantSet.getVariantCount() * nCallSetCount));
-			pagination.setTotalPages((int) Math.ceil((float) pagination.getTotalCount() / pageSize));
-			pagination.setCurrentPageToken("" + page);
-			if (nNextPage < pagination.getTotalPages())
-				pagination.setNextPageToken("" + nNextPage);
-			if (page > 0)
-				pagination.setPrevPageToken("" + (page - 1));
-			metadata.setPagination(pagination);
-			clr.setMetadata(metadata);
-		
-			clr.setResult(result);
-			return new ResponseEntity<CallListResponse>(clr, HttpStatus.OK);
-        } catch (Exception e) {
-            log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<CallListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+		return searchApiController.searchCallsPost(csr, authorization);
 	}
 	
 //    public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
@@ -322,52 +216,22 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	@Override
 	public ResponseEntity<VariantSetResponse> variantsetsVariantSetDbIdGet(String variantSetDbId, String authorization) {
 		String token = ServerinfoApiController.readToken(authorization);
-    	
         try {
         	VariantSetResponse rlr = new VariantSetResponse();        	
-        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	String[] splitId = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+        	
+    		if (!tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
+				Status status = new Status();
+				status.setMessage("You are not allowed to access this content!");
+				Metadata metadata = new Metadata();
+				metadata.addStatusItem(status);
+				rlr.setMetadata(metadata);
+				return new ResponseEntity<>(rlr, HttpStatus.FORBIDDEN);
+			}
+    		
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
-			int projId = Integer.parseInt(splitId[1]);
-//        	VariantSet variantSet = null;
-//    		if (tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), splitId[0])) {
-//    			variantSet = new VariantSet();
-//    			List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
-//        		VariantSetAvailableFormats format = new VariantSetAvailableFormats();
-//            	format.setDataFormat(DataFormatEnum.FLAPJACK);
-//            	format.setFileFormat(FileFormatEnum.TEXT_TSV);
-//            	String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
-//            	format.setFileURL((sWebAppRoot == null ? BackOfficeController.determinePublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
-//            	formatList.add(format);
-//    			variantSet.setAvailableFormats(formatList);
-////	            Analysis analysisItem = new Analysis();
-////		        analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
-////		        analysisItem.setType("TODO: check how to deal with this field");
-////	            addAnalysisItem(analysisItem);
-//    			
-//    			
-//    			variantSet.setReferenceSetDbId(splitId[0]);
-//    			variantSet.setStudyDbId(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + projId);
-//    			variantSet.setVariantSetDbId(variantSetDbId);
-//    			variantSet.setVariantSetName(splitId[2]);
-////        	        result.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
-//    			variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class));
-////        	        result.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount() /* this counts all variants in the database */);
-////    	        long b4 = System.currentTimeMillis();
-//    			variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(splitId[2]))), VariantRunData.class));
-////    	        System.err.println(System.currentTimeMillis() - b4);
-//    		}
-			
 			VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
 
-//			Metadata metadata = new Metadata();
-//			Pagination pagination = new Pagination();
-//			pagination.setPageSize(0);
-//			pagination.setCurrentPage(0);
-//			pagination.setTotalPages(1);
-//			pagination.setTotalCount(1);
-//			metadata.setPagination(pagination);
-//			rlr.setMetadata(metadata);
-			
 			rlr.setResult(variantSet);
             return new ResponseEntity<VariantSetResponse>(rlr, HttpStatus.OK);
         } catch (Exception e) {
@@ -378,11 +242,9 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 	@Override
 	public void variantsetsExportIntoFormat(HttpServletResponse response, String variantSetDbId, String dataFormat, String authorization) throws Exception {
-		
-		/* FIXME: check security implementation */	
 		String token = ServerinfoApiController.readToken(authorization);
 		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
-		if (!tokenManager.canUserReadProject(token, info[0], info[1])){
+		if (!tokenManager.canUserReadProject(token, info[0], Integer.parseInt(info[1]))){
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			response.getWriter().write("You are not allowed to access this content");
 			return;

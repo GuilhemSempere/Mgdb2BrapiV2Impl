@@ -5,6 +5,10 @@
  */
 package org.brapi.v2.api;
 
+import java.io.UnsupportedEncodingException;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+
 import javax.validation.Valid;
 
 import org.brapi.v2.model.CallListResponse;
@@ -46,5 +50,5 @@ public interface CallsApi {
     		@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,
     		@ApiParam(value = "Used to request a specific page of data to be returned.  Tokenized pages are for large data sets which can not be efficiently broken into indexed pages. Use the nextPageToken and prevPageToken from a prior response to construct a query and move to the next or previous page respectively. ") @Valid @RequestParam(value = "pageToken", required = false) String pageToken,
     		@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
-    		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
+    		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;
 }

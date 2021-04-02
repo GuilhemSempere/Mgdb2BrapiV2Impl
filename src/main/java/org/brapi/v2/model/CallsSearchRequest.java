@@ -17,7 +17,7 @@ import javax.validation.constraints.*;
 @ApiModel(description = "This request maps to the body of `POST /search/calls` as JSON.")
 @Validated
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-public class CallsSearchRequest   {
+public class CallsSearchRequest extends SearchRequestParametersTokenPaging {
   @JsonProperty("callSetDbIds")
   @Valid
   private List<String> callSetDbIds = null;
