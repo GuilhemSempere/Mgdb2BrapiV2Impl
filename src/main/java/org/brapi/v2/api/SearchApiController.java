@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -20,7 +19,6 @@ import javax.validation.Valid;
 
 import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.api.cache.MongoBrapiCache;
-import org.brapi.v2.model.Analysis;
 import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallSet;
@@ -35,31 +33,26 @@ import org.brapi.v2.model.GermplasmListResponseResult;
 import org.brapi.v2.model.GermplasmMCPD;
 import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.brapi.v2.model.GermplasmSearchRequest;
-import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.MetadataTokenPagination;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.ListValue;
+import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.MetadataTokenPagination;
 import org.brapi.v2.model.Sample;
 import org.brapi.v2.model.SampleListResponse;
 import org.brapi.v2.model.SampleListResponseResult;
 import org.brapi.v2.model.SampleSearchRequest;
 import org.brapi.v2.model.Status;
-import org.brapi.v2.model.Status.MessageTypeEnum;
 import org.brapi.v2.model.Study;
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyListResponseResult;
 import org.brapi.v2.model.StudySearchRequest;
-import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.brapi.v2.model.TokenPagination;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetListResponseResult;
 import org.brapi.v2.model.VariantSetsSearchRequest;
-import org.ga4gh.methods.SearchCallSetsRequest;
-import org.ga4gh.methods.SearchCallSetsResponse;
 import org.ga4gh.methods.SearchVariantSetsRequest;
 import org.ga4gh.models.VariantSetMetadata;
-import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,7 +63,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -81,19 +73,18 @@ import org.threeten.bp.format.DateTimeParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.controller.GigwaMethods;
-import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
+import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
-import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
+import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl.SearchCallSetsResponseWrapper;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -129,70 +120,141 @@ public class SearchApiController implements SearchApi {
 	@Override
 	public ResponseEntity<CallListResponse> searchCallsPost(CallsSearchRequest body, String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException {
 		String token = ServerinfoApiController.readToken(authorization);
-		String sRun = null;
-		Integer projId = null, nVariantCount = null;
-		Query runQuery;
-		
+			
     	CallListResponse clr = new CallListResponse();
     	CallsListResponseResult result = new CallsListResponseResult();
     	MetadataTokenPagination metadata = new MetadataTokenPagination();
 		clr.setMetadata(metadata);
 
-		List<Criteria> crits = new ArrayList<Criteria>();
-		String variantSetDbId = body.getVariantSetDbIds() == null || body.getVariantSetDbIds().size() != 1 ? null : body.getVariantSetDbIds().get(0);
-
-		// we expect at least one of variantSetDbIds and variantDbIds to contain a single element
-		if (variantSetDbId == null && (body.getVariantDbIds() == null || body.getVariantDbIds().isEmpty())) {
+		boolean fGotVariantSetList = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
+		boolean fGotVariantList = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
+		boolean fGotCallSetList = body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty();
+		if (!fGotVariantSetList && !fGotVariantList && !fGotCallSetList) {
 			Status status = new Status();
-			status.setMessage("You must specify either a list of Variants or exactly one VariantSet!");
+			status.setMessage("You must specify at least callSetDbIds, variantDbIds, or variantSetDbIds!");
 			metadata.addStatusItem(status);
 			return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
 		}
 
-		String[] info = variantSetDbId != null ? variantSetDbId.split(GigwaMethods.ID_SEPARATOR) : body.getVariantDbIds().get(0).split(GigwaMethods.ID_SEPARATOR);
-    	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
-		if (info.length == 3) {
-	    	projId = Integer.parseInt(info[1]);
-	    	sRun = info[2];
+		String module = null;
+		
+		if (fGotVariantSetList) {
+			for (String variantDbId : body.getVariantSetDbIds()) {
+				if (module == null)
+					module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0];
+				else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0])) {
+					Status status = new Status();
+					status.setMessage("You must specify VariantSets belonging to the same referenceSet!");
+					metadata.addStatusItem(status);
+					return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
+
+				}
+			}
+		}
+		
+		if (fGotVariantList) {
+			for (String variantDbId : body.getVariantDbIds()) {
+				if (module == null)
+					module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0];
+				else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0])) {
+					Status status = new Status();
+					status.setMessage("You may specify VariantSets / Variants only belonging to the same referenceSet!");
+					metadata.addStatusItem(status);
+					return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
+
+				}
+			}
 		}
 
-    	// if projId is null then we don't know which run(s) we're going to deal with
-    	List<Integer> projectIDs = projId != null ? Arrays.asList(projId) : mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
+    	HashMap<Integer, String> sampleIndividuals = new HashMap<>();	// we are going to need the individual each sample is related to, in order to build callSetDbIds
+		if (fGotCallSetList) {
+			for (String callSetDbId : body.getCallSetDbIds()) {
+				String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
+				if (module == null)
+					module = info[0];
+				else if (!module.equals(info[0])) {
+					Status status = new Status();
+					status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same referenceSet!");
+					metadata.addStatusItem(status);
+					return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
+				}
+				sampleIndividuals.put(Integer.parseInt(info[2]), info[1]);
+			}
+			
+			// identify the runs those samples are involved in
+			body.setVariantSetDbIds(new ArrayList<>());
+			for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIndividuals.keySet())), GenotypingSample.class)) {
+				String variantSetDbId = module + GigwaMethods.ID_SEPARATOR + sp.getProjectId() + GigwaMethods.ID_SEPARATOR + sp.getRun();
+				if (!body.getVariantSetDbIds().contains(variantSetDbId)) {
+					body.getVariantSetDbIds().add(variantSetDbId);
+					fGotVariantSetList = true;
+				}
+			}
+		}
 
+		MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+
+    	// check permissions
+    	Collection<Integer> projectIDs = fGotVariantSetList ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet()) :
+    		mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
+    	List<Integer> forbiddenProjectIDs = new ArrayList<>();
 		for (int pj : projectIDs)
-			if (!tokenManager.canUserReadProject(token, info[0], pj))
-				return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+			if (!tokenManager.canUserReadProject(token, module, pj))
+				forbiddenProjectIDs.add(pj);
+		projectIDs.removeAll(forbiddenProjectIDs);
+		if (projectIDs.isEmpty() && !forbiddenProjectIDs.isEmpty())
+			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 
-		if (projectIDs.size() > 1)
-			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).in(projectIDs));
-		if (sRun != null)
-			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(sRun));
-
-		if (body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty()) {	// we might not want the whole VariantSet
+		List<Criteria> crits = new ArrayList<Criteria>();
+		if (fGotVariantSetList) {
+			List<Criteria> vsCrits = new ArrayList<Criteria>();
+			for (String vsId : body.getVariantSetDbIds()) {
+				String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
+				vsCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
+			}
+			crits.add(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
+		}
+		
+		if (fGotVariantList) {
 			List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
 			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
-			nVariantCount = (int) mongoTemplate.count(new Query(Criteria.where("_id").in(varIDs)), VariantData.class);
 		}
 
-		runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-		if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
+		Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+
+    	// now deal with samples
+		if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
 			runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELE_LIST);
-			for (String callSetDbId : body.getCallSetDbIds())
-				runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + callSetDbId.substring(1 + callSetDbId.lastIndexOf(GigwaMethods.ID_SEPARATOR)));
+			for (String callSetDbId : body.getCallSetDbIds()) {
+				String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
+				runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[2]);
+			}
+		}
+		else {	// find out which samples are involved and keep track of corresponding individuals
+	    	Query sampleQuery;
+			if (fGotVariantSetList) {
+				List<Criteria> vsCrits = new ArrayList<Criteria>();
+				for (String vsId : body.getVariantSetDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
+					vsCrits.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
+				}
+				sampleQuery = new Query(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
+			}
+			else
+				sampleQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectIDs));	// we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
+	
+        	for (GenotypingSample gs : mongoTemplate.find(sampleQuery, GenotypingSample.class))
+        		sampleIndividuals.put(gs.getId(), gs.getIndividual());
 		}
 
-		int pageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
         int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
-        
-    	Query sampleQuery;
-		if (sRun == null)
-			sampleQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectIDs));
-		else
-			sampleQuery = new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(sRun)));
-
-		List<GenotypingSample> samples = mongoTemplate.find(sampleQuery, GenotypingSample.class);
-
-        int numberOfMarkersToReturn = (int) Math.ceil(1f * pageSize / samples.size());
+		int theoriticalPageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
+        int numberOfMarkersPerPage = (int) Math.ceil(1f * theoriticalPageSize / sampleIndividuals.size());
+        Integer nTotalMarkerCount = fGotVariantList ? body.getVariantDbIds().size() : null;
+        if (nTotalMarkerCount == null) {	// we don't have a definite variant list: see if we can guess it (only possible for single-run projects since there is no run index on VariantRunData)
+        	if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id").in(projectIDs), Criteria.where(GenotypingProject.FIELDNAME_RUNS + ".1").exists(false))), GenotypingProject.class) == projectIDs.size())
+        		nTotalMarkerCount = (int) mongoTemplate.count(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).in(projectIDs)), VariantRunData.class);
+        }
         
     	String unknownGtCode = body.getUnknownString() == null ? "-" : body.getUnknownString();
     	String phasedSeparator = body.getSepPhased() == null ? "|" : URLDecoder.decode(body.getSepPhased(), "UTF-8");
@@ -200,15 +262,13 @@ public class SearchApiController implements SearchApi {
     	result.setSepUnphased(unPhasedSeparator);
 
         try {
-        	List<AbstractVariantData> varList = IExportHandler.getMarkerListWithCorrectCollation(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersToReturn, numberOfMarkersToReturn);	/* warning: seq+position are not indexed in VariantRunData */
+        	List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersPerPage, numberOfMarkersPerPage);
         	HashMap<Integer, String> previousPhasingIds = new HashMap<>();
 
-        	HashMap<Integer, String> sampleIndividuals = new HashMap<>();	// we are going to need the individual each sample is related to, in order to build callSetDbIds
-        	for (GenotypingSample gs : samples)
-        		sampleIndividuals.put(gs.getId(), gs.getIndividual());
-
+        	HashSet<String> distinctVariantIDs = new HashSet<>();
         	for (AbstractVariantData v : varList) {
         		VariantRunData vrd = (VariantRunData) v;
+        		distinctVariantIDs.add(v.getVariantId());
         		for (Integer spId : vrd.getSampleGenotypes().keySet()) {
         			SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
 					String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
@@ -230,9 +290,9 @@ public class SearchApiController implements SearchApi {
         			ListValue lv = new ListValue();
         			lv.addValuesItem(genotype);
         			call.setGenotype(lv);
-        			call.setVariantDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
+        			call.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
         			call.setVariantName(call.getVariantDbId());
-        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + sampleIndividuals.get(spId) + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
+        			call.setCallSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sampleIndividuals.get(spId) + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
         			call.setCallSetName(call.getCallSetDbId());
         			for (String key : sg.getAdditionalInfo().keySet())
         				call.putAdditionalInfoItem(key, sg.getAdditionalInfo().get(key).toString());
@@ -242,11 +302,14 @@ public class SearchApiController implements SearchApi {
 
         	int nNextPage = page + 1;
         	TokenPagination pagination = new TokenPagination();
-			pagination.setPageSize(result.getData().size());
-			pagination.setTotalCount((int) (nVariantCount != null ? nVariantCount : (cache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount())) * samples.size());
-			pagination.setTotalPages(varList.isEmpty() ? 0 : (int) Math.ceil((float) pagination.getTotalCount() / pagination.getPageSize()));
+			pagination.setPageSize(numberOfMarkersPerPage * sampleIndividuals.size());
+			if (nTotalMarkerCount != null) {
+				pagination.setTotalCount(nTotalMarkerCount);
+				pagination.setTotalPages(varList.isEmpty() ? 0 : (int) Math.ceil((float) pagination.getTotalCount() / pagination.getPageSize()));
+			}
+			
 			pagination.setCurrentPageToken("" + page);
-			if (nNextPage < pagination.getTotalPages())
+			if ((pagination.getTotalPages() != null && nNextPage < pagination.getTotalPages()) || varList.size() > 0)
 				pagination.setNextPageToken("" + nNextPage);
 			if (page > 0)
 				pagination.setPrevPageToken("" + (page - 1));
@@ -284,76 +347,110 @@ public class SearchApiController implements SearchApi {
 			Metadata metadata = new Metadata();
 			cslr.setMetadata(metadata);
 			
-        	boolean fAllowedToReadAnything = false;
+        	boolean fTriedToAccessForbiddenData = false;
+        	HashMap<String /*module*/, Query> sampleQueryByModule = new HashMap<>();
         	
-			if (body.getVariantSetDbIds() == null || body.getVariantSetDbIds().isEmpty()) {
-				status.setMessage("Some variantSetDbIds must be specified as parameter!");
+			if ((body.getCallSetDbIds() == null || body.getCallSetDbIds().isEmpty()) && (body.getVariantSetDbIds() == null || body.getVariantSetDbIds().isEmpty())) {
+				status.setMessage("Some callSetDbIds or variantSetDbIds must be specified as parameter!");
 				metadata.addStatusItem(status);
 				httpCode = HttpStatus.BAD_REQUEST;
 			}
 			else {
-				int nTotalCallSetsEncountered = 0;
-				for (String variantSetDbId : body.getVariantSetDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
-		        	MongoTemplate mongoTemplate = MongoTemplateManager.get(info[0]);
-		        	int projId = Integer.parseInt(info[1]);
-	    			if (tokenManager.canUserReadProject(token, info[0], projId)) {
-	    				fAllowedToReadAnything = true;
-	    				
-	    				// build the list of individuals, to be able to provide additional info
-	    				Query q = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])));
-	    				q.fields().include(GenotypingSample.FIELDNAME_INDIVIDUAL);
-	    				
-	    				Map<String, Integer> indIdToSampleIdMap = new HashMap<>();
-	    				List<GenotypingSample> samples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))), GenotypingSample.class);
-	    				for (GenotypingSample sample : samples)
-	    					indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
-
-	    				q = new Query(Criteria.where("_id").in(indIdToSampleIdMap.keySet()));
-	    				q.with(Sort.by(Sort.Direction.ASC, "_id"));
-//	    				long totalCount = mongoTemplate.count(q, Individual.class);
-	    				List<Individual> listInd = mongoTemplate.find(q, Individual.class);
-	    				q = new Query(Criteria.where("_id." + CustomIndividualMetadataId.FIELDNAME_USER).is(sCurrentUser));
-	    				List<CustomIndividualMetadata> cimdList = mongoTemplate.find(q, CustomIndividualMetadata.class);
-	    				if(!cimdList.isEmpty()) {
-	    					HashMap<String /* indivID */, HashMap<String, Comparable> /* additional info */> indMetadataByIdMap = new HashMap<>();
-	    					for (CustomIndividualMetadata cimd : cimdList)
-	    						indMetadataByIdMap.put(cimd.getId().getIndividualId(), cimd.getAdditionalInfo());
-	    					
-	    					for( int i=0 ; i<listInd.size(); i++) {
-	    						String indId = listInd.get(i).getId();
-	    						HashMap<String, Comparable>  ai = indMetadataByIdMap.get(indId);
-	    		                if(ai != null && !ai.isEmpty())
-	    		                	listInd.get(i).getAdditionalInfo().putAll(ai);
-	    					}
-	    				}
-	    				
-						for (int i=0; i<samples.size(); i++) {
-							GenotypingSample sample = samples.get(i);
-							nTotalCallSetsEncountered++;
-			            	CallSet callset = new CallSet();
-			            	callset.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getIndividual() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getId());
-			            	callset.setCallSetName(callset.getCallSetDbId());
-			            	callset.setSampleDbId(callset.getCallSetDbId());
-			            	callset.setVariantSetIds(Arrays.asList(variantSetDbId));
-	            			final Individual ind = listInd.get(i);
-	            			if (!ind.getAdditionalInfo().isEmpty())
-	            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
-		            		result.addDataItem(callset);
+				if (body.getVariantSetDbIds() == null || body.getVariantSetDbIds().isEmpty()) {	// no variantSets specified, but we have a list of callSets
+		        	HashMap<String /*module*/, HashSet<Integer> /*samples, null means all*/> samplesByModule = new HashMap<>();
+					for (String csId : body.getCallSetDbIds()) {
+						String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 3);
+						HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
+						if (moduleSamples == null) {
+							moduleSamples = new HashSet<>();
+							samplesByModule.put(info[0], moduleSamples);
 						}
-	    			}
+						moduleSamples.add(Integer.parseInt(info[2]));
+					}
+		        	for (String module : samplesByModule.keySet()) { // make sure we filter out any samples that are from projects the user is not allowed to see
+			        	MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+			        	HashSet<Integer> moduleSamples = samplesByModule.get(module);
+			        	Query query = new Query(Criteria.where("_id").in(moduleSamples));
+			        	HashMap<Integer, Boolean> projectAccessPermissions = new HashMap<>();
+			        	for (GenotypingSample sample : mongoTemplate.find(query, GenotypingSample.class)) {
+			        		Boolean fPjAllowed = projectAccessPermissions.get(sample.getProjectId());
+			        		if (fPjAllowed == null) {
+			        			fPjAllowed = tokenManager.canUserReadProject(token, module, sample.getProjectId());
+			        			projectAccessPermissions.put(sample.getProjectId(), fPjAllowed);
+			        		}
+		            		if (!fPjAllowed) {
+		            			fTriedToAccessForbiddenData = true;
+		            			moduleSamples.remove(sample.getId());
+		            		}
+			        	}
 
-		        	if (nTotalCallSetsEncountered > 0 && !fAllowedToReadAnything)
-		        		httpCode = HttpStatus.FORBIDDEN;
-		        	else {
-		    			IndexPagination pagination = new IndexPagination();
-		    			pagination.setPageSize(result.getData().size());
-		    			pagination.setCurrentPage(body.getPage());
-		    			pagination.setTotalPages(1);
-		    			pagination.setTotalCount(result.getData().size());
-		    			metadata.setPagination(pagination);
+			        	if (moduleSamples.size() > 0)
+			        		sampleQueryByModule.put(module, query);
 		        	}
 				}
+				else
+					for (String variantSetDbId : body.getVariantSetDbIds()) {
+						String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+			        	int projId = Integer.parseInt(info[1]);
+		    			if (tokenManager.canUserReadProject(token, info[0], projId))
+			    			sampleQueryByModule.put(info[0], new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]))));
+		    			else
+		    				fTriedToAccessForbiddenData = true;
+					}
+
+				int nTotalCallSetsEncountered = 0;
+				for (String module : sampleQueryByModule.keySet()) {
+		        	MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+    				Map<String, Integer> indIdToSampleIdMap = new HashMap<>();
+    				List<GenotypingSample> samples = mongoTemplate.find(sampleQueryByModule.get(module), GenotypingSample.class);
+    				for (GenotypingSample sample : samples)
+    					indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
+
+    				// attach individual metadata to samples
+    				Query q = new Query(Criteria.where("_id").in(indIdToSampleIdMap.keySet()));
+    				q.with(Sort.by(Sort.Direction.ASC, "_id"));
+    				List<Individual> listInd = mongoTemplate.find(q, Individual.class);
+    				q = new Query(Criteria.where("_id." + CustomIndividualMetadataId.FIELDNAME_USER).is(sCurrentUser));
+    				List<CustomIndividualMetadata> cimdList = mongoTemplate.find(q, CustomIndividualMetadata.class);
+    				if(!cimdList.isEmpty()) {
+    					HashMap<String /* indivID */, HashMap<String, Comparable> /* additional info */> indMetadataByIdMap = new HashMap<>();
+    					for (CustomIndividualMetadata cimd : cimdList)
+    						indMetadataByIdMap.put(cimd.getId().getIndividualId(), cimd.getAdditionalInfo());
+    					
+    					for( int i=0 ; i<listInd.size(); i++) {
+    						String indId = listInd.get(i).getId();
+    						HashMap<String, Comparable>  ai = indMetadataByIdMap.get(indId);
+    		                if(ai != null && !ai.isEmpty())
+    		                	listInd.get(i).getAdditionalInfo().putAll(ai);
+    					}
+    				}
+    				
+					for (int i=0; i<samples.size(); i++) {
+						GenotypingSample sample = samples.get(i);
+						nTotalCallSetsEncountered++;
+		            	CallSet callset = new CallSet();
+		            	callset.setCallSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getIndividual() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getId());
+		            	callset.setCallSetName(callset.getCallSetDbId());
+		            	callset.setSampleDbId(callset.getCallSetDbId());
+			            callset.setVariantSetIds(Arrays.asList(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun()));
+            			final Individual ind = listInd.get(i);
+            			if (!ind.getAdditionalInfo().isEmpty())
+            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
+	            		result.addDataItem(callset);
+					}
+
+				}
+
+	        	if (nTotalCallSetsEncountered == 0 && fTriedToAccessForbiddenData)
+	        		httpCode = HttpStatus.FORBIDDEN;
+	        	else {
+	    			IndexPagination pagination = new IndexPagination();
+	    			pagination.setPageSize(result.getData().size());
+	    			pagination.setCurrentPage(body.getPage());
+	    			pagination.setTotalPages(1);
+	    			pagination.setTotalCount(result.getData().size());
+	    			metadata.setPagination(pagination);
+	        	}
 			}
 
 			cslr.setResult(result);
@@ -435,38 +532,64 @@ public class SearchApiController implements SearchApi {
 	public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
 
-    	// TODO: implement or forbid searching by germplasm id / observation unit id
         try {
         	SampleListResponse slr = new SampleListResponse();
         	SampleListResponseResult result = new SampleListResponseResult();
         	String refSetDbId = null;
-        	Integer variantSetId = null;
+        	Integer projId = null;
         	Collection<Integer> sampleIds = new HashSet<>();
-        	
-        	if (body.getSampleDbIds() == null)
-        		throw new Exception("You must provide a list of sample IDs");
+			Metadata metadata = new Metadata();
+			slr.setMetadata(metadata);
+			String sErrorMsg = "";
 
-        	for (String spId : body.getSampleDbIds()) {
-        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 4);
-				if (refSetDbId == null)
-					refSetDbId = info[0];
-				else if (!refSetDbId.equals(info[0]))
-					throw new Exception("You may only ask for germplasm records from one referenceSet at a time!");
-				if (variantSetId == null)
-					variantSetId = Integer.parseInt(info[1]);
-				else if (!variantSetId.equals(Integer.parseInt(info[1])))
-					throw new Exception("You may only ask for germplasm records from one variantSet at a time!");
-				sampleIds.add(Integer.parseInt(info[3]));
+        	if ((body.getObservationUnitDbIds() != null && body.getObservationUnitDbIds().size() > 0) || (body.getPlateDbIds() != null && body.getPlateDbIds().size() > 0))
+        		sErrorMsg += "Searching by Plate or ObservationUnit is not supported! ";
+        	else if (body.getGermplasmDbIds() != null) {
+        		Collection<String> germplasmIds = new HashSet<>();
+	        	for (String spId : body.getGermplasmDbIds()) {
+	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 3);
+					if (refSetDbId == null)
+						refSetDbId = info[0];
+					else if (!refSetDbId.equals(info[0]))
+						sErrorMsg += "You may only ask for sample records from one referenceSet at a time! ";
+					if (projId == null)
+						projId = Integer.parseInt(info[1]);
+					else if (!projId.equals(Integer.parseInt(info[1])))
+						sErrorMsg += "You may only ask for germplasm records from one variantSet at a time! ";
+					germplasmIds.add(info[2]);
+	        	}
+	        	sampleIds = MgdbDao.getSamplesForProject(refSetDbId, projId, germplasmIds).stream().map(sp -> sp.getId()).collect(Collectors.toList());
         	}
-        	
-   			if (!tokenManager.canUserReadProject(token, refSetDbId, variantSetId))
+        	else if (body.getSampleDbIds() != null)
+	        	for (String spId : body.getSampleDbIds()) {
+	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 4);
+					if (refSetDbId == null)
+						refSetDbId = info[0];
+					else if (!refSetDbId.equals(info[0]))
+						sErrorMsg += "You may only ask for sample records from one referenceSet at a time! ";
+					if (projId == null)
+						projId = Integer.parseInt(info[1]);
+					else if (!projId.equals(Integer.parseInt(info[1])))
+						sErrorMsg += "You may only ask for sample records from one variantSet at a time! ";
+					sampleIds.add(Integer.parseInt(info[3]));
+	        	}
+        	else
+        		sErrorMsg += "You must provide either a list of germplasmDbIds or a list of sampleDbIds! ";
+
+   			if (!sErrorMsg.isEmpty()) {
+				Status status = new Status();
+				status.setMessage(sErrorMsg);
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+			}
+
+   			if (!tokenManager.canUserReadProject(token, refSetDbId, projId))
    				return new ResponseEntity<SampleListResponse>(HttpStatus.FORBIDDEN);
 
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
         	Query q = new Query(Criteria.where("_id").in(sampleIds));
         	long count = mongoTemplate.count(q, GenotypingSample.class);
-            if (body.getPageSize() != null)
-            {
+            if (body.getPageSize() != null) {
             	q.limit(body.getPageSize());
                 if (body.getPage() != null)
                 	q.skip(body.getPage() * body.getPageSize());
@@ -475,19 +598,19 @@ public class SearchApiController implements SearchApi {
             List<GenotypingSample> genotypingSamples = mongoTemplate.find(q, GenotypingSample.class);
         	for (GenotypingSample mgdbSample : genotypingSamples) {
         		Sample sample = new Sample();
-        		sample.sampleDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual(), mgdbSample.getId()));
-        		sample.germplasmDbId(ga4ghService.createId(refSetDbId, variantSetId, mgdbSample.getIndividual()));
+        		sample.sampleDbId(ga4ghService.createId(refSetDbId, projId, mgdbSample.getIndividual(), mgdbSample.getId()));
+        		sample.germplasmDbId(ga4ghService.createId(refSetDbId, projId, mgdbSample.getIndividual()));
+        		sample.setSampleName(mgdbSample.getSampleName());
+        		sample.studyDbId(refSetDbId + GigwaMethods.ID_SEPARATOR + projId);
         		result.addDataItem(sample);
         	}
 
-			Metadata metadata = new Metadata();
 			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(body.getPageSize());
 			pagination.setCurrentPage(body.getPage());
 			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) count / body.getPageSize()));
 			pagination.setTotalCount((int) count);
 			metadata.setPagination(pagination);
-			slr.setMetadata(metadata);
         	
 			slr.setResult(result);
             return new ResponseEntity<SampleListResponse>(slr, HttpStatus.OK);
@@ -526,118 +649,70 @@ public class SearchApiController implements SearchApi {
 
     public ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Variantset Search request") @Valid @RequestBody VariantSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
-		Status status = new Status();
 		HttpStatus httpCode = null;
 
         try {
         	VariantSetListResponse vslr = new VariantSetListResponse();
-        	VariantSetListResponseResult result = new VariantSetListResponseResult();
-        	
-	        int start;
-	        int end;
-	        int pageSize;
-	        int pageToken = 0;
-	        String nextPageToken;
-	        
-	        if (body.getCallSetDbIds() != null) {
-	        	Log.warn("Implement CallSetDbIds filter");
-//        		status.setMessage("Searching VariantSets by CallSetDbIds is currently not implemented.");
-//        		status.setMessageType(MessageTypeEnum.ERROR);
-//        		httpCode = HttpStatus.NOT_IMPLEMENTED;
-        	}
-//        	else if (body.getStudyNames() != null) {
-//        		status.setMessage("Searching VariantSets by StudyNames is currently not implemented.");
-//        		status.setMessageType(MessageTypeEnum.ERROR);
-//        		httpCode = HttpStatus.NOT_IMPLEMENTED;
-//        	}
-//        	else if (body.getVariantSetDbIds() != null || body.getStudyNames() != null) {
-        		List<String> relevantIDs = body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : (body.getStudyDbIds() != null ? body.getStudyDbIds() : body.getStudyNames());
-        		Map<String, Map<Integer, List<String>>> variantSetDbIDsByStudyAndRefSet = parseVariantSetOrStudyDbIDs(relevantIDs);
-//        		List<String> projectIDs = body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : body.getStudyDbIds();
-//        	}
-	        
-	        for (String refSetDbId : variantSetDbIDsByStudyAndRefSet.isEmpty() ? MongoTemplateManager.getAvailableModules() : variantSetDbIDsByStudyAndRefSet.keySet()) {
-    			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
-    			Collection<Integer> allowedPjIDs = new HashSet<>();
-	        	Map<Integer, List<String>> variantSetDbIDsByStudy = variantSetDbIDsByStudyAndRefSet.get(refSetDbId);
-	        	for (int pjId : variantSetDbIDsByStudy != null ? variantSetDbIDsByStudy.keySet() : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class))
-            		if (tokenManager.canUserReadProject(token, refSetDbId, pjId))
-            			allowedPjIDs.add(pjId);
-
-    	        Query q = new Query(Criteria.where("_id").in(allowedPjIDs));
-    	        q.fields().include(GenotypingProject.FIELDNAME_RUNS);
-//    	        q.fields().include(GenotypingProject.FIELDNAME_NAME);
-//    	        q.fields().include(GenotypingProject.FIELDNAME_DESCRIPTION);
-
-//    	        List<GenotypingProject> listProj = mongoTemplate.find(q, GenotypingProject.class);
-    	        
-    	        
-    	        
-//    	        int size = listProj.size();
-//    	        // if page size is not specified, return all results
-//    	        if (body.getPageSize() != null) {
-//    	            pageSize = body.getPageSize();
-//    	        } else {
-//    	            pageSize = size;
-//    	        }
-//    	        if (body.getPage() != null) {
-//    	            pageToken = body.getPage();
-//    	        }
-//
-//    	        start = pageSize * pageToken;
-//    	        if (size - start <= pageSize) {
-//    	            end = size;
-//    	            nextPageToken = null;
-//    	        } else {
-//    	        	end = pageSize * (pageToken + 1);
-//    	            nextPageToken = Integer.toString(pageToken + 1);
-//    	        }
-
-    	        for (GenotypingProject proj : mongoTemplate.find(q, GenotypingProject.class)) {
-//    	        	GenotypingProject proj = listProj.get(i);
-    	        	List<String> wantedProjectRuns = variantSetDbIDsByStudy == null ? new ArrayList<>() : variantSetDbIDsByStudy.get(proj.getId());
-    	        	
-    	        	
-    	        	for (String run : proj.getRuns())
-	    	        	if (wantedProjectRuns.isEmpty() || wantedProjectRuns.contains(run)) {
-//		    	            List<VariantSetMetadata> metadata = new ArrayList<>();
-//		    	            if (proj.getDescription() != null) {
-//		    	            	VariantSetMetadata vsmd = new VariantSetMetadata();
-//		    	            	vsmd.setKey("description");
-//		    	            	vsmd.setValue(proj.getDescription());
-//		    	            	metadata.add(vsmd);
-//		    	            }
-	    	        		
-//		    	            VariantSet variantSet = new VariantSet();
-//		    	            variantSet.setReferenceSetDbId(refSetDbId);
-//		    	            variantSet.setStudyDbId(refSetDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + proj.getId());
-//		    	            variantSet.setVariantSetDbId(variantSet.getStudyDbId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + run);
-//		    	            variantSet.setVariantSetName(run);
-//		    	            variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId()), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(run))), GenotypingSample.class));
-//		    	            variantSet.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount()); /*FIXME : count variants involved in run*/
-//		    	            //variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(proj.getId()), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(run))), VariantRunData.class));
-	    	        		
-	    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, refSetDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + proj.getId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + run);
-	    	        				
-		    	            result.addDataItem(variantSet);
-	    	        	}
-    	        }
-	//        	else {
-	//        		status.setMessage("You may only ask for variantSet records from one referenceSet at a time.");
-	//        		status.setMessageType(MessageTypeEnum.ERROR);
-	//        		httpCode = HttpStatus.NOT_ACCEPTABLE;
-	//        	}
-	        }
-        	
 			Metadata metadata = new Metadata();
+			vslr.setMetadata(metadata);
+        	VariantSetListResponseResult result = new VariantSetListResponseResult();
+	        int pageToken = 0;
+
+	        if ((body.getVariantSetDbIds() != null || body.getStudyDbIds() != null) || body.getCallSetDbIds() == null) {
+	    		List<String> relevantIDs = body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : body.getStudyDbIds();
+	    		Map<String /*module*/, Map<Integer /*project*/, List<String> /*runs (all if null)*/>> variantSetDbIDsByStudyAndRefSet = parseVariantSetOrStudyDbIDs(relevantIDs);
+	        
+		        for (String refSetDbId : variantSetDbIDsByStudyAndRefSet.isEmpty() ? MongoTemplateManager.getAvailableModules() : variantSetDbIDsByStudyAndRefSet.keySet()) {
+	    			MongoTemplate mongoTemplate = MongoTemplateManager.get(refSetDbId);
+	    			Collection<Integer> allowedPjIDs = new HashSet<>();
+		        	Map<Integer, List<String>> variantSetDbIDsByStudy = variantSetDbIDsByStudyAndRefSet.get(refSetDbId);
+		        	for (int pjId : variantSetDbIDsByStudy != null ? variantSetDbIDsByStudy.keySet() : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class))
+	            		if (tokenManager.canUserReadProject(token, refSetDbId, pjId))
+	            			allowedPjIDs.add(pjId);
+	
+	    	        Query q = new Query(Criteria.where("_id").in(allowedPjIDs));
+	    	        q.fields().include(GenotypingProject.FIELDNAME_RUNS);
+	    	        for (GenotypingProject proj : mongoTemplate.find(q, GenotypingProject.class)) {
+	    	        	List<String> wantedProjectRuns = variantSetDbIDsByStudy == null ? new ArrayList<>() : variantSetDbIDsByStudy.get(proj.getId());
+	    	        	for (String run : proj.getRuns())
+		    	        	if (wantedProjectRuns.isEmpty() || wantedProjectRuns.contains(run)) {
+		    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, refSetDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + proj.getId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + run);
+			    	            result.addDataItem(variantSet);
+		    	        	}
+	    	        }
+		        }
+		    }
+	        else {	// no study or variantSet specified, but we have a list of callSets
+	        	HashMap<String /*module*/, HashSet<Integer> /*samples*/> samplesByModule = new HashMap<>();
+				for (String csId : body.getCallSetDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 3);
+					HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
+					if (moduleSamples == null) {
+						moduleSamples = new HashSet<>();
+						samplesByModule.put(info[0], moduleSamples);
+					}
+					moduleSamples.add(Integer.parseInt(info[2]));
+				}
+				HashSet<String> addedVariantSets = new HashSet<>();	// will be used to avoid adding the same variantSet several times
+	        	for (String module : samplesByModule.keySet()) {
+	        		MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+	    	        for (GenotypingSample sample : mongoTemplate.find(new Query(Criteria.where("_id").in(samplesByModule.get(module))), GenotypingSample.class)) {
+	    	        	String variantSetDbId = module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun();
+	    	        	if (!addedVariantSets.contains(variantSetDbId)) {
+	    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+		    	            result.addDataItem(variantSet);
+		    	            addedVariantSets.add(variantSetDbId);
+	    	        	}
+	    	        }
+	        	}
+        	}
+        	
 			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(pageToken);
 			pagination.setTotalPages(1);
 			pagination.setTotalCount(result.getData().size());
 			metadata.setPagination(pagination);
-			metadata.setStatus(Arrays.asList(status));
-			vslr.setMetadata(metadata);
 
 			vslr.setResult(result);
             return new ResponseEntity<VariantSetListResponse>(vslr, httpCode == null ? HttpStatus.OK : httpCode);
@@ -685,8 +760,8 @@ public class SearchApiController implements SearchApi {
     private Map<String /* module */, Map<Integer /* project */, List<String> /* runs */>> parseVariantSetOrStudyDbIDs(List<String> variantSetOrStudyDbIds) {
     	Map<String, Map<Integer, List<String>>> result = new HashMap<>();
     	if (variantSetOrStudyDbIds != null)
-	    	for (String variantSetId : variantSetOrStudyDbIds) {
-	    		String[] splitId = variantSetId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	    	for (String variantSetOrStudyId : variantSetOrStudyDbIds) {
+	    		String[] splitId = variantSetOrStudyId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
 	    		Map<Integer, List<String>> moduleProjectsAndRuns = result.get(splitId[0]);
 	    		if (moduleProjectsAndRuns == null) {
 	    			moduleProjectsAndRuns = new HashMap<>();
@@ -698,7 +773,7 @@ public class SearchApiController implements SearchApi {
 	    			projectRuns = new ArrayList<>();
 	    			moduleProjectsAndRuns.put(pjId, projectRuns);
 	    		}
-	    		if (splitId.length == 3)	// otherwise it was a study ID: the variantSet list will remain empty, meaning all of them are requested 
+	    		if (splitId.length == 3)	// otherwise it was a study ID: the run list will remain empty, meaning all of them are requested 
 	    			projectRuns.add(splitId[2]);
 	    	}
     	return result;
@@ -769,16 +844,6 @@ public class SearchApiController implements SearchApi {
 		if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0)
 			return new ResponseEntity<>(HttpStatus.OK);	// not supported
 
-		fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
-    	gsr.accessionNumbers = body.getAccessionNumbers();
-    	gsr.germplasmPUIs = body.getGermplasmPUIs();
-    	gsr.germplasmGenus = body.getGermplasmGenus();
-    	gsr.germplasmSpecies = body.getGermplasmSpecies();
-    	gsr.germplasmNames = body.getGermplasmNames() == null ? null : body.getGermplasmNames().stream().map(nm -> nm.substring(1 + nm.lastIndexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
-    	gsr.germplasmDbIds = body.getGermplasmDbIds() == null ? null : body.getGermplasmDbIds().stream().map(id -> id.substring(1 + id.lastIndexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
-    	gsr.page = body.getPage();
-    	gsr.pageSize = body.getPageSize();
-
     	try {
 			GermplasmListResponse glr = new GermplasmListResponse();
 			GermplasmListResponseResult result = new GermplasmListResponseResult();
@@ -787,42 +852,62 @@ public class SearchApiController implements SearchApi {
 
 			String refSetDbId = null;
 			Integer projId = null;
-			Collection<String> germplasmIds = new HashSet<>();
-			if (body.getGermplasmDbIds() == null || body.getGermplasmDbIds().isEmpty()) {
-				Status status = new Status();
-				status.setMessage("Some germplasmDbIds must be specified as parameter!");
-				metadata.addStatusItem(status);
-				return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
-			}
-
-			for (String gpId : body.getGermplasmDbIds()) {
-				String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
-				if (refSetDbId == null)
-					refSetDbId = info[0];
-				else if (!refSetDbId.equals(info[0])) {
-					Status status = new Status();
-					status.setMessage("You may only ask for germplasm records from one referenceSet at a time!");
-					metadata.addStatusItem(status);
-					return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
-				}
-				if (projId == null)
-					projId = Integer.parseInt(info[1]);
-				else if (!projId.equals(Integer.parseInt(info[1]))) {
+			Collection<String> germplasmIdsToReturn = new HashSet<>(), requestedGermplasmIDs;
+			if (body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty()) {
+				if (body.getStudyDbIds().size() > 1) {
 					Status status = new Status();
 					status.setMessage("You may only ask for germplasm records from one study at a time!");
 					metadata.addStatusItem(status);
 					return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
 				}
-				germplasmIds.add(info[2]);
+				String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getStudyDbIds().get(0), 2);
+				refSetDbId = info[0];
+				projId = Integer.parseInt(info[1]);
+				germplasmIdsToReturn = MgdbDao.getProjectIndividuals(refSetDbId, projId);
 			}
-			
+			else if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
+				requestedGermplasmIDs = body.getGermplasmDbIds();
+				for (String gpId : requestedGermplasmIDs) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
+					if (refSetDbId == null)
+						refSetDbId = info[0];
+					else if (!refSetDbId.equals(info[0])) {
+						Status status = new Status();
+						status.setMessage("You may only ask for germplasm records from one referenceSet at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+					}
+					if (projId == null)
+						projId = Integer.parseInt(info[1]);
+					else if (!projId.equals(Integer.parseInt(info[1]))) {
+						Status status = new Status();
+						status.setMessage("You may only ask for germplasm records from one study at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+					}
+					germplasmIdsToReturn.add(info[2]);
+				}
+			}
+			else {
+				Status status = new Status();
+				status.setMessage("Either a studyDbId or a list of germplasmDbIds must be specified as parameter!");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+			}
+
    			if (!tokenManager.canUserReadProject(token, refSetDbId, projId))
    				return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-   			
-//   			Map<String, Object> intermediateV1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, refSetDbId, gsr);
-//			Map<String, Object> intermediateV1Result = (Map<String, Object>) intermediateV1response.get("result");
-//			System.err.println(intermediateV1Result.get("searchResultsDbId"));
  			
+   			fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
+   	    	gsr.accessionNumbers = body.getAccessionNumbers();
+   	    	gsr.germplasmPUIs = body.getGermplasmPUIs();
+   	    	gsr.germplasmGenus = body.getGermplasmGenus();
+   	    	gsr.germplasmSpecies = body.getGermplasmSpecies();
+   	    	gsr.germplasmNames = body.getGermplasmNames() == null ? null : body.getGermplasmNames().stream().map(nm -> nm.substring(1 + nm.lastIndexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
+   	    	gsr.germplasmDbIds = germplasmIdsToReturn;
+   	    	gsr.page = body.getPage();
+   	    	gsr.pageSize = body.getPageSize();
+   	    	
    			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, refSetDbId, gsr);
    			Map<String, Object> v1Result = (Map<String, Object>) v1response.get("result");
    	    	ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
@@ -846,7 +931,7 @@ public class SearchApiController implements SearchApi {
 								germplasm.germplasmDbId(ga4ghService.createId(refSetDbId, projId, val.toString()));
 								break;
 							case "germplasmname":
-								germplasm.setGermplasmName(ga4ghService.createId(refSetDbId, projId, val.toString()));
+								germplasm.setGermplasmName(val.toString());
 								break;
 							case "defaultdisplayname":
 								germplasm.setDefaultDisplayName(val.toString());

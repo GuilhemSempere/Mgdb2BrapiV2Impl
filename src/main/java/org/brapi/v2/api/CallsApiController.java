@@ -44,8 +44,11 @@ public class CallsApiController implements CallsApi {
 
 	@Override
 	public ResponseEntity<CallListResponse> callsGet(String callSetDbId, String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize, String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException {
-		String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
-		GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[2]))), GenotypingSample.class).iterator().next();
+		if (variantSetDbId == null && callSetDbId != null) {
+			String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
+			GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[2]))), GenotypingSample.class).iterator().next();
+			variantSetDbId = info[0] + GigwaMethods.ID_SEPARATOR + sample.getProjectId() + GigwaMethods.ID_SEPARATOR + sample.getRun();
+		}
 		
 		CallsSearchRequest csr = new CallsSearchRequest();
 		csr.setExpandHomozygotes(expandHomozygotes);
@@ -54,9 +57,12 @@ public class CallsApiController implements CallsApi {
 		csr.setSepPhased(sepPhased);
 		csr.setPageSize(pageSize);
 		csr.setPageToken(pageToken);
-		csr.setCallSetDbIds(Arrays.asList(callSetDbId));
-		csr.setVariantDbIds(Arrays.asList(variantDbId));
-		csr.setVariantSetDbIds(Arrays.asList(info[0] + GigwaMethods.ID_SEPARATOR + sample.getProjectId() + GigwaMethods.ID_SEPARATOR + sample.getRun()));
+		if (callSetDbId != null)
+			csr.setCallSetDbIds(Arrays.asList(callSetDbId));
+		if (variantDbId != null)
+			csr.setVariantDbIds(Arrays.asList(variantDbId));
+		if (variantSetDbId != null)
+			csr.setVariantSetDbIds(Arrays.asList(variantSetDbId));
 		
 		return searchApiController.searchCallsPost(csr, authorization);
 	}

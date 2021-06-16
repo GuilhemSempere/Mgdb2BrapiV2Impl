@@ -22,6 +22,8 @@ import org.brapi.v2.model.VariantListResponseResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -31,11 +33,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
@@ -64,6 +66,13 @@ public class VariantsApiController implements VariantsApi {
         this.objectMapper = objectMapper;
         this.request = request;
     }
+    
+	protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Class varClass, Query varQuery, int skip, int limit) {
+		varQuery.collation(org.springframework.data.mongodb.core.query.Collation.of("en_US").numericOrderingEnabled());
+		varQuery.with(Sort.by(Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE)));
+		varQuery.skip(skip).limit(limit).cursorBatchSize(limit);
+		return mongoTemplate.find(varQuery, varClass, mongoTemplate.getCollectionName(varClass));
+	}
 
 	@Override
 	public ResponseEntity<VariantListResponse> variantsGet(String variantDbId, String variantSetDbId, String pageToken, Integer pageSize, String authorization) {
@@ -111,9 +120,7 @@ public class VariantsApiController implements VariantsApi {
 			}
 			
 			if (runQuery != null) {
-	//	        long b4 = System.currentTimeMillis();
-	        	List<AbstractVariantData> varList = IExportHandler.getMarkerListWithCorrectCollation(mongoTemplate, variantDbId != null && !variantDbId.isEmpty() ? VariantData.class : VariantRunData.class, runQuery, page * pageSize, pageSize);
-	//        	System.err.println((System.currentTimeMillis() - b4) + " / " + variants.size()/* + ": " + variants*/);
+	        	List<AbstractVariantData> varList = getSortedVariantListChunk(mongoTemplate, variantDbId != null && !variantDbId.isEmpty() ? VariantData.class : VariantRunData.class, runQuery, page * pageSize, pageSize);
 
 	        	for (AbstractVariantData dbVariant : varList) {
 	        		Variant variant = new Variant();
@@ -124,10 +131,12 @@ public class VariantsApiController implements VariantsApi {
 	        		if (alleles.size() > 1)
 	        			variant.setAlternateBases(alleles.subList(1, alleles.size()));
 	        		variant.setVariantType(dbVariant.getType());
-	        		variant.setReferenceName(dbVariant.getReferencePosition().getSequence());
-	        		variant.setStart((int) dbVariant.getReferencePosition().getStartSite());
-	        		variant.setEnd((int) (dbVariant.getReferencePosition().getEndSite() != null ? dbVariant.getReferencePosition().getEndSite() : (variant.getReferenceBases() != null ? (variant.getStart() + variant.getReferenceBases().length() - 1) : null)));
-	        		if (!dbVariant.getSynonyms().isEmpty()) {
+	        		if (dbVariant.getReferencePosition() != null) {
+		        		variant.setReferenceName(dbVariant.getReferencePosition().getSequence());
+		        		variant.setStart((int) dbVariant.getReferencePosition().getStartSite());
+		        		variant.setEnd((int) (dbVariant.getReferencePosition().getEndSite() != null ? dbVariant.getReferencePosition().getEndSite() : (variant.getReferenceBases() != null ? (variant.getStart() + variant.getReferenceBases().length() - 1) : null)));
+	        		}
+	        		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty()) {
 	        			List<String> synonyms = new ArrayList<>();
 	        			for (TreeSet<String> synsForAType : dbVariant.getSynonyms().values())
 	        				synonyms.addAll(synsForAType);

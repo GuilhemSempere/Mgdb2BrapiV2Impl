@@ -47,9 +47,10 @@ import com.mongodb.client.MongoCollection;
 import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.AbstractIndividualOrientedExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.FlapjackExportHandler;
+import fr.cirad.mgdb.exporting.tools.ExportManager;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.ProgressIndicator;
@@ -217,15 +218,15 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	public ResponseEntity<VariantSetResponse> variantsetsVariantSetDbIdGet(String variantSetDbId, String authorization) {
 		String token = ServerinfoApiController.readToken(authorization);
         try {
-        	VariantSetResponse rlr = new VariantSetResponse();        	
+        	VariantSetResponse rlr = new VariantSetResponse();
+			Metadata metadata = new Metadata();
+			rlr.setMetadata(metadata);
         	String[] splitId = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
         	
     		if (!tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
 				Status status = new Status();
 				status.setMessage("You are not allowed to access this content!");
-				Metadata metadata = new Metadata();
 				metadata.addStatusItem(status);
-				rlr.setMetadata(metadata);
 				return new ResponseEntity<>(rlr, HttpStatus.FORBIDDEN);
 			}
     		
@@ -259,7 +260,6 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
         	String exportId = "brapiV2export-" + variantSetDbId;
-        	MongoCollection<Document> varColl = mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class));
         	
 			String relativeOutputFolder = File.separator + TMP_OUTPUT_FOLDER + File.separator;
 			File outputLocation = new File(servletContext.getRealPath(relativeOutputFolder));
@@ -295,12 +295,19 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			response.getWriter().close();
         			return;
         		}
+        		
+    			VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+    			if (variantSet == null) {
+        			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        			response.getWriter().write("No data found for this variantSet");
+        			return;
+    			}
 
         		// start it
             	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
-        		tempFileGenerationThread = new FlapjackExportThread(fjExportHandler, exportFile, splitId[0], varColl, exportId, runSamples, progress);
+        		tempFileGenerationThread = new FlapjackExportThread(fjExportHandler, exportFile, variantSet, exportId, runSamples, progress);
         		exportThreads.put(exportId, tempFileGenerationThread);
         		tempFileGenerationThread.start();
         	}
@@ -322,25 +329,26 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		}
 	}
 	
-	public static class FlapjackExportThread extends Thread {
+	public class FlapjackExportThread extends Thread {
 		Exception exception = null;
 		Map<String, File> result;
 		FlapjackExportHandler exportHandler;
 		File exportFile;
-		String module;
 		MongoCollection<Document> varColl;
 		String exportId;
 		List<GenotypingSample> samplesToExport;
 		ProgressIndicator progress;
+		VariantSet variantSet;
 		
-		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, String sModule, MongoCollection<Document> varColl, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) {
+		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
-			module = sModule;
-			this.varColl = varColl;
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0]);
+			this.varColl = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantRunData.class));
 			this.samplesToExport = samplesToExport;
 			this.exportId = exportID;
 			this.progress = progress;
+			this.variantSet = variantSet;
 		}
 		
 		ProgressIndicator getProgress() {
@@ -350,15 +358,20 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		@Override
 		public void run() {
 			try {
-				result = exportHandler.createExportFiles(module, varColl, new Document(), samplesToExport, new ArrayList<>(), exportId, new HashMap<>(), new HashMap<>(), samplesToExport, progress);
-
+				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	        	int projId = Integer.parseInt(splitId[1]);
+				String module = splitId[0];
+				Document varQuery = new Document("$and", Arrays.asList(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId), new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])));
+				
+				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+				result = exportHandler.createExportFiles(module, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList<>(), new ArrayList<>(), exportId, new HashMap<>(), new HashMap<>(), samplesToExport, progress);
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
+				
+//				mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(splitId[2]))), VariantRunData.class)
 
-				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-		    	Number avgObjSize = (Number) mongoTemplate.getDb().runCommand(new Document("collStats", mongoTemplate.getCollectionName(VariantRunData.class))).get("avgObjSize");
-		        int nQueryChunkSize = (int) (IExportHandler.nMaxChunkSizeInMb * 1024 * 1024 / avgObjSize.doubleValue());
+		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
 		        	exportHandler.writeGenotypeFile(os, module, nQueryChunkSize, varColl, new Document(), null, result.values(), null, progress);
 		        }

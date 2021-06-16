@@ -29,11 +29,13 @@ import fr.cirad.web.controller.BackOfficeController;
 @Component
 public class MongoBrapiCache {
 
-	private static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet_VariantCounts";
+	private static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet";
 
 	@Autowired private AppConfig appConfig;
 	
 	private HttpServletRequest request;
+
+	private String publicHostName;
 	
     @Autowired
     public MongoBrapiCache(HttpServletRequest request) {
@@ -48,8 +50,6 @@ public class MongoBrapiCache {
     		VariantSetAvailableFormats format = new VariantSetAvailableFormats();
         	format.setDataFormat(DataFormatEnum.FLAPJACK);
         	format.setFileFormat(FileFormatEnum.TEXT_TSV);
-        	String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
-        	format.setFileURL((sWebAppRoot == null ? BackOfficeController.determinePublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + VariantsetsApi.variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
         	formatList.add(format);
 			variantSet.setAvailableFormats(formatList);
 //          Analysis analysisItem = new Analysis();
@@ -63,15 +63,27 @@ public class MongoBrapiCache {
 			variantSet.setStudyDbId(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + projId);
 			variantSet.setVariantSetDbId(variantSetDbId);
 			variantSet.setVariantSetName(splitId[2]);
-//    	        variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
+//    	    variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
 			variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class));
-//    	        variantSet.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount() /* this counts all variants in the database */);
-//	        long b4 = System.currentTimeMillis();
+//    	    variantSet.setVariantCount((int) mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).estimatedDocumentCount() /* this counts all variants in the database */);
 			variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(splitId[2]))), VariantRunData.class));
 
+			if (variantSet.getCallSetCount() == 0 && variantSet.getVariantCount() == 0)
+				return null;	// this run probably doesn't exist
 			mongoTemplate.save(variantSet, BRAPI_CACHE_COLL_VARIANTSET);
     	}
+    	
+    	// construct export URLs dynamically because we might get wrong URLs in cases where multiple instances are connected to a same DB
+    	String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
+    	for (VariantSetAvailableFormats format : variantSet.getAvailableFormats())
+        	format.setFileURL((sWebAppRoot == null ? getPublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + VariantsetsApi.variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
+
 		return variantSet;
 	}
 
+	private String getPublicHostName(HttpServletRequest request2) throws SocketException, UnknownHostException {
+		if (publicHostName == null)
+			publicHostName = BackOfficeController.determinePublicHostName(request);
+		return publicHostName;
+	}
 }
