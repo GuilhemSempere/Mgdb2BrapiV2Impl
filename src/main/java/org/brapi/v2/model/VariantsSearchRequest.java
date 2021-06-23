@@ -1,38 +1,34 @@
 package org.brapi.v2.model;
 
-import java.util.Objects;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.validation.annotation.Validated;
-import javax.validation.Valid;
-import javax.validation.constraints.*;
+import java.util.Objects;
 
+import com.google.gson.annotations.SerializedName;
+
+import io.swagger.annotations.ApiModelProperty;
 /**
- * ******************  /variants  ********************* This request maps to the body of &#x60;POST /variants/search&#x60; as JSON.
+ * VariantsSearchRequest
  */
-@ApiModel(description = "******************  /variants  ********************* This request maps to the body of `POST /variants/search` as JSON.")
-@Validated
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-public class VariantsSearchRequest   {
-  @JsonProperty("callSetDbIds")
-  @Valid
+
+@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-06-22T14:34:11.471Z[GMT]")
+public class VariantsSearchRequest extends SearchRequestParametersTokenPaging {
+  @SerializedName("callSetDbIds")
   private List<String> callSetDbIds = null;
 
-  @JsonProperty("end")
-  private String end = null;
+  @SerializedName("end")
+  private Integer end = null;
 
-  @JsonProperty("reference_name")
-  private String referenceName = null;
+  @SerializedName("referenceDbId")
+  private String referenceDbId = null;
 
-  @JsonProperty("start")
-  private String start = null;
+  @SerializedName("start")
+  private Integer start = null;
 
-  @JsonProperty("variantSetDbIds")
-  @Valid
+  @SerializedName("variantDbIds")
+  private List<String> variantDbIds = null;
+
+  @SerializedName("variantSetDbIds")
   private List<String> variantSetDbIds = null;
 
   public VariantsSearchRequest callSetDbIds(List<String> callSetDbIds) {
@@ -48,13 +44,12 @@ public class VariantsSearchRequest   {
     return this;
   }
 
-  /**
+   /**
    * Only return variant calls which belong to call sets with these IDs. If unspecified, return all variants and no variant call objects.
    * @return callSetDbIds
   **/
-  @ApiModelProperty(value = "Only return variant calls which belong to call sets with these IDs. If unspecified, return all variants and no variant call objects.")
-  
-    public List<String> getCallSetDbIds() {
+  @ApiModelProperty(example = "[\"4639fe3e\",\"b60d900b\"]", value = "Only return variant calls which belong to call sets with these IDs. If unspecified, return all variants and no variant call objects.")
+  public List<String> getCallSetDbIds() {
     return callSetDbIds;
   }
 
@@ -62,61 +57,84 @@ public class VariantsSearchRequest   {
     this.callSetDbIds = callSetDbIds;
   }
 
-  public VariantsSearchRequest end(String end) {
+  public VariantsSearchRequest end(Integer end) {
     this.end = end;
     return this;
   }
 
-  /**
-   * Required. The end of the window (0-based, exclusive) for which overlapping variants should be returned.
+   /**
+   * The end of the window (0-based, exclusive) for which overlapping variants should be returned.
    * @return end
   **/
-  @ApiModelProperty(value = "Required. The end of the window (0-based, exclusive) for which overlapping variants should be returned.")
-  
-    public String getEnd() {
+  @ApiModelProperty(example = "1500", value = "The end of the window (0-based, exclusive) for which overlapping variants should be returned.")
+  public Integer getEnd() {
     return end;
   }
 
-  public void setEnd(String end) {
+  public void setEnd(Integer end) {
     this.end = end;
   }
 
-  public VariantsSearchRequest referenceName(String referenceName) {
-    this.referenceName = referenceName;
+  public VariantsSearchRequest referenceDbId(String referenceDbId) {
+    this.referenceDbId = referenceDbId;
     return this;
   }
 
-  /**
-   * Required. Only return variants on this reference.
-   * @return referenceName
+   /**
+   * Only return variants on this reference.
+   * @return referenceDbId
   **/
-  @ApiModelProperty(value = "Required. Only return variants on this reference.")
-  
-    public String getReferenceName() {
-    return referenceName;
+  @ApiModelProperty(example = "120a2d5c", value = "Only return variants on this reference.")
+  public String getReferenceDbId() {
+    return referenceDbId;
   }
 
-  public void setReferenceName(String referenceName) {
-    this.referenceName = referenceName;
+  public void setReferenceDbId(String referenceDbId) {
+    this.referenceDbId = referenceDbId;
   }
 
-  public VariantsSearchRequest start(String start) {
+  public VariantsSearchRequest start(Integer start) {
     this.start = start;
     return this;
   }
 
-  /**
-   * Required. The beginning of the window (0-based, inclusive) for which overlapping variants should be returned. Genomic positions are non-negative integers less than reference length. Requests spanning the join of circular genomes are represented as two requests one on each side of the join (position 0).
+   /**
+   * The beginning of the window (0-based, inclusive) for which overlapping variants should be returned. Genomic positions are non-negative integers less than reference length. Requests spanning the join of circular genomes are represented as two requests one on each side of the join (position 0).
    * @return start
   **/
-  @ApiModelProperty(value = "Required. The beginning of the window (0-based, inclusive) for which overlapping variants should be returned. Genomic positions are non-negative integers less than reference length. Requests spanning the join of circular genomes are represented as two requests one on each side of the join (position 0).")
-  
-    public String getStart() {
+  @ApiModelProperty(example = "100", value = "The beginning of the window (0-based, inclusive) for which overlapping variants should be returned. Genomic positions are non-negative integers less than reference length. Requests spanning the join of circular genomes are represented as two requests one on each side of the join (position 0).")
+  public Integer getStart() {
     return start;
   }
 
-  public void setStart(String start) {
+  public void setStart(Integer start) {
     this.start = start;
+  }
+
+  public VariantsSearchRequest variantDbIds(List<String> variantDbIds) {
+    this.variantDbIds = variantDbIds;
+    return this;
+  }
+
+  public VariantsSearchRequest addVariantDbIdsItem(String variantDbIdsItem) {
+    if (this.variantDbIds == null) {
+      this.variantDbIds = new ArrayList<String>();
+    }
+    this.variantDbIds.add(variantDbIdsItem);
+    return this;
+  }
+
+   /**
+   * The &#x60;Variant&#x60;s to search.
+   * @return variantDbIds
+  **/
+  @ApiModelProperty(example = "[\"3b63d889\",\"ab4d174d\"]", value = "The `Variant`s to search.")
+  public List<String> getVariantDbIds() {
+    return variantDbIds;
+  }
+
+  public void setVariantDbIds(List<String> variantDbIds) {
+    this.variantDbIds = variantDbIds;
   }
 
   public VariantsSearchRequest variantSetDbIds(List<String> variantSetDbIds) {
@@ -132,13 +150,12 @@ public class VariantsSearchRequest   {
     return this;
   }
 
-  /**
-   * The `VariantSet` to search.
+   /**
+   * The &#x60;VariantSet&#x60; to search.
    * @return variantSetDbIds
   **/
-  @ApiModelProperty(value = "The `VariantSet` to search.")
-  
-    public List<String> getVariantSetDbIds() {
+  @ApiModelProperty(example = "[\"ba63d810\",\"434d1760\"]", value = "The `VariantSet` to search.")
+  public List<String> getVariantSetDbIds() {
     return variantSetDbIds;
   }
 
@@ -158,25 +175,29 @@ public class VariantsSearchRequest   {
     VariantsSearchRequest variantsSearchRequest = (VariantsSearchRequest) o;
     return Objects.equals(this.callSetDbIds, variantsSearchRequest.callSetDbIds) &&
         Objects.equals(this.end, variantsSearchRequest.end) &&
-        Objects.equals(this.referenceName, variantsSearchRequest.referenceName) &&
+        Objects.equals(this.referenceDbId, variantsSearchRequest.referenceDbId) &&
         Objects.equals(this.start, variantsSearchRequest.start) &&
-        Objects.equals(this.variantSetDbIds, variantsSearchRequest.variantSetDbIds);
+        Objects.equals(this.variantDbIds, variantsSearchRequest.variantDbIds) &&
+        Objects.equals(this.variantSetDbIds, variantsSearchRequest.variantSetDbIds) &&
+        super.equals(o);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(callSetDbIds, end, referenceName, start, variantSetDbIds);
+    return Objects.hash(callSetDbIds, end, referenceDbId, start, variantDbIds, variantSetDbIds, super.hashCode());
   }
+
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append("class VariantsSearchRequest {\n");
-    
+    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
     sb.append("    callSetDbIds: ").append(toIndentedString(callSetDbIds)).append("\n");
     sb.append("    end: ").append(toIndentedString(end)).append("\n");
-    sb.append("    referenceName: ").append(toIndentedString(referenceName)).append("\n");
+    sb.append("    referenceDbId: ").append(toIndentedString(referenceDbId)).append("\n");
     sb.append("    start: ").append(toIndentedString(start)).append("\n");
+    sb.append("    variantDbIds: ").append(toIndentedString(variantDbIds)).append("\n");
     sb.append("    variantSetDbIds: ").append(toIndentedString(variantSetDbIds)).append("\n");
     sb.append("}");
     return sb.toString();
@@ -192,4 +213,5 @@ public class VariantsSearchRequest   {
     }
     return o.toString().replace("\n", "\n    ");
   }
+
 }

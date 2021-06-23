@@ -11,12 +11,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.Call;
@@ -32,6 +35,7 @@ import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmListResponseResult;
 import org.brapi.v2.model.GermplasmMCPD;
 import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
+import org.bson.Document;
 import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.ListValue;
@@ -47,11 +51,17 @@ import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyListResponseResult;
 import org.brapi.v2.model.StudySearchRequest;
 import org.brapi.v2.model.TokenPagination;
+import org.brapi.v2.model.Variant;
+import org.brapi.v2.model.VariantListResponse;
+import org.brapi.v2.model.VariantListResponseResult;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetListResponseResult;
 import org.brapi.v2.model.VariantSetsSearchRequest;
+import org.brapi.v2.model.VariantsSearchRequest;
+import org.ga4gh.methods.GAException;
 import org.ga4gh.methods.SearchVariantSetsRequest;
+import org.ga4gh.methods.SearchVariantsRequest;
 import org.ga4gh.models.VariantSetMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,8 +81,10 @@ import org.threeten.bp.LocalDate;
 import org.threeten.bp.format.DateTimeParseException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.MongoCursor;
 
 import fr.cirad.controller.GigwaMethods;
+import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
@@ -82,10 +94,12 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.model.GigwaSearchVariantsResponse;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
@@ -131,7 +145,7 @@ public class SearchApiController implements SearchApi {
 		boolean fGotCallSetList = body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty();
 		if (!fGotVariantSetList && !fGotVariantList && !fGotCallSetList) {
 			Status status = new Status();
-			status.setMessage("You must specify at least callSetDbIds, variantDbIds, or variantSetDbIds!");
+			status.setMessage("You must specify at least one of callSetDbId, variantDbId, or variantSetDbId!");
 			metadata.addStatusItem(status);
 			return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
 		}
@@ -205,9 +219,9 @@ public class SearchApiController implements SearchApi {
 		if (projectIDs.isEmpty() && !forbiddenProjectIDs.isEmpty())
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 
-		List<Criteria> crits = new ArrayList<Criteria>();
+		List<Criteria> crits = new ArrayList<>();
 		if (fGotVariantSetList) {
-			List<Criteria> vsCrits = new ArrayList<Criteria>();
+			List<Criteria> vsCrits = new ArrayList<>();
 			for (String vsId : body.getVariantSetDbIds()) {
 				String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
 				vsCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
@@ -233,7 +247,7 @@ public class SearchApiController implements SearchApi {
 		else {	// find out which samples are involved and keep track of corresponding individuals
 	    	Query sampleQuery;
 			if (fGotVariantSetList) {
-				List<Criteria> vsCrits = new ArrayList<Criteria>();
+				List<Criteria> vsCrits = new ArrayList<>();
 				for (String vsId : body.getVariantSetDbIds()) {
 					String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
 					vsCrits.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
@@ -544,18 +558,34 @@ public class SearchApiController implements SearchApi {
 
         	if ((body.getObservationUnitDbIds() != null && body.getObservationUnitDbIds().size() > 0) || (body.getPlateDbIds() != null && body.getPlateDbIds().size() > 0))
         		sErrorMsg += "Searching by Plate or ObservationUnit is not supported! ";
-        	else if (body.getGermplasmDbIds() != null) {
-        		Collection<String> germplasmIds = new HashSet<>();
-	        	for (String spId : body.getGermplasmDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 3);
+        	else if (body.getStudyDbIds() != null) {
+        		Collection<String> studyIds = new HashSet<>();
+	        	for (String studyId : body.getStudyDbIds()) {
+	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
 					if (refSetDbId == null)
 						refSetDbId = info[0];
 					else if (!refSetDbId.equals(info[0]))
-						sErrorMsg += "You may only ask for sample records from one referenceSet at a time! ";
+						sErrorMsg += "You may only ask for sample records from one referenceSet at a time!";
 					if (projId == null)
 						projId = Integer.parseInt(info[1]);
 					else if (!projId.equals(Integer.parseInt(info[1])))
-						sErrorMsg += "You may only ask for germplasm records from one variantSet at a time! ";
+						sErrorMsg += "You may only ask for germplasm records from one study at a time!";
+					studyIds.add(info[1]);
+	        	}
+	        	sampleIds = MgdbDao.getSamplesForProject(refSetDbId, projId, null).stream().map(sp -> sp.getId()).collect(Collectors.toList());
+        	}
+        	else if (body.getGermplasmDbIds() != null) {
+        		Collection<String> germplasmIds = new HashSet<>();
+	        	for (String gpId : body.getGermplasmDbIds()) {
+	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
+					if (refSetDbId == null)
+						refSetDbId = info[0];
+					else if (!refSetDbId.equals(info[0]))
+						sErrorMsg += "You may only ask for sample records from one referenceSet at a time!";
+					if (projId == null)
+						projId = Integer.parseInt(info[1]);
+					else if (!projId.equals(Integer.parseInt(info[1])))
+						sErrorMsg += "You may only ask for germplasm records from one study at a time!";
 					germplasmIds.add(info[2]);
 	        	}
 	        	sampleIds = MgdbDao.getSamplesForProject(refSetDbId, projId, germplasmIds).stream().map(sp -> sp.getId()).collect(Collectors.toList());
@@ -566,15 +596,15 @@ public class SearchApiController implements SearchApi {
 					if (refSetDbId == null)
 						refSetDbId = info[0];
 					else if (!refSetDbId.equals(info[0]))
-						sErrorMsg += "You may only ask for sample records from one referenceSet at a time! ";
+						sErrorMsg += "You may only ask for sample records from one referenceSet at a time!";
 					if (projId == null)
 						projId = Integer.parseInt(info[1]);
 					else if (!projId.equals(Integer.parseInt(info[1])))
-						sErrorMsg += "You may only ask for sample records from one variantSet at a time! ";
+						sErrorMsg += "You may only ask for sample records from one study at a time!";
 					sampleIds.add(Integer.parseInt(info[3]));
 	        	}
         	else
-        		sErrorMsg += "You must provide either a list of germplasmDbIds or a list of sampleDbIds! ";
+        		sErrorMsg += "You must provide either a list of germplasmDbIds or a list of sampleDbIds!";
 
    			if (!sErrorMsg.isEmpty()) {
 				Status status = new Status();
@@ -629,14 +659,148 @@ public class SearchApiController implements SearchApi {
 //        }
 //    }
 //
-//    public ResponseEntity<SuccessfulSearchResponse> searchVariantsPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantsSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        try {
-//            return new ResponseEntity<SuccessfulSearchResponse>(objectMapper.readValue("{\n  \"result\" : {\n    \"searchResultsDbId\" : \"551ae08c\"\n  },\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", SuccessfulSearchResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//        } catch (IOException e) {
-//            log.error("Couldn't serialize response for content type application/json", e);
-//            return new ResponseEntity<SuccessfulSearchResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-//    }
+    public ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam(value = "Variant Search request") @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	boolean fGotVariants = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
+    	boolean fGotVariantSets = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
+    	boolean fGotRefDbId = body.getReferenceDbId() != null && !body.getReferenceDbId().isEmpty();
+
+		String token = ServerinfoApiController.readToken(authorization);
+
+		String module = null;
+		int projId;
+		Query varQuery = null, runQuery = null;
+
+		VariantListResponseResult result = new VariantListResponseResult();
+		VariantListResponse vlr = new VariantListResponse();
+    	MetadataTokenPagination metadata = new MetadataTokenPagination();
+		vlr.setMetadata(metadata);
+		vlr.setResult(result);
+		Status status = new Status();
+
+        if (body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE)
+        	body.setPageSize(VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE);
+        int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
+
+		try {
+			if (fGotVariants) {
+				HashSet<String> variantIDs = new HashSet<>();
+				for (String variantDbId : body.getVariantDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
+					if (module != null && !module.equals(info[0])) {
+						status.setMessage("You may only ask for variant records from one referenceSet at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+					}
+					module = info[0];
+					variantIDs.add(info[1]);
+				}
+				varQuery = new Query(Criteria.where("_id").in(variantIDs));
+			}
+	    	else if (fGotRefDbId) {
+	        	String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getReferenceDbId(), 2);
+	        	module = info[0];
+	    		List<Criteria> crits = new ArrayList<>();	    		
+	        	crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE).is(info[1]));
+	    		if (body.getStart() != null)
+	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()));
+	    		if (body.getEnd() != null)
+	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd()));
+	    		varQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+	    	}
+			else if (fGotVariantSets) {
+				HashMap<Integer, Set<String>> runsByProject = new HashMap<>();
+		    	for (String variantSetDbId : body.getVariantSetDbIds()) {
+		    		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+					if (module != null && !module.equals(info[0])) {
+						status.setMessage("You may only ask for variantSet records from one referenceSet at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+					}
+					module = info[0];
+
+					projId = Integer.parseInt(info[1]);
+					if (!tokenManager.canUserReadProject(token, info[0], info[1])) {
+						status.setMessage("You are not allowed to access this content");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(vlr, HttpStatus.FORBIDDEN);
+					}
+					
+					Set<String> projectRuns = runsByProject.get(projId);
+					if (projectRuns == null) {
+						projectRuns = new HashSet<>();
+						runsByProject.put(projId, projectRuns);
+					}
+					projectRuns.add(info[2]);
+		    	}
+		    	
+		    	List<Criteria> orCrits = new ArrayList<>();
+		    	for (Integer proj : runsByProject.keySet())
+		    		orCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(proj), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).in(runsByProject.get(proj))));
+		    	runQuery = new Query(new Criteria().orOperator(orCrits.toArray(new Criteria[orCrits.size()])));
+				runQuery.fields().exclude(VariantRunData.FIELDNAME_SAMPLEGENOTYPES);
+			}
+			
+			if (!tokenManager.canUserReadDB(token, module)) {
+				status.setMessage("You are not allowed to access this content");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(vlr, HttpStatus.FORBIDDEN);
+			}
+			
+			List<AbstractVariantData> varList;
+			if (varQuery != null) {
+				varQuery.limit(body.getPageSize());
+				if (page > 0)
+					varQuery.skip(page * body.getPageSize());
+				varList = IteratorUtils.toList(MongoTemplateManager.get(module).find(varQuery, VariantData.class).iterator());
+			}
+			else if (runQuery != null)
+	        	varList = VariantsApiController.getSortedVariantListChunk(MongoTemplateManager.get(module), fGotVariants ? VariantData.class : VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
+			else {
+				status.setMessage("At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified as parameter!");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+			}
+			
+        	for (AbstractVariantData dbVariant : varList) {
+        		Variant variant = new Variant();
+        		variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
+        		List<String> alleles = dbVariant.getKnownAlleleList();
+        		if (alleles.size() > 0)
+        			variant.setReferenceBases(alleles.get(0));
+        		if (alleles.size() > 1)
+        			variant.setAlternateBases(alleles.subList(1, alleles.size()));
+        		variant.setVariantType(dbVariant.getType());
+        		if (dbVariant.getReferencePosition() != null) {
+	        		variant.setReferenceName(dbVariant.getReferencePosition().getSequence());
+	        		variant.setStart((int) dbVariant.getReferencePosition().getStartSite());
+	        		variant.setEnd((int) (dbVariant.getReferencePosition().getEndSite() != null ? dbVariant.getReferencePosition().getEndSite() : (variant.getReferenceBases() != null ? (variant.getStart() + variant.getReferenceBases().length() - 1) : null)));
+        		}
+        		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty()) {
+        			List<String> synonyms = new ArrayList<>();
+        			for (TreeSet<String> synsForAType : dbVariant.getSynonyms().values())
+        				synonyms.addAll(synsForAType);
+        			variant.setVariantNames(synonyms);
+        		}
+        		result.addDataItem(variant);
+        	}
+
+        	int nNextPage = page + 1;
+        	TokenPagination pagination = new TokenPagination();
+    		pagination.setPageSize(body.getPageSize());
+    		pagination.setCurrentPageToken("" + page);
+    		if (!varList.isEmpty())
+    			pagination.setNextPageToken("" + nNextPage);
+    		if (page > 0)
+    			pagination.setPrevPageToken("" + (page - 1));
+			metadata.setPagination(pagination);
+
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<>(vlr, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+		return new ResponseEntity<>(vlr, HttpStatus.OK);
+    }
 //
 //    public ResponseEntity<VariantListResponse> searchVariantsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        try {
@@ -911,13 +1075,14 @@ public class SearchApiController implements SearchApi {
    			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, refSetDbId, gsr);
    			Map<String, Object> v1Result = (Map<String, Object>) v1response.get("result");
    	    	ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
+   	    	String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
    	    	for (Map<String, Object> v1germplasmRecord : v1data) {
     			Germplasm germplasm = new Germplasm();
     			
    	    		for (String key : v1germplasmRecord.keySet()) {
    	    			String sLCkey = key.toLowerCase();
    	    			Object val = v1germplasmRecord.get(key);
-					if (!BrapiGermplasm.germplasmFields.containsKey(sLCkey) && !"germplasmdbid".equals(sLCkey)) {
+					if (!BrapiGermplasm.germplasmFields.containsKey(sLCkey) && !lowerCaseIdFieldName.equals(sLCkey)) {
 						if ("additionalinfo".equals(sLCkey)) {
 							for (String aiKey : ((HashMap<String, String>) val).keySet())
 								germplasm.putAdditionalInfoItem(aiKey, ((HashMap<String, String>) val).get(aiKey));

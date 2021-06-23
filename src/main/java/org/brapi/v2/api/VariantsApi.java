@@ -31,6 +31,7 @@ import io.swagger.annotations.Authorization;
 public interface VariantsApi {
 	
 	final int MAX_CALL_MATRIX_SIZE = 30000;
+	final Integer MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE = 10000;
 
 	public static final String variantsGet_url = "variants";
 	public static final String variantsVariantDbIdCallsGet_url = "/variants/{variantDbId}/calls";

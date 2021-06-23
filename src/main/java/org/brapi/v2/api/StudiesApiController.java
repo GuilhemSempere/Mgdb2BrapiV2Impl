@@ -1,6 +1,7 @@
 package org.brapi.v2.api;
 
 import io.swagger.annotations.*;
+import springfox.documentation.annotations.ApiIgnore;
 
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyNewRequest;
@@ -101,6 +102,7 @@ public class StudiesApiController implements StudiesApi {
 		return searchApiController.searchStudiesPost(null, authorization);
 	}
 
+    @ApiIgnore
 	@Override
 	public ResponseEntity<StudyListResponse> studiesPost(String authorization, List<StudyNewRequest> body) {
 		return new ResponseEntity<StudyListResponse>(HttpStatus.NOT_IMPLEMENTED);

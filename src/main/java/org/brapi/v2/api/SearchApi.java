@@ -23,8 +23,10 @@ import org.brapi.v2.model.SampleSearchRequest;
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudySearchRequest;
 import org.brapi.v2.model.SuccessfulSearchResponse;
+import org.brapi.v2.model.VariantListResponse;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetsSearchRequest;
+import org.brapi.v2.model.VariantsSearchRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -44,12 +46,13 @@ public interface SearchApi {
 //    public static final String searchReferencesetsPost_url = CallsApi.URL_BASE_PREFIX + "/search/referencesets";
     public static final String searchCallsetsPost_url = "search/callsets";
     public static final String searchStudiesPost_url = "search/studies";
+    public static final String searchVariantsPost_url = "search/variants";
     public static final String searchVariantsetsPost_url = "search/variantsets";
     public static final String searchCallsPost_url = "search/calls";
     public static final String searchSamplesPost_url = "search/samples";
     public static final String searchGermplasmPost_url = "search/germplasm";
 
-	@ApiOperation(value = "Submit a search request for `Calls`", nickname = "searchCallsPost", notes = "`GET /callsets/{id}` will return a JSON version of `CallSet`.", response = SuccessfulSearchResponse.class, authorizations = {
+	@ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "searchCallsPost", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Calls", })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
@@ -76,7 +79,7 @@ public interface SearchApi {
 //    ResponseEntity<CallListResponse> searchCallsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId, @ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Gets a list of call sets matching the search criteria.", nickname = "searchCallsetsPost", notes = "`POST /callsets/search` must accept a JSON version of `SearchCallSetsRequest` as the post body and will return a JSON version of `SearchCallSetsResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `Callset` objects", nickname = "searchCallsetsPost", notes = "Returns a filtered list of `CallSet` objects. At least one callSetDbId or variantSetDbId must be specified", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets", })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
@@ -184,7 +187,7 @@ public interface SearchApi {
 //    ResponseEntity<ReferenceListResponse1> searchReferencesetsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId, @ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Submit a search request for Samples", nickname = "searchSamplesPost", notes = "Used to retrieve list of Samples from a Sample Tracking system based on some search criteria.  See Search Services for additional implementation details.", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `Sample` objects", nickname = "searchSamplesPost", notes = "Returns a filtered list of `Samples`. At least one germplasmDbId or sampleDbId must be specified. Searching by Plate or ObservationUnit is not supported", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Samples", })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
@@ -212,18 +215,18 @@ public interface SearchApi {
 //    ResponseEntity<SampleListResponse> searchSamplesSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId, @ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-//    @ApiOperation(value = "Gets a list of `Variant` matching the search criteria.", nickname = "searchVariantsPost", notes = "`POST /variants/search` must accept a JSON version of `SearchVariantsRequest` as the post body and will return a JSON version of `SearchVariantsResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
-//        @Authorization(value = "AuthorizationToken")    }, tags={ "Variants", })
-//    @ApiResponses(value = { 
-//        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
-//        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-//        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-//        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/search/variants",
-//        produces = { "application/json" }, 
-//        consumes = { "application/json" },
-//        method = RequestMethod.POST)
-//    ResponseEntity<SuccessfulSearchResponse> searchVariantsPost(@ApiParam(value = "Study Search request") @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    @ApiOperation(value = "Returns a filtered list of `Variant` objects", nickname = "searchVariantsPost", notes = "Returns a filtered list of `Variant` objects. At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified. ** THIS ENDPOINT USES TOKEN BASED PAGING **", response = SuccessfulSearchResponse.class, authorizations = {
+        @Authorization(value = "AuthorizationToken")    }, tags={ "Variants", })
+    @ApiResponses(value = { 
+        @ApiResponse(code = 200, message = "OK", response = VariantListResponse.class),
+        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + searchVariantsPost_url,
+        produces = { "application/json" }, 
+        consumes = { "application/json" },
+        method = RequestMethod.POST)
+    ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam(value = "Study Search request") @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
 //    @ApiOperation(value = "Gets a list of `Variant` matching the search criteria.", nickname = "searchVariantsSearchResultsDbIdGet", notes = "`POST /variants/search` must accept a JSON version of `SearchVariantsRequest` as the post body and will return a JSON version of `SearchVariantsResponse`.", response = VariantListResponse.class, authorizations = {
@@ -238,7 +241,7 @@ public interface SearchApi {
 //        method = RequestMethod.GET)
 //    ResponseEntity<VariantListResponse> searchVariantsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId, @ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
-    @ApiOperation(value = "Gets a list of `VariantSet` matching the search criteria.", nickname = "searchVariantsetsPost", notes = "`POST /variantsets/search` must accept a JSON version of `SearchVariantSetsRequest` as the post body and will return a JSON version of `SearchVariantSetsResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `VariantSet` objects", nickname = "searchVariantsetsPost", notes = "Returns a filtered list of `VariantSet` objects. Empty body accepted", response = SuccessfulSearchResponse.class, authorizations = {
             @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets", })
         @ApiResponses(value = { 
             @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
@@ -251,7 +254,7 @@ public interface SearchApi {
             method = RequestMethod.POST)
         ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Study Search request") @Valid @RequestBody VariantSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
-    @ApiOperation(value = "Gets a list of `Study` matching the search criteria.", nickname = "searchStudiesPost", notes = "`POST /studies/search` must accept a JSON version of `SearchStudysRequest` as the post body and will return a JSON version of `SearchStudiesResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `Study` objects", nickname = "searchStudiesPost", notes = "Returns a filtered list of `Study` objects. Empty body accepted", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Studies", })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
@@ -278,7 +281,7 @@ public interface SearchApi {
 //    ResponseEntity<VariantSetListResponse> searchVariantsetsSearchResultsDbIdGet(@ApiParam(value = "Permanent unique identifier which references the search results",required=true) @PathVariable("searchResultsDbId") String searchResultsDbId, @ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Submit a search request for Germplasm", nickname = "searchGermplasmPost", notes = "Search for a set of germplasm based on some criteria  Addresses these needs   - General germplasm search mechanism that accepts POST for complex queries   - Possibility to search germplasm by more parameters than those allowed by the existing germplasm search   - Possibility to get MCPD details by PUID rather than dbId  See Search Services for additional implementation details.", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `Germplasm` objects", nickname = "searchGermplasmPost", notes = "Returns a filtered list of `Germplasm` objects. Either a single studyDbId or a list of germplasmDbIds must be specified", response = SuccessfulSearchResponse.class, authorizations = {
             @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm", })
         @ApiResponses(value = { 
             @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),

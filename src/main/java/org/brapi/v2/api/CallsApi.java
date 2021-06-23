@@ -29,7 +29,7 @@ public interface CallsApi {
 
 	public static final String callsGet_url = "calls";
 	
-	@ApiOperation(value = "Gets a filtered list of `Calls`", notes = "Gets a filtered list of `Call` JSON objects.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
+	@ApiOperation(value = "Returns a filtered list of `Calls`", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
 			@Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = CallListResponse.class),
@@ -37,10 +37,7 @@ public interface CallsApi {
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
 	
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + callsGet_url,
-        produces = { "application/json" }, 
-        method = RequestMethod.GET)
-    ResponseEntity<CallListResponse> callsGet(
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + callsGet_url, produces = { "application/json" }, method = RequestMethod.GET) ResponseEntity<CallListResponse> callsGet(
     		@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,
     		@ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,
     		@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,
