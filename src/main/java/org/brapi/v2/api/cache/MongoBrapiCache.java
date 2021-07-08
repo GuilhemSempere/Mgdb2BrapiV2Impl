@@ -13,6 +13,7 @@ import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetAvailableFormats;
 import org.brapi.v2.model.VariantSetAvailableFormats.DataFormatEnum;
 import org.brapi.v2.model.VariantSetAvailableFormats.FileFormatEnum;
+import org.mortbay.log.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -45,6 +46,7 @@ public class MongoBrapiCache {
 	public VariantSet getVariantSet(MongoTemplate mongoTemplate, String variantSetDbId) throws SocketException, UnknownHostException {
 		VariantSet variantSet = mongoTemplate.findById(variantSetDbId, VariantSet.class, BRAPI_CACHE_COLL_VARIANTSET);
     	if (variantSet == null) {
+    		long before = System.currentTimeMillis();
     		variantSet = new VariantSet();
    			List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
     		VariantSetAvailableFormats format = new VariantSetAvailableFormats();
@@ -71,12 +73,13 @@ public class MongoBrapiCache {
 			if (variantSet.getCallSetCount() == 0 && variantSet.getVariantCount() == 0)
 				return null;	// this run probably doesn't exist
 			mongoTemplate.save(variantSet, BRAPI_CACHE_COLL_VARIANTSET);
+			Log.debug("VariantSet cache generated for " + variantSetDbId + " in " + (System.currentTimeMillis() - before) / 1000 + "s");
     	}
     	
     	// construct export URLs dynamically because we might get wrong URLs in cases where multiple instances are connected to a same DB
     	String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
     	for (VariantSetAvailableFormats format : variantSet.getAvailableFormats())
-        	format.setFileURL((sWebAppRoot == null ? getPublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + VariantsetsApi.variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
+        	format.setFileURL((sWebAppRoot == null ? getPublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + "/" + VariantsetsApi.variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
 
 		return variantSet;
 	}

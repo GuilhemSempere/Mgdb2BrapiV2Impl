@@ -13,14 +13,18 @@ import java.net.UnknownHostException;
 import javax.validation.Valid;
 
 import org.brapi.v2.model.CallListResponse;
+import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.brapi.v2.model.VariantListResponse;
+import org.brapi.v2.model.VariantsSearchRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
@@ -28,14 +32,29 @@ import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
+@Api(value = "variants", description = "the variants API", tags={ "Variants" })
 public interface VariantsApi {
 	
 	final int MAX_CALL_MATRIX_SIZE = 30000;
 	final Integer MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE = 10000;
 
 	public static final String variantsGet_url = "variants";
-	public static final String variantsVariantDbIdCallsGet_url = "/variants/{variantDbId}/calls";
-	
+	public static final String variantsVariantDbIdCallsGet_url = "variants/{variantDbId}/calls";
+    public static final String searchVariantsPost_url = "search/variants";
+    
+    @ApiOperation(value = "Returns a filtered list of `Variant` objects", nickname = "searchVariantsPost", notes = "Returns a filtered list of `Variant` objects. At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified. ** THIS ENDPOINT USES TOKEN BASED PAGING **", response = SuccessfulSearchResponse.class, authorizations = {
+        @Authorization(value = "AuthorizationToken")    }, tags={ "Variants" })
+    @ApiResponses(value = { 
+        @ApiResponse(code = 200, message = "OK", response = VariantListResponse.class),
+        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchVariantsPost_url,
+        produces = { "application/json" }, 
+        consumes = { "application/json" },
+        method = RequestMethod.POST)
+    ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+
     @ApiOperation(value = "Gets a filtered list of `Variants`.", notes = "Gets a filtered list of `Variants`.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
     		@Authorization(value = "AuthorizationToken")    }, tags={ "Variants" })
     @ApiResponses(value = { 
@@ -43,7 +62,7 @@ public interface VariantsApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<VariantListResponse> variantsGet(
@@ -61,7 +80,7 @@ public interface VariantsApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsVariantDbIdCallsGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsVariantDbIdCallsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<CallListResponse> variantsVariantDbIdCallsGet(

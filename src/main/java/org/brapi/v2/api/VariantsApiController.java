@@ -3,15 +3,27 @@ package org.brapi.v2.api;
 import java.io.UnsupportedEncodingException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
 
+import org.apache.commons.collections.IteratorUtils;
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
+import org.brapi.v2.model.MetadataTokenPagination;
+import org.brapi.v2.model.Status;
+import org.brapi.v2.model.TokenPagination;
+import org.brapi.v2.model.Variant;
 import org.brapi.v2.model.VariantListResponse;
+import org.brapi.v2.model.VariantListResponseResult;
 import org.brapi.v2.model.VariantsSearchRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,39 +31,194 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
+import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@RestController
+@CrossOrigin
+@Controller
 public class VariantsApiController implements VariantsApi {
 
     private static final Logger log = LoggerFactory.getLogger(VariantsApiController.class);
 
-    private final ObjectMapper objectMapper;
-
-    private final HttpServletRequest request;
-    	
-    @Autowired private MongoBrapiCache cache;
+//    private final ObjectMapper objectMapper;
+//
+//    private final HttpServletRequest request;
+//    	
+//    @Autowired private MongoBrapiCache cache;
     
-    @Autowired private SearchApiController searchApiController;
+    @Autowired private CallsApiController callsApiController;
     
     @Autowired private AbstractTokenManager tokenManager;
     
-    @org.springframework.beans.factory.annotation.Autowired
-    public VariantsApiController(ObjectMapper objectMapper, HttpServletRequest request) {
-        this.objectMapper = objectMapper;
-        this.request = request;
+//    @org.springframework.beans.factory.annotation.Autowired
+//    public VariantsApiController(ObjectMapper objectMapper, HttpServletRequest request) {
+//        this.objectMapper = objectMapper;
+//        this.request = request;
+//    }
+
+    public ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam(value = "Variant Search request") @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	boolean fGotVariants = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
+    	boolean fGotVariantSets = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
+    	boolean fGotRefDbId = body.getReferenceDbId() != null && !body.getReferenceDbId().isEmpty();
+
+		String token = ServerinfoApiController.readToken(authorization);
+
+		String module = null;
+		int projId;
+		Query varQuery = null, runQuery = null;
+
+		VariantListResponseResult result = new VariantListResponseResult();
+		VariantListResponse vlr = new VariantListResponse();
+    	MetadataTokenPagination metadata = new MetadataTokenPagination();
+		vlr.setMetadata(metadata);
+		vlr.setResult(result);
+		Status status = new Status();
+
+        if (body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE)
+        	body.setPageSize(VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE);
+        int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
+
+		try {
+			if (fGotVariants) {
+				HashSet<String> variantIDs = new HashSet<>();
+				for (String variantDbId : body.getVariantDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
+					if (module != null && !module.equals(info[0])) {
+						status.setMessage("You may only supply IDs of variant records from one program at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+					}
+					module = info[0];
+					variantIDs.add(info[1]);
+				}
+				varQuery = new Query(Criteria.where("_id").in(variantIDs));
+			}
+	    	else if (fGotRefDbId) {
+	        	String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getReferenceDbId(), 2);
+	        	module = info[0];
+	    		List<Criteria> crits = new ArrayList<>();	    		
+	        	crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE).is(info[1]));
+	    		if (body.getStart() != null)
+	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()));
+	    		if (body.getEnd() != null)
+	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd()));
+	    		varQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+	    	}
+			else if (fGotVariantSets) {
+				HashMap<Integer, Set<String>> runsByProject = new HashMap<>();
+		    	for (String variantSetDbId : body.getVariantSetDbIds()) {
+		    		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+					if (module != null && !module.equals(info[0])) {
+						status.setMessage("You may only supply IDs of variantSet records from one program at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+					}
+					module = info[0];
+
+					projId = Integer.parseInt(info[1]);
+					if (!tokenManager.canUserReadProject(token, info[0], info[1])) {
+						status.setMessage("You are not allowed to access this content");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(vlr, HttpStatus.FORBIDDEN);
+					}
+					
+					Set<String> projectRuns = runsByProject.get(projId);
+					if (projectRuns == null) {
+						projectRuns = new HashSet<>();
+						runsByProject.put(projId, projectRuns);
+					}
+					projectRuns.add(info[2]);
+		    	}
+		    	
+		    	List<Criteria> orCrits = new ArrayList<>();
+		    	for (Integer proj : runsByProject.keySet())
+		    		orCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(proj), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).in(runsByProject.get(proj))));
+		    	runQuery = new Query(new Criteria().orOperator(orCrits.toArray(new Criteria[orCrits.size()])));
+				runQuery.fields().exclude(VariantRunData.FIELDNAME_SAMPLEGENOTYPES);
+			}
+			
+			if (!tokenManager.canUserReadDB(token, module)) {
+				status.setMessage("You are not allowed to access this content");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(vlr, HttpStatus.FORBIDDEN);
+			}
+			
+			List<AbstractVariantData> varList;
+			if (varQuery != null) {
+				varQuery.limit(body.getPageSize());
+				if (page > 0)
+					varQuery.skip(page * body.getPageSize());
+				varList = IteratorUtils.toList(MongoTemplateManager.get(module).find(varQuery, VariantData.class).iterator());
+			}
+			else if (runQuery != null)
+	        	varList = VariantsApiController.getSortedVariantListChunk(MongoTemplateManager.get(module), fGotVariants ? VariantData.class : VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
+			else {
+				status.setMessage("At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified as parameter!");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+			}
+			
+        	for (AbstractVariantData dbVariant : varList) {
+        		Variant variant = new Variant();
+        		variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
+        		List<String> alleles = dbVariant.getKnownAlleleList();
+        		if (alleles.size() > 0)
+        			variant.setReferenceBases(alleles.get(0));
+        		if (alleles.size() > 1)
+        			variant.setAlternateBases(alleles.subList(1, alleles.size()));
+        		variant.setVariantType(dbVariant.getType());
+        		if (dbVariant.getReferencePosition() != null) {
+	        		variant.setReferenceName(dbVariant.getReferencePosition().getSequence());
+	        		variant.setStart((int) dbVariant.getReferencePosition().getStartSite());
+	        		variant.setEnd((int) (dbVariant.getReferencePosition().getEndSite() != null ? dbVariant.getReferencePosition().getEndSite() : (variant.getReferenceBases() != null ? (variant.getStart() + variant.getReferenceBases().length() - 1) : null)));
+        		}
+        		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty()) {
+        			List<String> synonyms = new ArrayList<>();
+        			for (TreeSet<String> synsForAType : dbVariant.getSynonyms().values())
+        				synonyms.addAll(synsForAType);
+        			variant.setVariantNames(synonyms);
+        		}
+        		result.addDataItem(variant);
+        	}
+
+        	int nNextPage = page + 1;
+        	TokenPagination pagination = new TokenPagination();
+    		pagination.setPageSize(body.getPageSize());
+    		pagination.setCurrentPageToken("" + page);
+    		if (!varList.isEmpty())
+    			pagination.setNextPageToken("" + nNextPage);
+    		if (page > 0)
+    			pagination.setPrevPageToken("" + (page - 1));
+			metadata.setPagination(pagination);
+
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<>(vlr, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+		return new ResponseEntity<>(vlr, HttpStatus.OK);
     }
-    
+
 	protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Class varClass, Query varQuery, int skip, int limit) {
 		varQuery.collation(org.springframework.data.mongodb.core.query.Collation.of("en_US").numericOrderingEnabled());
 		varQuery.with(Sort.by(Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE)));
@@ -69,7 +236,7 @@ public class VariantsApiController implements VariantsApi {
 		vsr.setPageToken(pageToken);
 		vsr.setPageSize(pageSize);
 
-		return searchApiController.searchVariantsPost(vsr, authorization);
+		return searchVariantsPost(vsr, authorization);
 	}
 	
 //	protected ResponseEntity<CallListResponse> buildCallListResponse(Query runQuery, MongoTemplate mongoTemplate, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize) {
@@ -157,7 +324,7 @@ public class VariantsApiController implements VariantsApi {
 		if (variantDbId != null)
 			csr.setVariantDbIds(Arrays.asList(variantDbId));
 		
-		return searchApiController.searchCallsPost(csr, authorization);
+		return callsApiController.searchCallsPost(csr, authorization);
 	}
 
 //	@Override

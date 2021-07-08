@@ -13,33 +13,48 @@
 package org.brapi.v2.model;
 
 import java.util.Objects;
+import java.util.Arrays;
+import com.google.gson.TypeAdapter;
+import com.google.gson.annotations.JsonAdapter;
+import com.google.gson.annotations.SerializedName;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.annotations.ApiModelProperty;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 /**
- * Study
+ * ProgramListResponseResult
  */
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-16T09:49:32.987Z[GMT]")
-public class Study extends StudyNewRequest {
-  @JsonProperty("studyDbId")
-  private String studyDbId = null;
+@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-06-24T08:33:25.155Z[GMT]")
+public class ProgramListResponseResult {
+  @SerializedName("data")
+  private List<Program> data = new ArrayList<Program>();
 
-  public Study studyDbId(String studyDbId) {
-    this.studyDbId = studyDbId;
+  public ProgramListResponseResult data(List<Program> data) {
+    this.data = data;
+    return this;
+  }
+
+  public ProgramListResponseResult addDataItem(Program dataItem) {
+    this.data.add(dataItem);
     return this;
   }
 
    /**
-   * The ID which uniquely identifies a study within the given database server  MIAPPE V1.1 (DM-11) Study unique ID - Unique identifier comprising the name or identifier for the institution/database hosting the submission of the study data, and the identifier of the study in that institution.
-   * @return studyDbId
+   * Get data
+   * @return data
   **/
- // @Schema(example = "175ac75a", required = true, description = "The ID which uniquely identifies a study within the given database server  MIAPPE V1.1 (DM-11) Study unique ID - Unique identifier comprising the name or identifier for the institution/database hosting the submission of the study data, and the identifier of the study in that institution.")
-  public String getStudyDbId() {
-    return studyDbId;
+  @ApiModelProperty(required = true, value = "")
+  public List<Program> getData() {
+    return data;
   }
 
-  public void setStudyDbId(String studyDbId) {
-    this.studyDbId = studyDbId;
+  public void setData(List<Program> data) {
+    this.data = data;
   }
 
 
@@ -51,23 +66,22 @@ public class Study extends StudyNewRequest {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Study study = (Study) o;
-    return Objects.equals(this.studyDbId, study.studyDbId) &&
-        super.equals(o);
+    ProgramListResponseResult programListResponseResult = (ProgramListResponseResult) o;
+    return Objects.equals(this.data, programListResponseResult.data);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(studyDbId, super.hashCode());
+    return Objects.hash(data);
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Study {\n");
-    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
-    sb.append("    studyDbId: ").append(toIndentedString(studyDbId)).append("\n");
+    sb.append("class ProgramListResponseResult {\n");
+    
+    sb.append("    data: ").append(toIndentedString(data)).append("\n");
     sb.append("}");
     return sb.toString();
   }

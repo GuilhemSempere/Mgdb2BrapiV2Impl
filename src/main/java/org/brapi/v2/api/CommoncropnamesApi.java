@@ -22,7 +22,7 @@ import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
-@Api(value = "commoncropnames", description = "the commoncropnames API")
+@Api(value = "commoncropnames", description = "the commoncropnames API", tags={ "Common Crop Names" })
 public interface CommoncropnamesApi {
 
 	public static final String commoncropnamesGet_url = "commoncropnames";
@@ -34,7 +34,7 @@ public interface CommoncropnamesApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + commoncropnamesGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + commoncropnamesGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<CommonCropNamesResponse> commoncropnamesGet(@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);

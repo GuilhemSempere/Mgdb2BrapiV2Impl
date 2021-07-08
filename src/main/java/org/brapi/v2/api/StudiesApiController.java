@@ -1,57 +1,104 @@
 package org.brapi.v2.api;
 
-import io.swagger.annotations.*;
-import springfox.documentation.annotations.ApiIgnore;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
+import javax.validation.Valid;
+
+import org.brapi.v2.model.IndexPagination;
+import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.Study;
 import org.brapi.v2.model.StudyListResponse;
+import org.brapi.v2.model.StudyListResponseResult;
 import org.brapi.v2.model.StudyNewRequest;
 import org.brapi.v2.model.StudySearchRequest;
 import org.brapi.v2.model.StudySearchRequest.SortByEnum;
 import org.brapi.v2.model.StudySearchRequest.SortOrderEnum;
-import org.brapi.v2.model.StudySingleResponse;
-import org.brapi.v2.model.VariantSetsSearchRequest;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.CookieValue;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
-import javax.validation.constraints.*;
-import javax.validation.Valid;
-import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import fr.cirad.controller.GigwaMethods;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
+import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.Helper;
+import fr.cirad.tools.mongo.MongoTemplateManager;
+import fr.cirad.tools.security.base.AbstractTokenManager;
+import io.swagger.annotations.ApiParam;
+import springfox.documentation.annotations.ApiIgnore;
 
 @javax.annotation.Generated(value = "org.brapi.v2.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T09:51:33.671Z[GMT]")
-@RestController
+@CrossOrigin
+@Controller
 public class StudiesApiController implements StudiesApi {
 
     private static final Logger log = LoggerFactory.getLogger(StudiesApiController.class);
 
-    private final ObjectMapper objectMapper;
+    @Autowired AbstractTokenManager tokenManager;    
 
-    private final HttpServletRequest request;
-    
-    @Autowired SearchApiController searchApiController;
+	public ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam(value = "Study Search request")  @Valid @RequestBody StudySearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	String token = ServerinfoApiController.readToken(authorization);
 
-    @org.springframework.beans.factory.annotation.Autowired
-    public StudiesApiController(ObjectMapper objectMapper, HttpServletRequest request) {
-        this.objectMapper = objectMapper;
-        this.request = request;
+    	try {
+	    	StudyListResponse slr = new StudyListResponse();
+	    	StudyListResponseResult result = new StudyListResponseResult();
+
+	    	boolean fGotTrialIDs = body != null && body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
+        	HashMap<String /*module*/, HashSet<Integer> /*samples*/> projectsByModule = new HashMap<>();
+        	if (body != null && body.getStudyDbIds() != null)
+				for (String studyId : body.getStudyDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+					HashSet<Integer> moduleProjects = projectsByModule.get(info[0]);
+					if (moduleProjects == null) {
+						moduleProjects = new HashSet<>();
+						projectsByModule.put(info[0], moduleProjects);
+					}
+					moduleProjects.add(Integer.parseInt(info[1]));
+				}
+
+	    	for (String module : MongoTemplateManager.getAvailableModules())
+	    		if (body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {
+		    		if ((!projectsByModule.isEmpty() && !projectsByModule.containsKey(module)) || (fGotTrialIDs && !body.getTrialDbIds().contains(module)))
+		    			continue;
+	
+		    		for (GenotypingProject pj : MongoTemplateManager.get(module).find(projectsByModule.isEmpty() ? new Query() : new Query(Criteria.where("id_").in(projectsByModule.get(module))), GenotypingProject.class)) {
+	
+	        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
+		            	result.addDataItem(new Study() {{
+		            		setTrialDbId(module);
+		            		setStudyDbId(module + GigwaMethods.ID_SEPARATOR + pj.getId());
+		            		setStudyType("genotype");
+		            		setStudyName(pj.getName());	/* variantSets in GA4GH correspond to projects, i.e. studies in BrAPI v2 */
+		            		setStudyDescription(pj.getDescription());
+	            		}} );
+		        	}
+		    	}
+	    	
+			Metadata metadata = new Metadata();
+			IndexPagination pagination = new IndexPagination();
+			pagination.setPageSize(result.getData().size());
+			pagination.setCurrentPage(0);
+			pagination.setTotalPages(1);
+			pagination.setTotalCount(result.getData().size());
+			metadata.setPagination(pagination);
+			slr.setMetadata(metadata);
+	
+			slr.setResult(result);		
+            return new ResponseEntity<StudyListResponse>(slr, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<StudyListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
 	@Override
@@ -65,6 +112,8 @@ public class StudiesApiController implements StudiesApi {
 			body.setCommonCropNames(Arrays.asList(commonCropName));
 		if (studyType != null)
 			body.setStudyTypes(Arrays.asList(studyType));
+		if (trialDbId != null)
+			body.setTrialDbIds(Arrays.asList(trialDbId));
 		if (programDbId != null)
 			body.setProgramDbIds(Arrays.asList(programDbId));
 		if (locationDbId != null)
@@ -99,7 +148,7 @@ public class StudiesApiController implements StudiesApi {
 			body.setPage(page);
 		if (pageSize != null)
 			body.setPageSize(pageSize);
-		return searchApiController.searchStudiesPost(null, authorization);
+		return searchStudiesPost(body, authorization);
 	}
 
     @ApiIgnore

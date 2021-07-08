@@ -13,10 +13,13 @@ import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
 import org.brapi.v2.model.CallListResponse;
+import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetResponse;
+import org.brapi.v2.model.VariantSetsSearchRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -30,14 +33,28 @@ import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
 import springfox.documentation.annotations.ApiIgnore;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Api(value = "variantsets", description = "the variantsets API")
+@Api(value = "variantsets", description = "the variantsets API", tags={ "Variant Sets"})
 public interface VariantsetsApi {
 
 	public static final String variantsetsGet_url = "variantsets";
 	public static final String variantsetsVariantSetDbIdCallsGet_url = "variantsets/{variantSetDbId}/calls";
 	public static final String variantsetsExportIntoFormat_url = "variantsets/{variantSetDbId}/export/{dataFormat}";
 	public static final String variantsetsVariantSetDbIdGet_url = "variantsets/{variantSetDbId}";
-	
+    public static final String searchVariantsetsPost_url = "search/variantsets";
+    
+    @ApiOperation(value = "Returns a filtered list of `VariantSet` objects", nickname = "searchVariantsetsPost", notes = "Returns a filtered list of `VariantSet` objects. Empty body accepted", response = SuccessfulSearchResponse.class, authorizations = {
+            @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets" })
+        @ApiResponses(value = { 
+            @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
+            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+        @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchVariantsetsPost_url,
+            produces = { "application/json" }, 
+            consumes = { "application/json" },
+            method = RequestMethod.POST)
+        ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam @Valid @RequestBody VariantSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+
 //    @ApiOperation(value = "Create new `VariantSet` based on search results", nickname = "variantsetsExtractPost", notes = "`POST /variantsets/extract` will perform a search for `Calls` which match the search criteria in `variantSetsExtractRequest` The results of the search will be used to create a new `VariantSet` on the server. The new `VariantSet` will be returned.", response = VariantSetResponse.class, authorizations = {
 //        @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets", })
 //    @ApiResponses(value = { 
@@ -46,30 +63,14 @@ public interface VariantsetsApi {
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
 //        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-//    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/variantsets/extract",
+//    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + "/variantsets/extract",
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" },
 //        method = RequestMethod.POST)
 //    ResponseEntity<VariantSetResponse> variantsetsExtractPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantSetsExtractRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 //
 //
-	
-//    @Operation(summary = "Gets a filtered list of `VariantSets`.", description = "Will return a filtered list of `VariantSet`.", security = {
-//            @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Variant Sets" })
-//        @ApiResponses(value = { 
-//            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = VariantSetsListResponse.class))),
-//            
-//            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = String.class))),
-//            
-//            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = String.class))),
-//            
-//            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = String.class))) })
-//        @RequestMapping(value = "/variantsets",
-//            produces = { "application/json" }, 
-//            method = RequestMethod.GET)
-//        ResponseEntity<VariantSetsListResponse> variantsetsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId, @ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId, @ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId, @ApiParam(value = "Filter by study DbId") @Valid @RequestParam(value = "studyDbId", required = false) String studyDbId, @ApiParam(value = "Filter by study name") @Valid @RequestParam(value = "studyName", required = false) String studyName, @ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
 
-    
     @ApiOperation(value = "Gets a filtered list of `VariantSets`.", nickname = "variantsetsGet", notes = "`GET /variantsets` will return a filtered list of `VariantSet`.", response = VariantSetListResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets", })
     @ApiResponses(value = { 
@@ -77,7 +78,7 @@ public interface VariantsetsApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsetsGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsetsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<VariantSetListResponse> variantsetsGet(	@ApiParam(value = "The ID of the `VariantSet` to be retrieved." ) @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,
@@ -96,7 +97,7 @@ public interface VariantsetsApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsetsVariantSetDbIdCallsGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsetsVariantSetDbIdCallsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(	@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,
@@ -116,7 +117,7 @@ public interface VariantsetsApi {
 //        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-//    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/variantsets/{variantSetDbId}/callsets",
+//    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + "/variantsets/{variantSetDbId}/callsets",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<CallSetsListResponse> variantsetsVariantSetDbIdCallsetsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,@ApiParam(value = "The human readbale name of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetName", required = false) String callSetName,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
@@ -130,7 +131,7 @@ public interface VariantsetsApi {
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class),
         @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsetsVariantSetDbIdGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsetsVariantSetDbIdGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<VariantSetResponse> variantsetsVariantSetDbIdGet(
@@ -145,13 +146,13 @@ public interface VariantsetsApi {
 //        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-//    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/variantsets/{variantSetDbId}/variants",
+//    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + "/variantsets/{variantSetDbId}/variants",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<VariantListResponse> variantsetsVariantSetDbIdVariantsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,@ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
     @ApiIgnore
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + variantsetsExportIntoFormat_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsetsExportIntoFormat_url,
             produces = { "application/json" }, 
             method = RequestMethod.GET)
         void variantsetsExportIntoFormat(HttpServletResponse response,

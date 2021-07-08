@@ -13,33 +13,82 @@
 package org.brapi.v2.model;
 
 import java.util.Objects;
+import java.util.Arrays;
+import com.google.gson.TypeAdapter;
+import com.google.gson.annotations.JsonAdapter;
+import com.google.gson.annotations.SerializedName;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.annotations.ApiModelProperty;
+import java.io.IOException;
 /**
- * Study
+ * ProgramSingleResponse
  */
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-03-16T09:49:32.987Z[GMT]")
-public class Study extends StudyNewRequest {
-  @JsonProperty("studyDbId")
-  private String studyDbId = null;
+@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-06-24T08:33:25.155Z[GMT]")
+public class ProgramSingleResponse {
+  @SerializedName("@context")
+  private Context _atContext = null;
 
-  public Study studyDbId(String studyDbId) {
-    this.studyDbId = studyDbId;
+  @SerializedName("metadata")
+  private Metadata metadata = null;
+
+  @SerializedName("result")
+  private Program result = null;
+
+  public ProgramSingleResponse _atContext(Context _atContext) {
+    this._atContext = _atContext;
     return this;
   }
 
    /**
-   * The ID which uniquely identifies a study within the given database server  MIAPPE V1.1 (DM-11) Study unique ID - Unique identifier comprising the name or identifier for the institution/database hosting the submission of the study data, and the identifier of the study in that institution.
-   * @return studyDbId
+   * Get _atContext
+   * @return _atContext
   **/
- // @Schema(example = "175ac75a", required = true, description = "The ID which uniquely identifies a study within the given database server  MIAPPE V1.1 (DM-11) Study unique ID - Unique identifier comprising the name or identifier for the institution/database hosting the submission of the study data, and the identifier of the study in that institution.")
-  public String getStudyDbId() {
-    return studyDbId;
+  @ApiModelProperty(value = "")
+  public Context getAtContext() {
+    return _atContext;
   }
 
-  public void setStudyDbId(String studyDbId) {
-    this.studyDbId = studyDbId;
+  public void setAtContext(Context _atContext) {
+    this._atContext = _atContext;
+  }
+
+  public ProgramSingleResponse metadata(Metadata metadata) {
+    this.metadata = metadata;
+    return this;
+  }
+
+   /**
+   * Get metadata
+   * @return metadata
+  **/
+  @ApiModelProperty(required = true, value = "")
+  public Metadata getMetadata() {
+    return metadata;
+  }
+
+  public void setMetadata(Metadata metadata) {
+    this.metadata = metadata;
+  }
+
+  public ProgramSingleResponse result(Program result) {
+    this.result = result;
+    return this;
+  }
+
+   /**
+   * Get result
+   * @return result
+  **/
+  @ApiModelProperty(required = true, value = "")
+  public Program getResult() {
+    return result;
+  }
+
+  public void setResult(Program result) {
+    this.result = result;
   }
 
 
@@ -51,23 +100,26 @@ public class Study extends StudyNewRequest {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Study study = (Study) o;
-    return Objects.equals(this.studyDbId, study.studyDbId) &&
-        super.equals(o);
+    ProgramSingleResponse programSingleResponse = (ProgramSingleResponse) o;
+    return Objects.equals(this._atContext, programSingleResponse._atContext) &&
+        Objects.equals(this.metadata, programSingleResponse.metadata) &&
+        Objects.equals(this.result, programSingleResponse.result);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(studyDbId, super.hashCode());
+    return Objects.hash(_atContext, metadata, result);
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Study {\n");
-    sb.append("    ").append(toIndentedString(super.toString())).append("\n");
-    sb.append("    studyDbId: ").append(toIndentedString(studyDbId)).append("\n");
+    sb.append("class ProgramSingleResponse {\n");
+    
+    sb.append("    _atContext: ").append(toIndentedString(_atContext)).append("\n");
+    sb.append("    metadata: ").append(toIndentedString(metadata)).append("\n");
+    sb.append("    result: ").append(toIndentedString(result)).append("\n");
     sb.append("}");
     return sb.toString();
   }

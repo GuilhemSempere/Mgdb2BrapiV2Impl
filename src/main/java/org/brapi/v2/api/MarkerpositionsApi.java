@@ -5,26 +5,10 @@
  */
 package org.brapi.v2.api;
 
-import io.swagger.annotations.*;
+import io.swagger.annotations.Api;
 
-import org.brapi.v2.model.MarkerPositionListResponse;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.multipart.MultipartFile;
-
-import javax.validation.Valid;
-import javax.validation.constraints.*;
-import java.util.List;
-import java.util.Map;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Api(value = "markerpositions", description = "the markerpositions API")
+@Api(value = "markerpositions", description = "the markerpositions API", tags={ "Genome Maps", })
 public interface MarkerpositionsApi {
 
 //    @ApiOperation(value = "Get marker position info", nickname = "markerpositionsGet", notes = "Get marker position information, based on Map, Linkage Group, and Marker ID", response = MarkerPositionListResponse.class, authorizations = {
@@ -34,7 +18,7 @@ public interface MarkerpositionsApi {
 //        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/markerpositions",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/markerpositions",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<MarkerPositionListResponse> markerpositionsGet(@ApiParam(value = "unique id of a map") @Valid @RequestParam(value = "mapDbId", required = false) String mapDbId,@ApiParam(value = "The chromosome identifier or the generic linkage group identifier if the chromosome is not applicable.") @Valid @RequestParam(value = "linkageGroupName", required = false) String linkageGroupName,@ApiParam(value = "The unique id for a marker") @Valid @RequestParam(value = "markerDbId", required = false) String markerDbId,@ApiParam(value = "The minimum position") @Valid @RequestParam(value = "minPosition", required = false) Integer minPosition,@ApiParam(value = "The maximum position") @Valid @RequestParam(value = "maxPosition", required = false) Integer maxPosition,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);

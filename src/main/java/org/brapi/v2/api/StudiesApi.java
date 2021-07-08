@@ -11,6 +11,8 @@ import javax.validation.Valid;
 
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyNewRequest;
+import org.brapi.v2.model.StudySearchRequest;
+import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
@@ -25,18 +28,33 @@ import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
 
 @javax.annotation.Generated(value = "org.brapi.v2.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T09:51:33.671Z[GMT]")
+@Api(value = "studies", description = "the studies API", tags={ "Studies"})
 public interface StudiesApi {
 
 	public static final String studiesGet_url = "studies";
 	public static final String studiesPost_url = studiesGet_url;
-	
+    public static final String searchStudiesPost_url = "search/studies";
+    
+    @ApiOperation(value = "Returns a filtered list of `Study` objects", nickname = "searchStudiesPost", notes = "Returns a filtered list of `Study` objects. Empty body accepted", response = SuccessfulSearchResponse.class, authorizations = {
+        @Authorization(value = "AuthorizationToken")    }, tags={ "Studies" })
+    @ApiResponses(value = { 
+        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
+        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchStudiesPost_url,
+        produces = { "application/json" }, 
+        consumes = { "application/json" },
+        method = RequestMethod.POST)
+    ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam @Valid @RequestBody StudySearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+
     @ApiOperation(value = "Get a filtered list of Studies", nickname = "studiesGet", notes = "`GET /studies/{study_id}` will return a JSON version of `Study`.", response = StudyListResponse.class, authorizations = {@Authorization(value = "AuthorizationToken")    }, tags={ "Studies", })
     @ApiResponses(value = { 
             @ApiResponse(code = 200, message = "A successful response.", response = StudyListResponse.class),
             @ApiResponse(code = 400, message = "Bad Request", response = String.class),
             @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
             @ApiResponse(code = 403, message = "Forbidden", response = String.class) })    
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + studiesGet_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + studiesGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<StudyListResponse> studiesGet(
@@ -67,7 +85,7 @@ public interface StudiesApi {
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + studiesPost_url,
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + studiesPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" }, 
         method = RequestMethod.POST)

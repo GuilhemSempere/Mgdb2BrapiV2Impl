@@ -8,8 +8,10 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -17,15 +19,18 @@ import java.util.Scanner;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.validation.Valid;
 
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
+import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetAvailableFormats.DataFormatEnum;
 import org.brapi.v2.model.VariantSetListResponse;
+import org.brapi.v2.model.VariantSetListResponseResult;
 import org.brapi.v2.model.VariantSetResponse;
 import org.brapi.v2.model.VariantSetsSearchRequest;
 import org.bson.Document;
@@ -39,6 +44,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.context.ServletContextAware;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +55,7 @@ import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.AbstractIndividualOrientedExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.FlapjackExportHandler;
 import fr.cirad.mgdb.exporting.tools.ExportManager;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
@@ -56,6 +64,8 @@ import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.ProgressIndicator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import io.swagger.annotations.ApiParam;
+
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
 @Controller
@@ -69,7 +79,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         
     @Autowired private AbstractTokenManager tokenManager;
     
-    @Autowired private SearchApiController searchApiController;
+    @Autowired private CallsApiController callsApiController;
        
     @Autowired private MongoBrapiCache cache;
     
@@ -86,6 +96,104 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         this.objectMapper = objectMapper;
         this.request = request;
     }
+    
+    /* study IDs have 2 levels: module+project, variantSet IDs have 3 levels: module+project+run */
+    private Map<String /* module */, Map<Integer /* project */, List<String> /* runs */>> parseVariantSetOrStudyDbIDs(List<String> variantSetOrStudyDbIds) {
+    	Map<String, Map<Integer, List<String>>> result = new HashMap<>();
+    	if (variantSetOrStudyDbIds != null)
+	    	for (String variantSetOrStudyId : variantSetOrStudyDbIds) {
+	    		String[] splitId = variantSetOrStudyId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	    		Map<Integer, List<String>> moduleProjectsAndRuns = result.get(splitId[0]);
+	    		if (moduleProjectsAndRuns == null) {
+	    			moduleProjectsAndRuns = new HashMap<>();
+	    			result.put(splitId[0], moduleProjectsAndRuns);
+	    		}
+	    		int pjId = Integer.parseInt(splitId[1]);
+	    		List<String> projectRuns = moduleProjectsAndRuns.get(pjId);
+	    		if (projectRuns == null) {
+	    			projectRuns = new ArrayList<>();
+	    			moduleProjectsAndRuns.put(pjId, projectRuns);
+	    		}
+	    		if (splitId.length == 3)	// otherwise it was a study ID: the run list will remain empty, meaning all of them are requested 
+	    			projectRuns.add(splitId[2]);
+	    	}
+    	return result;
+    }
+    
+    public ResponseEntity<VariantSetListResponse> searchVariantsetsPost(@ApiParam(value = "Variantset Search request") @Valid @RequestBody VariantSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    	String token = ServerinfoApiController.readToken(authorization);
+		HttpStatus httpCode = null;
+
+        try {
+        	VariantSetListResponse vslr = new VariantSetListResponse();
+			Metadata metadata = new Metadata();
+			vslr.setMetadata(metadata);
+        	VariantSetListResponseResult result = new VariantSetListResponseResult();
+	        int pageToken = 0;
+
+	        if ((body.getVariantSetDbIds() != null || body.getStudyDbIds() != null) || body.getCallSetDbIds() == null) {
+	    		List<String> relevantIDs = body.getVariantSetDbIds() != null ? body.getVariantSetDbIds() : body.getStudyDbIds();
+	    		Map<String /*module*/, Map<Integer /*project*/, List<String> /*runs (all if null)*/>> variantSetDbIDsByStudyAndRefSet = parseVariantSetOrStudyDbIDs(relevantIDs);
+	        
+		        for (String programDbId : variantSetDbIDsByStudyAndRefSet.isEmpty() ? MongoTemplateManager.getAvailableModules() : variantSetDbIDsByStudyAndRefSet.keySet()) {
+	    			MongoTemplate mongoTemplate = MongoTemplateManager.get(programDbId);
+	    			Collection<Integer> allowedPjIDs = new HashSet<>();
+		        	Map<Integer, List<String>> variantSetDbIDsByStudy = variantSetDbIDsByStudyAndRefSet.get(programDbId);
+		        	for (int pjId : variantSetDbIDsByStudy != null ? variantSetDbIDsByStudy.keySet() : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class))
+	            		if (tokenManager.canUserReadProject(token, programDbId, pjId))
+	            			allowedPjIDs.add(pjId);
+	
+	    	        Query q = new Query(Criteria.where("_id").in(allowedPjIDs));
+	    	        q.fields().include(GenotypingProject.FIELDNAME_RUNS);
+	    	        for (GenotypingProject proj : mongoTemplate.find(q, GenotypingProject.class)) {
+	    	        	List<String> wantedProjectRuns = variantSetDbIDsByStudy == null ? new ArrayList<>() : variantSetDbIDsByStudy.get(proj.getId());
+	    	        	for (String run : proj.getRuns())
+		    	        	if (wantedProjectRuns.isEmpty() || wantedProjectRuns.contains(run)) {
+		    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, programDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + proj.getId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + run);
+			    	            result.addDataItem(variantSet);
+		    	        	}
+	    	        }
+		        }
+		    }
+	        else {	// no study or variantSet specified, but we have a list of callSets
+	        	HashMap<String /*module*/, HashSet<Integer> /*samples*/> samplesByModule = new HashMap<>();
+				for (String csId : body.getCallSetDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 3);
+					HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
+					if (moduleSamples == null) {
+						moduleSamples = new HashSet<>();
+						samplesByModule.put(info[0], moduleSamples);
+					}
+					moduleSamples.add(Integer.parseInt(info[2]));
+				}
+				HashSet<String> addedVariantSets = new HashSet<>();	// will be used to avoid adding the same variantSet several times
+	        	for (String module : samplesByModule.keySet()) {
+	        		MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+	    	        for (GenotypingSample sample : mongoTemplate.find(new Query(Criteria.where("_id").in(samplesByModule.get(module))), GenotypingSample.class)) {
+	    	        	String variantSetDbId = module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun();
+	    	        	if (!addedVariantSets.contains(variantSetDbId)) {
+	    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+		    	            result.addDataItem(variantSet);
+		    	            addedVariantSets.add(variantSetDbId);
+	    	        	}
+	    	        }
+	        	}
+        	}
+        	
+			IndexPagination pagination = new IndexPagination();
+			pagination.setPageSize(result.getData().size());
+			pagination.setCurrentPage(pageToken);
+			pagination.setTotalPages(1);
+			pagination.setTotalCount(result.getData().size());
+			metadata.setPagination(pagination);
+
+			vslr.setResult(result);
+            return new ResponseEntity<VariantSetListResponse>(vslr, httpCode == null ? HttpStatus.OK : httpCode);
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 //
 //    public ResponseEntity<VariantSetResponse> variantsetsExtractPost(@ApiParam(value = "Study Search request"  )  @Valid @RequestBody VariantSetsExtractRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        String accept = request.getHeader("Accept");
@@ -99,20 +207,6 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 //        }
 //
 //        return new ResponseEntity<VariantSetResponse>(HttpStatus.NOT_IMPLEMENTED);
-//    }
-//
-//    public ResponseEntity<VariantSetListResponse> variantsetsGet(@NotNull @ApiParam(value = "The ID of the `VariantSet` to be retrieved.", required = true) @Valid @RequestParam(value = "variantSetDbId", required = true) String variantSetDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        String accept = request.getHeader("Accept");
-//        if (accept != null && accept.contains("application/json")) {
-//            try {
-//                return new ResponseEntity<VariantSetListResponse>(objectMapper.readValue("{\n  \"result\" : {\n    \"data\" : [ {\n      \"availableFormats\" : [ {\n        \"dataFormat\" : \"DartSeq\",\n        \"fileURL\" : \"http://example.com/aeiou\",\n        \"fileFormat\" : \"text/csv\"\n      }, {\n        \"dataFormat\" : \"DartSeq\",\n        \"fileURL\" : \"http://example.com/aeiou\",\n        \"fileFormat\" : \"text/csv\"\n      } ],\n      \"additionalInfo\" : {\n        \"key\" : \"additionalInfo\"\n      },\n      \"variantSetDbId\" : \"variantSetDbId\",\n      \"callSetCount\" : 0,\n      \"VariantSetDbId\" : \"VariantSetDbId\",\n      \"variantSetName\" : \"variantSetName\",\n      \"analysis\" : [ {\n        \"software\" : [ \"software\", \"software\" ],\n        \"analysisDbId\" : \"analysisDbId\",\n        \"created\" : \"created\",\n        \"description\" : \"description\",\n        \"type\" : \"type\",\n        \"updated\" : \"updated\",\n        \"analysisName\" : \"analysisName\"\n      }, {\n        \"software\" : [ \"software\", \"software\" ],\n        \"analysisDbId\" : \"analysisDbId\",\n        \"created\" : \"created\",\n        \"description\" : \"description\",\n        \"type\" : \"type\",\n        \"updated\" : \"updated\",\n        \"analysisName\" : \"analysisName\"\n      } ],\n      \"studyDbId\" : \"studyDbId\",\n      \"variantCount\" : 6\n    }, {\n      \"availableFormats\" : [ {\n        \"dataFormat\" : \"DartSeq\",\n        \"fileURL\" : \"http://example.com/aeiou\",\n        \"fileFormat\" : \"text/csv\"\n      }, {\n        \"dataFormat\" : \"DartSeq\",\n        \"fileURL\" : \"http://example.com/aeiou\",\n        \"fileFormat\" : \"text/csv\"\n      } ],\n      \"additionalInfo\" : {\n        \"key\" : \"additionalInfo\"\n      },\n      \"variantSetDbId\" : \"variantSetDbId\",\n      \"callSetCount\" : 0,\n      \"VariantSetDbId\" : \"VariantSetDbId\",\n      \"variantSetName\" : \"variantSetName\",\n      \"analysis\" : [ {\n        \"software\" : [ \"software\", \"software\" ],\n        \"analysisDbId\" : \"analysisDbId\",\n        \"created\" : \"created\",\n        \"description\" : \"description\",\n        \"type\" : \"type\",\n        \"updated\" : \"updated\",\n        \"analysisName\" : \"analysisName\"\n      }, {\n        \"software\" : [ \"software\", \"software\" ],\n        \"analysisDbId\" : \"analysisDbId\",\n        \"created\" : \"created\",\n        \"description\" : \"description\",\n        \"type\" : \"type\",\n        \"updated\" : \"updated\",\n        \"analysisName\" : \"analysisName\"\n      } ],\n      \"studyDbId\" : \"studyDbId\",\n      \"variantCount\" : 6\n    } ]\n  },\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", VariantSetListResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//            } catch (IOException e) {
-//                log.error("Couldn't serialize response for content type application/json", e);
-//                return new ResponseEntity<VariantSetListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//            }
-//        }
-//
-//        return new ResponseEntity<VariantSetListResponse>(HttpStatus.NOT_IMPLEMENTED);
 //    }
 	
 	@Override
@@ -132,18 +226,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			body.setPage(page);
 		if (pageSize != null)
 			body.setPageSize(pageSize);
-		return searchApiController.searchVariantsetsPost(body, authorization);
+		return searchVariantsetsPost(body, authorization);
 	}
-    
-//	@Override
-//	public ResponseEntity<VariantSetListResponse> variantsetsGet(String commonCropName, String studyType, String programDbId,
-//			String locationDbId, String seasonDbId, String trialDbId, String studyDbId, String studyName,
-//			String studyCode, String studyPUI, String germplasmDbId, String observationVariableDbId, Boolean active,
-//			String sortBy, String sortOrder, String externalReferenceID, String externalReferenceSource, Integer page,
-//			Integer pageSize, String authorization) {
-//
-//		return searchApiController.searchStudiesPost(null, authorization);
-//	}
 	
 	@Override
 	public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize, String authorization) throws UnsupportedEncodingException, SocketException, UnknownHostException {
@@ -156,7 +240,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		csr.setPageToken(pageToken);
 		csr.setVariantSetDbIds(Arrays.asList(variantSetDbId));
 		
-		return searchApiController.searchCallsPost(csr, authorization);
+		return callsApiController.searchCallsPost(csr, authorization);
 	}
 	
 //    public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
