@@ -48,12 +48,6 @@ public class MongoBrapiCache {
     	if (variantSet == null) {
     		long before = System.currentTimeMillis();
     		variantSet = new VariantSet();
-   			List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
-    		VariantSetAvailableFormats format = new VariantSetAvailableFormats();
-        	format.setDataFormat(DataFormatEnum.FLAPJACK);
-        	format.setFileFormat(FileFormatEnum.TEXT_TSV);
-        	formatList.add(format);
-			variantSet.setAvailableFormats(formatList);
 //          Analysis analysisItem = new Analysis();
 //	        analysisItem.setAnalysisDbId(ga4ghVariantSet.getId());
 //	        analysisItem.setType("TODO: check how to deal with this field");
@@ -76,10 +70,26 @@ public class MongoBrapiCache {
 			Log.debug("VariantSet cache generated for " + variantSetDbId + " in " + (System.currentTimeMillis() - before) / 1000 + "s");
     	}
     	
+		List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
+		VariantSetAvailableFormats format = new VariantSetAvailableFormats();
+    	format.setDataFormat(DataFormatEnum.FLAPJACK);
+    	format.setFileFormat(FileFormatEnum.TEXT_TSV);
+    	formatList.add(format);
+    	// we keep PLINK disabled now because we have no way of providing the map file
+//    	format = new VariantSetAvailableFormats();
+//    	format.setDataFormat(DataFormatEnum.PLINK);
+//    	format.setFileFormat(FileFormatEnum.TEXT_TSV);
+//    	formatList.add(format);
+    	format = new VariantSetAvailableFormats();
+    	format.setDataFormat(DataFormatEnum.VCF);
+    	format.setFileFormat(FileFormatEnum.TEXT_TSV);
+    	formatList.add(format);
+		variantSet.setAvailableFormats(formatList);
+		
     	// construct export URLs dynamically because we might get wrong URLs in cases where multiple instances are connected to a same DB
     	String sWebAppRoot = appConfig.get("enforcedWebapRootUrl");
-    	for (VariantSetAvailableFormats format : variantSet.getAvailableFormats())
-        	format.setFileURL((sWebAppRoot == null ? getPublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + "/" + VariantsetsApi.variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", format.getDataFormat().toString()));
+    	for (VariantSetAvailableFormats someFormat : variantSet.getAvailableFormats())
+    		someFormat.setFileURL((sWebAppRoot == null ? getPublicHostName(request) + request.getContextPath() : sWebAppRoot) + request.getServletPath() + ServerinfoApi.URL_BASE_PREFIX + "/" + VariantsetsApi.variantsetsExportIntoFormat_url.replace("{variantSetDbId}", variantSetDbId).replace("{dataFormat}", someFormat.getDataFormat().toString()));
 
 		return variantSet;
 	}
