@@ -92,7 +92,7 @@ public class CallsApiController implements CallsApi {
 	@Override
 	public ResponseEntity<CallListResponse> searchCallsPost(CallsSearchRequest body, String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException {
 		String token = ServerinfoApiController.readToken(authorization);
-			
+
     	CallListResponse clr = new CallListResponse();
     	CallsListResponseResult result = new CallsListResponseResult();
     	MetadataTokenPagination metadata = new MetadataTokenPagination();
@@ -109,7 +109,7 @@ public class CallsApiController implements CallsApi {
 		}
 
 		String module = null;
-		
+
 		if (fGotVariantSetList) {
 			for (String variantDbId : body.getVariantSetDbIds()) {
 				if (module == null)
@@ -123,7 +123,7 @@ public class CallsApiController implements CallsApi {
 				}
 			}
 		}
-		
+
 		if (fGotVariantList) {
 			for (String variantDbId : body.getVariantDbIds()) {
 				if (module == null)
@@ -152,7 +152,7 @@ public class CallsApiController implements CallsApi {
 				}
 				sampleIndividuals.put(Integer.parseInt(info[2]), info[1]);
 			}
-			
+
 			// identify the runs those samples are involved in
 			body.setVariantSetDbIds(new ArrayList<>());
 			for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIndividuals.keySet())), GenotypingSample.class)) {

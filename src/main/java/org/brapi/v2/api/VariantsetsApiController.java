@@ -9,12 +9,14 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
@@ -54,16 +56,26 @@ import com.mongodb.client.MongoCollection;
 import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.AbstractIndividualOrientedExportHandler;
 import fr.cirad.mgdb.exporting.individualoriented.FlapjackExportHandler;
+import fr.cirad.mgdb.exporting.individualoriented.PLinkExportHandler;
+import fr.cirad.mgdb.exporting.markeroriented.AbstractMarkerOrientedExportHandler;
+import fr.cirad.mgdb.exporting.markeroriented.VcfExportHandler;
 import fr.cirad.mgdb.exporting.tools.ExportManager;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
+import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.AlphaNumericComparator;
 import fr.cirad.tools.ProgressIndicator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import htsjdk.samtools.SAMSequenceDictionary;
+import htsjdk.variant.variantcontext.VariantContext.Type;
+import htsjdk.variant.variantcontext.writer.CustomVCFWriter;
+import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
@@ -86,10 +98,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	private ServletContext servletContext;
 	static final private String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
 	static final private long EXPORT_FILE_EXPIRATION_DELAY_MILLIS = 1000*60*60*24;	/* 1 day */
-	
-//	static private HashMap<String, Integer> variantCounts = new HashMap<>();
-	
-    private static HashMap<String /*export id*/, FlapjackExportThread /*temporary file generation thread */> exportThreads = new HashMap<>();
+
+    private static HashMap<String /*export id*/, Thread /*temporary file generation thread */> exportThreads = new HashMap<>();
 
     @org.springframework.beans.factory.annotation.Autowired
     public VariantsetsApiController(ObjectMapper objectMapper, HttpServletRequest request) {
@@ -335,10 +345,9 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			return;
 		}
 		
-		if (dataFormat.equalsIgnoreCase(DataFormatEnum.FLAPJACK.toString())) {
-			cleanupOldExportData(request);
-			
-			FlapjackExportHandler fjExportHandler = (FlapjackExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
+		cleanupOldExportData(request);
+		if (dataFormat.equalsIgnoreCase(DataFormatEnum.PLINK.toString())) {
+			PLinkExportHandler exportHandler = (PLinkExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
 			
         	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
@@ -351,7 +360,69 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				throw new Exception("Unable to create folder: " + outputLocation);
         	File exportFile = new File(servletContext.getRealPath(relativeOutputFolder + exportId + ".genotype"));
 
-        	FlapjackExportThread tempFileGenerationThread = exportThreads.get(exportId);
+        	PLinkExportThread tempFileGenerationThread = (PLinkExportThread) exportThreads.get(exportId);
+        	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
+            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
+        		
+        		if (exportFile.exists()) {	// seems complete
+        			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
+        			for (GenotypingSample sp : runSamples)
+        				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+
+        			Scanner scanner = new Scanner(exportFile);
+        			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
+        				String sLine  = scanner.nextLine();
+    					int nFirstSpacePos = sLine.indexOf(" "), nSecondSpacePos = sLine.indexOf(" ", nFirstSpacePos + 1);
+    					String ind = sLine.substring(nFirstSpacePos + 1, nSecondSpacePos);
+    					response.getWriter().write(sLine.substring(0, nFirstSpacePos + 1) + splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nSecondSpacePos) + "\n");
+        			}
+        			scanner.close();
+        			response.getWriter().close();
+        			return;
+        		}
+        		
+    			VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+    			if (variantSet == null) {
+        			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        			response.getWriter().write("No data found for this variantSet");
+        			return;
+    			}
+
+        		// start it
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
+            	ProgressIndicator.registerProgressIndicator(progress);
+            	
+        		tempFileGenerationThread = new PLinkExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
+        		exportThreads.put(exportId, tempFileGenerationThread);
+        		tempFileGenerationThread.start();
+        	}
+
+        	if (tempFileGenerationThread.isAlive()) {
+    			response.setStatus(HttpServletResponse.SC_ACCEPTED);
+    			response.getWriter().write(tempFileGenerationThread.getProgress().getProgressDescription());
+        	}
+        	else if (tempFileGenerationThread.getException() != null) {
+    			exportThreads.remove(exportId);
+    			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    			log.error("Error generating PLINK file", tempFileGenerationThread.getException());
+    			tempFileGenerationThread.getException().printStackTrace(response.getWriter());
+    		}
+		}
+		else if (dataFormat.equalsIgnoreCase(DataFormatEnum.FLAPJACK.toString())) {
+			FlapjackExportHandler exportHandler = (FlapjackExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
+			
+        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
+        	int projId = Integer.parseInt(splitId[1]);
+        	String exportId = "brapiV2export-" + variantSetDbId;
+        	
+			String relativeOutputFolder = File.separator + TMP_OUTPUT_FOLDER + File.separator;
+			File outputLocation = new File(servletContext.getRealPath(relativeOutputFolder));
+			if (!outputLocation.exists() && !outputLocation.mkdirs())
+				throw new Exception("Unable to create folder: " + outputLocation);
+        	File exportFile = new File(servletContext.getRealPath(relativeOutputFolder + exportId + ".genotype"));
+
+        	FlapjackExportThread tempFileGenerationThread = (FlapjackExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
             	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
         		
@@ -373,9 +444,6 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         				}
         			}
         			scanner.close();
-//        			FileInputStream is = new FileInputStream(exportFile);
-//        			IOUtils.copy(is, response.getOutputStream());
-//        			is.close();
         			response.getWriter().close();
         			return;
         		}
@@ -391,7 +459,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
             	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
-        		tempFileGenerationThread = new FlapjackExportThread(fjExportHandler, exportFile, variantSet, exportId, runSamples, progress);
+        		tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
         		exportThreads.put(exportId, tempFileGenerationThread);
         		tempFileGenerationThread.start();
         	}
@@ -407,15 +475,139 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			tempFileGenerationThread.getException().printStackTrace(response.getWriter());
     		}
 		}
+		else if (dataFormat.equalsIgnoreCase(DataFormatEnum.VCF.toString())) {
+			VcfExportHandler exportHandler = (VcfExportHandler) AbstractMarkerOrientedExportHandler.getMarkerOrientedExportHandlers().get(dataFormat.toUpperCase());
+			
+        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
+        	int projId = Integer.parseInt(splitId[1]);
+        	String exportId = "brapiV2export-" + variantSetDbId;
+        	
+			String relativeOutputFolder = File.separator + TMP_OUTPUT_FOLDER + File.separator;
+			File outputLocation = new File(servletContext.getRealPath(relativeOutputFolder));
+			if (!outputLocation.exists() && !outputLocation.mkdirs())
+				throw new Exception("Unable to create folder: " + outputLocation);
+        	File exportFile = new File(servletContext.getRealPath(relativeOutputFolder + exportId + ".vcf"));
+
+        	VcfExportThread tempFileGenerationThread = (VcfExportThread) exportThreads.get(exportId);
+        	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
+            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
+        		
+        		if (exportFile.exists()) {	// seems complete
+        			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
+        			for (GenotypingSample sp : runSamples)
+        				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+
+        			Scanner scanner = new Scanner(exportFile);
+        			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
+        				String sLine  = scanner.nextLine();
+        				if (!sLine.startsWith("#CHROM\t"))
+        					response.getWriter().write(sLine + "\n");	// header or marker line
+        				else {
+        					String[] splitLine = sLine.split("\t");
+        					long nIndCount = runSamples.stream().map(gs -> gs.getIndividual()).distinct().count();
+        					for (int i=0; i<nIndCount; i++)
+        						splitLine[splitLine.length - 1 - i] = splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + splitLine[splitLine.length - 1 - i] + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(splitLine[splitLine.length - 1 - i]);
+        					for (int i=0; i<splitLine.length; i++)
+        						response.getWriter().write(splitLine[i] + (i == splitLine.length - 1 ? "\n" : "\t"));
+        				}
+        			}
+        			scanner.close();
+        			response.getWriter().close();
+        			return;
+        		}
+        		
+    			VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
+    			if (variantSet == null) {
+        			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        			response.getWriter().write("No data found for this variantSet");
+        			return;
+    			}
+
+        		// start it
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[0]);
+            	ProgressIndicator.registerProgressIndicator(progress);
+
+        		tempFileGenerationThread = new VcfExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
+        		exportThreads.put(exportId, tempFileGenerationThread);
+        		tempFileGenerationThread.start();
+        	}
+
+        	if (tempFileGenerationThread.isAlive()) {
+    			response.setStatus(HttpServletResponse.SC_ACCEPTED);
+    			response.getWriter().write(tempFileGenerationThread.getProgress().getProgressDescription());
+        	}
+        	else if (tempFileGenerationThread.getException() != null) {
+    			exportThreads.remove(exportId);
+    			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    			log.error("Error generating VCF file", tempFileGenerationThread.getException());
+    			tempFileGenerationThread.getException().printStackTrace(response.getWriter());
+    		}
+		}
 		else {
 			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
 			response.getWriter().write("Unsupported data format: " + dataFormat);
 		}
 	}
 	
+	public class PLinkExportThread extends Thread {
+		Exception exception = null;
+		File[] result;
+		PLinkExportHandler exportHandler;
+		File exportFile;
+		MongoCollection<Document> varColl;
+		String exportId;
+		List<GenotypingSample> samplesToExport;
+		ProgressIndicator progress;
+		VariantSet variantSet;
+		
+		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+			exportHandler = feh;
+			this.exportFile = exportFile;
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0]);
+			this.varColl = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantRunData.class));
+			this.samplesToExport = samplesToExport;
+			this.exportId = exportID;
+			this.progress = progress;
+			this.variantSet = variantSet;
+		}
+		
+		ProgressIndicator getProgress() {
+			return progress;
+		}
+
+		@Override
+		public void run() {
+			try {
+				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	        	int projId = Integer.parseInt(splitId[1]);
+				String module = splitId[0];
+				Document varQuery = new Document("$and", Arrays.asList(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId), new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2]), new Document(VariantData.FIELDNAME_TYPE, Type.SNP.toString())) /*only SNPs are supported*/);
+				
+				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+				result = exportHandler.createExportFiles(module, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList<>(), new ArrayList<>(), exportId, new HashMap<>(), new HashMap<>(), samplesToExport, progress);
+				for (String step : exportHandler.getStepList())
+					progress.addStep(step);
+				progress.moveToNextStep();
+
+		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
+		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
+		        	exportHandler.writeGenotypeFile(os, module, nQueryChunkSize, varColl, new Document(), null, result, null, progress);
+		        }
+				exportThreads.remove(exportId);
+			} catch (Exception ex) {
+				exception = ex;
+			}
+		}
+
+		Exception getException() {
+			return exception;
+		}
+	}
+	
 	public class FlapjackExportThread extends Thread {
 		Exception exception = null;
-		Map<String, File> result;
+		File[] result;
 		FlapjackExportHandler exportHandler;
 		File exportFile;
 		MongoCollection<Document> varColl;
@@ -452,13 +644,74 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
-				
-//				mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(splitId[2]))), VariantRunData.class)
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, module, nQueryChunkSize, varColl, new Document(), null, result.values(), null, progress);
+		        	exportHandler.writeGenotypeFile(os, module, nQueryChunkSize, varColl, new Document(), null, result, null, progress);
 		        }
+				exportThreads.remove(exportId);
+			} catch (Exception ex) {
+				exception = ex;
+			}
+		}
+
+		Exception getException() {
+			return exception;
+		}
+	}
+	
+	public class VcfExportThread extends Thread {
+		Exception exception = null;
+		File[] result;
+		VcfExportHandler exportHandler;
+		File exportFile;
+		MongoCollection<Document> varColl;
+		String exportId;
+		List<GenotypingSample> samplesToExport;
+		ProgressIndicator progress;
+		VariantSet variantSet;
+		
+		VcfExportThread(VcfExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+			exportHandler = feh;
+			this.exportFile = exportFile;
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0]);
+			this.varColl = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantRunData.class));
+			this.samplesToExport = samplesToExport;
+			this.exportId = exportID;
+			this.progress = progress;
+			this.variantSet = variantSet;
+		}
+		
+		ProgressIndicator getProgress() {
+			return progress;
+		}
+
+		@Override
+		public void run() {
+			try {
+				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	        	int projId = Integer.parseInt(splitId[1]);
+				String module = splitId[0];
+				Document varQuery = new Document("$and", Arrays.asList(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId), new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])));
+
+				for (String step : exportHandler.getStepList())
+					progress.addStep(step);
+
+				BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile));
+				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+
+		    	VariantContextWriter writer = null;
+		    	List<String> distinctSequenceNames = new ArrayList<String>();
+
+				for (Object chr : mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).distinct(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE, varQuery, String.class))	// find out distinctSequenceNames by looking at exported variant list
+					if (chr != null)
+						distinctSequenceNames.add(chr.toString());
+
+				Collections.sort(distinctSequenceNames, new AlphaNumericComparator());
+				SAMSequenceDictionary dict = exportHandler.createSAMSequenceDictionary(module, distinctSequenceNames);
+				writer = new CustomVCFWriter(null, os, dict, false, false, true);
+				exportHandler.writeGenotypeFile(module, new ArrayList<>(), new ArrayList<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, null, writer);
+
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;

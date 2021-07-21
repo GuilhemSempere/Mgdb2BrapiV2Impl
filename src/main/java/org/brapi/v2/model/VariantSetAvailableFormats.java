@@ -7,8 +7,6 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import org.springframework.validation.annotation.Validated;
-import javax.validation.Valid;
-import javax.validation.constraints.*;
 
 /**
  * Each &#x27;availableFormat&#x27; object is a pairing of dataFormat and fileFormat. These must be comunicated in pairs because they are not independant parametres and sometimes one influences the other.
@@ -21,7 +19,8 @@ public class VariantSetAvailableFormats   {
    * dataFormat defines the structure of the data within a file (ie DartSeq, VCF, Hapmap, tabular, etc)
    */
   public enum DataFormatEnum {
-    FLAPJACK("Flapjack"),
+	PLINK("Plink"),
+	FLAPJACK("Flapjack"),
     DARTSEQ("DartSeq"),    
     VCF("VCF"),
     HAPMAP("Hapmap"),
