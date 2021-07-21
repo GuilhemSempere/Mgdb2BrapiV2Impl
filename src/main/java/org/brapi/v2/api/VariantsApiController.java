@@ -11,11 +11,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 
 import org.apache.commons.collections.IteratorUtils;
-import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.MetadataTokenPagination;
@@ -39,8 +37,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
@@ -227,12 +223,15 @@ public class VariantsApiController implements VariantsApi {
 	}
 
 	@Override
-	public ResponseEntity<VariantListResponse> variantsGet(String variantDbId, String variantSetDbId, String pageToken, Integer pageSize, String authorization) {
+	public ResponseEntity<VariantListResponse> variantsGet(String variantDbId, String variantSetDbId, String referenceSetDbId, Integer start, Integer end, String pageToken, Integer pageSize, String authorization) {
 		VariantsSearchRequest vsr = new VariantsSearchRequest();
 		if (variantDbId != null)
 			vsr.setVariantDbIds(Arrays.asList(variantDbId));
 		if (variantSetDbId != null)
 			vsr.setVariantSetDbIds(Arrays.asList(variantSetDbId));
+		vsr.setReferenceDbId(referenceSetDbId);
+		vsr.setStart(start);
+		vsr.setEnd(end);
 		vsr.setPageToken(pageToken);
 		vsr.setPageSize(pageSize);
 

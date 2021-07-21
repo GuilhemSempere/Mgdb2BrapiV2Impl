@@ -55,6 +55,7 @@ public interface VariantsApi {
         method = RequestMethod.POST)
     ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
+    
     @ApiOperation(value = "Gets a filtered list of `Variants`.", notes = "Gets a filtered list of `Variants`.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
     		@Authorization(value = "AuthorizationToken")    }, tags={ "Variants" })
     @ApiResponses(value = { 
@@ -68,10 +69,13 @@ public interface VariantsApi {
     ResponseEntity<VariantListResponse> variantsGet(
     		@ApiParam(value= "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,
     		@ApiParam(value= "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,
+    		@ApiParam(value= "The ID of the `Reference` to be retrieved (this parameter was added for convenience and is not standard in BrAPI v2.0).") @Valid @RequestParam(value = "referenceDbId", required = false) String referenceDbId,
+    		@ApiParam(value= "The beginning of the window (0-based, inclusive) for which overlapping variants should be returned (this parameter was added for convenience and is not standard in BrAPI v2.0).") @Valid @RequestParam(value = "start", required = false) Integer start,
+    		@ApiParam(value= "The end of the window (0-based, inclusive) for which overlapping variants should be returned (this parameter was added for convenience and is not standard in BrAPI v2.0).") @Valid @RequestParam(value = "end", required = false) Integer end,
     		@ApiParam(value= "Used to request a specific page of data to be returned.  Tokenized pages are for large data sets which can not be efficiently broken into indexed pages. Use the nextPageToken and prevPageToken from a prior response to construct a query and move to the next or previous page respectively. ") @Valid @RequestParam(value = "pageToken", required = false) String pageToken,
     		@ApiParam(value= "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
     		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
-
+    
 
     @ApiOperation(value = "Gets a list of `Calls` associated with a `Variant`.", notes = "The variant calls for this particular variant. Each one represents the determination of genotype with respect to this variant. `Calls` in this array are implicitly associated with this `Variant`.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
     		@Authorization(value = "AuthorizationToken")    }, tags={ "Variants" })
