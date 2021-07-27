@@ -1,17 +1,19 @@
 package org.brapi.v2.model;
 
-import java.util.Objects;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.validation.annotation.Validated;
+import java.util.Objects;
+
 import javax.validation.Valid;
-import javax.validation.constraints.*;
+
+import org.springframework.validation.annotation.Validated;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
 
 /**
  * A &#x60;Variant&#x60; represents a change in DNA sequence relative to some reference. For example, a variant could represent a SNP or an insertion. Variants belong to a &#x60;VariantSet&#x60;. This is equivalent to a row in VCF.
@@ -22,7 +24,7 @@ import javax.validation.constraints.*;
 public class Variant   {
   @JsonProperty("additionalInfo")
   @Valid
-  private Map<String, String> additionalInfo = null;
+  private Map<String, Object> additionalInfo = null;
 
   @JsonProperty("alternate_bases")
   @Valid
@@ -81,14 +83,14 @@ public class Variant   {
   @JsonProperty("variantType")
   private String variantType = null;
 
-  public Variant additionalInfo(Map<String, String> additionalInfo) {
+  public Variant additionalInfo(Map<String, Object> additionalInfo) {
     this.additionalInfo = additionalInfo;
     return this;
   }
 
-  public Variant putAdditionalInfoItem(String key, String additionalInfoItem) {
+  public Variant putAdditionalInfoItem(String key, Object additionalInfoItem) {
     if (this.additionalInfo == null) {
-      this.additionalInfo = new HashMap<String, String>();
+      this.additionalInfo = new HashMap<>();
     }
     this.additionalInfo.put(key, additionalInfoItem);
     return this;
@@ -100,11 +102,11 @@ public class Variant   {
   **/
   @ApiModelProperty(value = "Additional arbitrary info")
   
-    public Map<String, String> getAdditionalInfo() {
+    public Map<String, Object> getAdditionalInfo() {
     return additionalInfo;
   }
 
-  public void setAdditionalInfo(Map<String, String> additionalInfo) {
+  public void setAdditionalInfo(Map<String, Object> additionalInfo) {
     this.additionalInfo = additionalInfo;
   }
 

@@ -7,7 +7,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -23,6 +26,7 @@ import org.brapi.v2.model.Variant;
 import org.brapi.v2.model.VariantListResponse;
 import org.brapi.v2.model.VariantListResponseResult;
 import org.brapi.v2.model.VariantsSearchRequest;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +42,12 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
+import com.mongodb.client.MongoCollection;
+
+import fr.cirad.mgdb.importing.VcfImport;
+import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
@@ -45,8 +55,10 @@ import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import fr.cirad.utils.Constants;
 import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
@@ -173,7 +185,10 @@ public class VariantsApiController implements VariantsApi {
 				metadata.addStatusItem(status);
 				return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
 			}
-			
+
+            ArrayList<String> headerList = null;
+            boolean fAnnStyle = true;
+
         	for (AbstractVariantData dbVariant : varList) {
         		Variant variant = new Variant();
         		variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
@@ -194,6 +209,63 @@ public class VariantsApiController implements VariantsApi {
         				synonyms.addAll(synsForAType);
         			variant.setVariantNames(synonyms);
         		}
+        		
+        		Map<String, Object> annotations = new HashMap<>();
+                for (String subKey : dbVariant.getAdditionalInfo().keySet()) {
+                    if (subKey.equals(VcfImport.ANNOTATION_FIELDNAME_ANN) || subKey.equals(VcfImport.ANNOTATION_FIELDNAME_CSQ) || subKey.equals(VcfImport.ANNOTATION_FIELDNAME_EFF)) {                    	
+                    	if (headerList == null) {	// go get it
+                            fAnnStyle = !subKey.equals(VcfImport.ANNOTATION_FIELDNAME_EFF);
+                    		
+                    		BasicDBObject fieldHeader = new BasicDBObject(Constants.INFO_META_DATA + "." + (fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF) + "." + Constants.DESCRIPTION, 1);
+                            if (fAnnStyle)
+                            	fieldHeader.put(Constants.INFO_META_DATA + "." + VcfImport.ANNOTATION_FIELDNAME_CSQ + "." + Constants.DESCRIPTION, 1);
+                            
+        	                MongoCollection<Document> vcfHeaderColl = MongoTemplateManager.get(module).getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
+        	                BasicDBList vcfHeaderQueryOrList = new BasicDBList();
+        	                for (String key : fieldHeader.keySet())
+        	                	vcfHeaderQueryOrList.add(new BasicDBObject(key, new BasicDBObject("$exists", true)));
+        	
+        	                Document vcfHeaderEff = vcfHeaderColl.find(new BasicDBObject("$or", vcfHeaderQueryOrList)).projection(fieldHeader).first();
+        	                
+        	                headerList = new ArrayList<>();
+        	                if (!fAnnStyle)
+        	                	headerList.add("Consequence");	// EFF style annotations
+        	                Document annInfo = (Document) ((Document) vcfHeaderEff.get(Constants.INFO_META_DATA)).get(fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF);
+        	                if (annInfo == null && fAnnStyle)
+        	                	annInfo = (Document) ((Document) vcfHeaderEff.get(Constants.INFO_META_DATA)).get(VcfImport.ANNOTATION_FIELDNAME_CSQ);
+        	                if (annInfo != null) {
+        	                    String header = (String) annInfo.get(Constants.DESCRIPTION);
+        	                    if (header != null) {
+        	                        // consider using the headers for additional info keySet
+        	                    	String sBeforeFieldList = fAnnStyle ? ": " : " (";
+        	                    	String[] headerField = header.substring(header.indexOf(sBeforeFieldList) + sBeforeFieldList.length(), fAnnStyle ? header.length() : header.indexOf(")")).replaceAll("'", "").split("\\|");
+        	                        for (String head : headerField) {
+        	                        	String headerName = head.replace("[", "").replace("]", "").trim();
+        	                            headerList.add(headerList.size() == 1 && headerName.equals("Effefct_Impact") ? "Effect_Impact" : headerName);
+        	                        }
+        	                    }
+        	                }
+                    	}
+                    	
+                    	List<Map> functionalAnnotations = new ArrayList<>();
+                        for (String effectDesc : ((String) dbVariant.getAdditionalInfo().get(subKey)).split(",")) {
+	                    	int parenthesisPos = effectDesc.indexOf("(");
+                        	List<String> fields = Helper.split(effectDesc.substring(parenthesisPos + 1).replaceAll("\\)", ""), "|");
+    	                    if (!fAnnStyle)
+    	                    	fields.add(0, effectDesc.substring(0, parenthesisPos));	// EFF style annotations
+                        	LinkedHashMap<String, String> annotationMap = new LinkedHashMap<>();
+                        	for (int i=0; i<fields.size(); i++)
+                        		if (fields.get(i) != null && !fields.get(i).isEmpty())
+                        			annotationMap.put(headerList.get(i), fields.get(i));
+                        	functionalAnnotations.add(annotationMap);
+                        }
+                        annotations.put("transcriptEffects", functionalAnnotations);
+                    } else if (!subKey.equals(VariantRunData.FIELDNAME_ADDITIONAL_INFO_EFFECT_GENE) && !subKey.equals(VariantRunData.FIELDNAME_ADDITIONAL_INFO_EFFECT_NAME)) {
+                        annotations.put(subKey, dbVariant.getAdditionalInfo().get(subKey));
+                    }
+                }
+                variant.setAdditionalInfo(annotations);
+        		
         		result.addDataItem(variant);
         	}
 
