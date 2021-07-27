@@ -93,7 +93,7 @@ public class VariantsApiController implements VariantsApi {
 
 		String module = null;
 		int projId;
-		Query varQuery = null, runQuery = null;
+		Query /*varQuery = null, */runQuery = null;
 
 		VariantListResponseResult result = new VariantListResponseResult();
 		VariantListResponse vlr = new VariantListResponse();
@@ -107,7 +107,7 @@ public class VariantsApiController implements VariantsApi {
         int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
 
 		try {
-			if (fGotVariants) {
+			if (fGotVariants) {	/*FIXME: this should be applied to varQuery, once the variants collection will also contain variant annotations*/
 				HashSet<String> variantIDs = new HashSet<>();
 				for (String variantDbId : body.getVariantDbIds()) {
 					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
@@ -119,9 +119,9 @@ public class VariantsApiController implements VariantsApi {
 					module = info[0];
 					variantIDs.add(info[1]);
 				}
-				varQuery = new Query(Criteria.where("_id").in(variantIDs));
+				runQuery = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantIDs));
 			}
-	    	else if (fGotRefDbId) {
+	    	else if (fGotRefDbId) {	/*FIXME: this should be applied to varQuery, once the variants collection will also contain variant annotations*/
 	        	String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getReferenceDbId(), 2);
 	        	module = info[0];
 	    		List<Criteria> crits = new ArrayList<>();	    		
@@ -130,7 +130,7 @@ public class VariantsApiController implements VariantsApi {
 	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()));
 	    		if (body.getEnd() != null)
 	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd()));
-	    		varQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+	    		runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
 	    	}
 			else if (fGotVariantSets) {
 				HashMap<Integer, Set<String>> runsByProject = new HashMap<>();
@@ -172,13 +172,13 @@ public class VariantsApiController implements VariantsApi {
 			}
 			
 			List<AbstractVariantData> varList;
-			if (varQuery != null) {
+			/*if (varQuery != null) {
 				varQuery.limit(body.getPageSize());
 				if (page > 0)
 					varQuery.skip(page * body.getPageSize());
 				varList = IteratorUtils.toList(MongoTemplateManager.get(module).find(varQuery, VariantData.class).iterator());
 			}
-			else if (runQuery != null)
+			else */if (runQuery != null)
 	        	varList = VariantsApiController.getSortedVariantListChunk(MongoTemplateManager.get(module), fGotVariants ? VariantData.class : VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
 			else {
 				status.setMessage("At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified as parameter!");
