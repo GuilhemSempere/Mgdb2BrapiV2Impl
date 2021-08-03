@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 
 import org.brapi.v2.model.CallSet;
@@ -32,12 +31,10 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
+import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
-import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
@@ -141,21 +138,12 @@ public class CallsetsApiController implements CallsetsApi {
     				// attach individual metadata to samples
     				Query q = new Query(Criteria.where("_id").in(indIdToSampleIdMap.keySet()));
     				q.with(Sort.by(Sort.Direction.ASC, "_id"));
+    				
     				List<Individual> listInd = mongoTemplate.find(q, Individual.class);
-    				q = new Query(Criteria.where("_id." + CustomIndividualMetadataId.FIELDNAME_USER).is(sCurrentUser));
-    				List<CustomIndividualMetadata> cimdList = mongoTemplate.find(q, CustomIndividualMetadata.class);
-    				if(!cimdList.isEmpty()) {
-    					HashMap<String /* indivID */, HashMap<String, Comparable> /* additional info */> indMetadataByIdMap = new HashMap<>();
-    					for (CustomIndividualMetadata cimd : cimdList)
-    						indMetadataByIdMap.put(cimd.getId().getIndividualId(), cimd.getAdditionalInfo());
-    					
-    					for( int i=0 ; i<listInd.size(); i++) {
-    						String indId = listInd.get(i).getId();
-    						HashMap<String, Comparable>  ai = indMetadataByIdMap.get(indId);
-    		                if(ai != null && !ai.isEmpty())
-    		                	listInd.get(i).getAdditionalInfo().putAll(ai);
-    					}
-    				}
+    				Map<String, Individual> indMap = mongoTemplate.find(q, Individual.class).stream().collect(Collectors.toMap(Individual::getId, ind -> ind));
+					for (CustomIndividualMetadata cimd : mongoTemplate.find(new Query(Criteria.where("_id." + CustomIndividualMetadataId.FIELDNAME_USER).is(sCurrentUser)), CustomIndividualMetadata.class))	// merge with custom metadata if available
+		                if (cimd.getAdditionalInfo() != null && !cimd.getAdditionalInfo().isEmpty())
+		                	indMap.get(cimd.getId().getIndividualId()).getAdditionalInfo().putAll(cimd.getAdditionalInfo());
     				
 					for (int i=0; i<samples.size(); i++) {
 						GenotypingSample sample = samples.get(i);
@@ -170,7 +158,6 @@ public class CallsetsApiController implements CallsetsApi {
             				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
 	            		result.addDataItem(callset);
 					}
-
 				}
 
 	        	if (nTotalCallSetsEncountered == 0 && fTriedToAccessForbiddenData)
