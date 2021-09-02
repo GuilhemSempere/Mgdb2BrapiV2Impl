@@ -703,14 +703,14 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		    	VariantContextWriter writer = null;
 		    	List<String> distinctSequenceNames = new ArrayList<String>();
 
-				for (Object chr : mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).distinct(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE, varQuery, String.class))	// find out distinctSequenceNames by looking at exported variant list
+				for (Object chr : mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantRunData.class)).distinct(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE, varQuery, String.class))	// find out distinctSequenceNames by looking at exported variant list
 					if (chr != null)
 						distinctSequenceNames.add(chr.toString());
 
 				Collections.sort(distinctSequenceNames, new AlphaNumericComparator());
 				SAMSequenceDictionary dict = exportHandler.createSAMSequenceDictionary(module, distinctSequenceNames);
 				writer = new CustomVCFWriter(null, os, dict, false, false, true);
-				exportHandler.writeGenotypeFile(module, new ArrayList<>(), new ArrayList<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, null, writer);
+				exportHandler.writeGenotypeFile(module, new ArrayList<>(), new ArrayList<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, writer);
 
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
