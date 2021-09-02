@@ -55,8 +55,8 @@ public class MongoBrapiCache {
 			
 			String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
 			int projId = Integer.parseInt(splitId[1]);
-			variantSet.setReferenceSetDbId(splitId[0]);
 			variantSet.setStudyDbId(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + projId);
+			variantSet.setReferenceSetDbId(variantSet.getStudyDbId());
 			variantSet.setVariantSetDbId(variantSetDbId);
 			variantSet.setVariantSetName(splitId[2]);
 //    	    variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
