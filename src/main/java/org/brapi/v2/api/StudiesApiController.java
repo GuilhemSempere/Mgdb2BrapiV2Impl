@@ -46,7 +46,7 @@ public class StudiesApiController implements StudiesApi {
 
     @Autowired AbstractTokenManager tokenManager;    
 
-	public ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam(value = "Study Search request")  @Valid @RequestBody StudySearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+	public ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam(value = "Study Search request")  @Valid @RequestBody StudySearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
 
     	try {
@@ -54,6 +54,7 @@ public class StudiesApiController implements StudiesApi {
 	    	StudyListResponseResult result = new StudyListResponseResult();
 
 	    	boolean fGotTrialIDs = body != null && body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
+	    	boolean fGotProgramIDs = body != null && body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
         	HashMap<String /*module*/, HashSet<Integer> /*samples*/> projectsByModule = new HashMap<>();
         	if (body != null && body.getStudyDbIds() != null)
 				for (String studyId : body.getStudyDbIds()) {
@@ -68,7 +69,7 @@ public class StudiesApiController implements StudiesApi {
 
 	    	for (String module : MongoTemplateManager.getAvailableModules())
 	    		if (body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {
-		    		if ((!projectsByModule.isEmpty() && !projectsByModule.containsKey(module)) || (fGotTrialIDs && !body.getTrialDbIds().contains(module)))
+		    		if ((!projectsByModule.isEmpty() && !projectsByModule.containsKey(module)) || (fGotTrialIDs && !body.getTrialDbIds().contains(module)) || (fGotProgramIDs && !body.getProgramDbIds().contains(module)))
 		    			continue;
 	
 		    		for (GenotypingProject pj : MongoTemplateManager.get(module).find(projectsByModule.isEmpty() ? new Query() : new Query(Criteria.where("id_").in(projectsByModule.get(module))), GenotypingProject.class)) {

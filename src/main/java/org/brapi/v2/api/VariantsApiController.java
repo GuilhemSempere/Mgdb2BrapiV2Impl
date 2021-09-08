@@ -8,7 +8,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,7 +15,6 @@ import java.util.TreeSet;
 
 import javax.validation.Valid;
 
-import org.apache.commons.collections.IteratorUtils;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.MetadataTokenPagination;
@@ -144,7 +142,7 @@ public class VariantsApiController implements VariantsApi {
 					module = info[0];
 
 					projId = Integer.parseInt(info[1]);
-					if (!tokenManager.canUserReadProject(token, info[0], info[1])) {
+					if (!tokenManager.canUserReadProject(token, info[0], Integer.parseInt(info[1]))) {
 						status.setMessage("You are not allowed to access this content");
 						metadata.addStatusItem(status);
 						return new ResponseEntity<>(vlr, HttpStatus.FORBIDDEN);
@@ -203,12 +201,12 @@ public class VariantsApiController implements VariantsApi {
 	        		variant.setStart((int) dbVariant.getReferencePosition().getStartSite());
 	        		variant.setEnd((int) (dbVariant.getReferencePosition().getEndSite() != null ? dbVariant.getReferencePosition().getEndSite() : (variant.getReferenceBases() != null ? (variant.getStart() + variant.getReferenceBases().length() - 1) : null)));
         		}
-        		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty()) {
-        			List<String> synonyms = new ArrayList<>();
+
+        		List<String> variantNames = Arrays.asList(dbVariant.getVariantId());
+        		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty())
         			for (TreeSet<String> synsForAType : dbVariant.getSynonyms().values())
-        				synonyms.addAll(synsForAType);
-        			variant.setVariantNames(synonyms);
-        		}
+        				variantNames.addAll(synsForAType);
+    			variant.setVariantNames(variantNames);
         		
         		Map<String, Object> annotations = new HashMap<>();
                 for (String subKey : dbVariant.getAdditionalInfo().keySet()) {
