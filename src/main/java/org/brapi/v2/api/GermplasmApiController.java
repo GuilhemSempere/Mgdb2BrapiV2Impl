@@ -66,6 +66,8 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
 import jhi.brapi.api.germplasm.BrapiGermplasm;
+import org.brapi.v2.model.GermplasmNewRequestStorageTypes;
+import org.brapi.v2.model.GermplasmNewRequestStorageTypes.CodeEnum;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -218,13 +220,15 @@ public class GermplasmApiController implements GermplasmApi {
 								germplasm.setCountryOfOriginCode(val.toString());
 								break;
 							case "typeofgermplasmstoragecode":
-								germplasm.setTypeOfGermplasmStorageCode(Arrays.asList(GermplasmMCPD.StorageTypeCodesEnum.fromValue(val.toString()).toString()));
+                                                                GermplasmNewRequestStorageTypes storageType = new GermplasmNewRequestStorageTypes();
+                                                                storageType.setCode(CodeEnum.fromValue(val.toString()));
+								germplasm.setStorageTypes(Arrays.asList(storageType));
 								break;
 							case "genus":
-								germplasm.setGermplasmGenus(val.toString());
+								germplasm.setGenus(val.toString());
 								break;
 							case "species":
-								germplasm.setGermplasmSpecies(val.toString());
+								germplasm.setSpecies(val.toString());
 								break;
 							case "speciesauthority":
 								germplasm.setSpeciesAuthority(val.toString());
