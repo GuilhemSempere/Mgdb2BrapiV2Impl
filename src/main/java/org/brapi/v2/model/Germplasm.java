@@ -15,7 +15,7 @@ import io.swagger.annotations.ApiModelProperty;
  */
 @Validated
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-20T14:32:35.470Z[GMT]")
-public class Germplasm extends GermplasmNewRequest  {
+public class Germplasm extends GermplasmNewRequest {
   @JsonProperty("germplasmDbId")
   private String germplasmDbId = null;
 
