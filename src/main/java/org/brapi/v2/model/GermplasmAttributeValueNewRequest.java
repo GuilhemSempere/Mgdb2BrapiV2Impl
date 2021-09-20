@@ -2,13 +2,11 @@ package org.brapi.v2.model;
 
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.datatype.threetenbp.ser.OffsetTimeSerializer;
+import com.fasterxml.jackson.datatype.threetenbp.ser.OffsetDateTimeSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.threeten.bp.OffsetDateTime;
 import org.springframework.validation.annotation.Validated;
@@ -34,7 +32,7 @@ public class GermplasmAttributeValueNewRequest   {
   private String attributeName = null;
 
   @JsonDeserialize(using = OffsetDateTimeDeserializer.class)
-  @JsonSerialize(using = OffsetTimeSerializer.class)
+  @JsonSerialize(using = OffsetDateTimeSerializer.class)
   @JsonProperty("determinedDate")
   private OffsetDateTime determinedDate = null;
 

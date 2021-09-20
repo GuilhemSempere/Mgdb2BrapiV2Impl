@@ -2,9 +2,12 @@ package org.brapi.v2.model;
 
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.datatype.threetenbp.ser.OffsetDateTimeSerializer;
+import com.fasterxml.jackson.datatype.threetenbp.ser.OffsetTimeSerializer;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +20,9 @@ import javax.validation.constraints.*;
  * SampleNewRequest
  */
 @Validated
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
+@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-09-17T12:24:46.566Z[GMT]")
+
+
 public class SampleNewRequest   {
   @JsonProperty("additionalInfo")
   @Valid
@@ -26,11 +31,12 @@ public class SampleNewRequest   {
   @JsonProperty("column")
   private Integer column = null;
 
+  @JsonProperty("externalReferences")
+  @Valid
+  private List<ExternalReferencesInner> externalReferences = null;
+
   @JsonProperty("germplasmDbId")
   private String germplasmDbId = null;
-
-  @JsonProperty("notes")
-  private String notes = null;
 
   @JsonProperty("observationUnitDbId")
   private String observationUnitDbId = null;
@@ -50,6 +56,9 @@ public class SampleNewRequest   {
   @JsonProperty("sampleBarcode")
   private String sampleBarcode = null;
 
+  @JsonProperty("sampleDescription")
+  private String sampleDescription = null;
+
   @JsonProperty("sampleGroupDbId")
   private String sampleGroupDbId = null;
 
@@ -59,6 +68,8 @@ public class SampleNewRequest   {
   @JsonProperty("samplePUI")
   private String samplePUI = null;
 
+  @JsonDeserialize(using = OffsetDateTimeDeserializer.class)
+  @JsonSerialize(using = OffsetDateTimeSerializer.class)
   @JsonProperty("sampleTimestamp")
   private OffsetDateTime sampleTimestamp = null;
 
@@ -96,8 +107,8 @@ public class SampleNewRequest   {
   /**
    * Additional arbitrary info
    * @return additionalInfo
-  **/
-  @ApiModelProperty(value = "Additional arbitrary info")
+   **/
+  @Schema(description = "Additional arbitrary info")
   
     public Map<String, String> getAdditionalInfo() {
     return additionalInfo;
@@ -117,8 +128,8 @@ public class SampleNewRequest   {
    * minimum: 1
    * maximum: 12
    * @return column
-  **/
-  @ApiModelProperty(example = "6", value = "The Column identifier for this samples location in the plate")
+   **/
+  @Schema(example = "6", description = "The Column identifier for this samples location in the plate")
   
   @Min(1) @Max(12)   public Integer getColumn() {
     return column;
@@ -126,6 +137,33 @@ public class SampleNewRequest   {
 
   public void setColumn(Integer column) {
     this.column = column;
+  }
+
+  public SampleNewRequest externalReferences(List<ExternalReferencesInner> externalReferences) {
+    this.externalReferences = externalReferences;
+    return this;
+  }
+
+  public SampleNewRequest addExternalReferencesItem(ExternalReferencesInner externalReferencesItem) {
+    if (this.externalReferences == null) {
+      this.externalReferences = new ArrayList<ExternalReferencesInner>();
+    }
+    this.externalReferences.add(externalReferencesItem);
+    return this;
+  }
+
+  /**
+   * An array of external reference ids. These are references to this piece of data in an external system. Could be a simple string or a URI.
+   * @return externalReferences
+   **/
+  @Schema(example = "[{\"referenceID\":\"doi:10.155454/12341234\",\"referenceSource\":\"DOI\"},{\"referenceID\":\"http://purl.obolibrary.org/obo/ro.owl\",\"referenceSource\":\"OBO Library\"},{\"referenceID\":\"75a50e76\",\"referenceSource\":\"Remote Data Collection Upload Tool\"}]", description = "An array of external reference ids. These are references to this piece of data in an external system. Could be a simple string or a URI.")
+      @Valid
+    public List<ExternalReferencesInner> getExternalReferences() {
+    return externalReferences;
+  }
+
+  public void setExternalReferences(List<ExternalReferencesInner> externalReferences) {
+    this.externalReferences = externalReferences;
   }
 
   public SampleNewRequest germplasmDbId(String germplasmDbId) {
@@ -136,8 +174,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies a germplasm
    * @return germplasmDbId
-  **/
-  @ApiModelProperty(example = "7e08d538", value = "The ID which uniquely identifies a germplasm")
+   **/
+  @Schema(example = "7e08d538", description = "The ID which uniquely identifies a germplasm")
   
     public String getGermplasmDbId() {
     return germplasmDbId;
@@ -145,25 +183,6 @@ public class SampleNewRequest   {
 
   public void setGermplasmDbId(String germplasmDbId) {
     this.germplasmDbId = germplasmDbId;
-  }
-
-  public SampleNewRequest notes(String notes) {
-    this.notes = notes;
-    return this;
-  }
-
-  /**
-   * Additional notes about a sample
-   * @return notes
-  **/
-  @ApiModelProperty(example = "This sample was taken from the root of a tree", value = "Additional notes about a sample")
-  
-    public String getNotes() {
-    return notes;
-  }
-
-  public void setNotes(String notes) {
-    this.notes = notes;
   }
 
   public SampleNewRequest observationUnitDbId(String observationUnitDbId) {
@@ -174,8 +193,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies an observation unit
    * @return observationUnitDbId
-  **/
-  @ApiModelProperty(example = "073a3ce5", value = "The ID which uniquely identifies an observation unit")
+   **/
+  @Schema(example = "073a3ce5", description = "The ID which uniquely identifies an observation unit")
   
     public String getObservationUnitDbId() {
     return observationUnitDbId;
@@ -193,8 +212,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies a plate of samples
    * @return plateDbId
-  **/
-  @ApiModelProperty(example = "2dce16d1", value = "The ID which uniquely identifies a plate of samples")
+   **/
+  @Schema(example = "2dce16d1", description = "The ID which uniquely identifies a plate of samples")
   
     public String getPlateDbId() {
     return plateDbId;
@@ -212,8 +231,8 @@ public class SampleNewRequest   {
   /**
    * The human readable name of a plate
    * @return plateName
-  **/
-  @ApiModelProperty(example = "Plate_alpha_20191022", value = "The human readable name of a plate")
+   **/
+  @Schema(example = "Plate_alpha_20191022", description = "The human readable name of a plate")
   
     public String getPlateName() {
     return plateName;
@@ -231,8 +250,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies a program within the given database server
    * @return programDbId
-  **/
-  @ApiModelProperty(example = "bd748e00", value = "The ID which uniquely identifies a program within the given database server")
+   **/
+  @Schema(example = "bd748e00", description = "The ID which uniquely identifies a program within the given database server")
   
     public String getProgramDbId() {
     return programDbId;
@@ -250,8 +269,8 @@ public class SampleNewRequest   {
   /**
    * The Row identifier for this samples location in the plate
    * @return row
-  **/
-  @ApiModelProperty(example = "B", value = "The Row identifier for this samples location in the plate")
+   **/
+  @Schema(example = "B", description = "The Row identifier for this samples location in the plate")
   
     public String getRow() {
     return row;
@@ -269,8 +288,8 @@ public class SampleNewRequest   {
   /**
    * A unique identifier physically attached to the sample
    * @return sampleBarcode
-  **/
-  @ApiModelProperty(example = "3a027b59", value = "A unique identifier physically attached to the sample")
+   **/
+  @Schema(example = "3a027b59", description = "A unique identifier physically attached to the sample")
   
     public String getSampleBarcode() {
     return sampleBarcode;
@@ -278,6 +297,25 @@ public class SampleNewRequest   {
 
   public void setSampleBarcode(String sampleBarcode) {
     this.sampleBarcode = sampleBarcode;
+  }
+
+  public SampleNewRequest sampleDescription(String sampleDescription) {
+    this.sampleDescription = sampleDescription;
+    return this;
+  }
+
+  /**
+   * Description of a sample  MIAPPE V1.1 (DM-79) Sample description - Any information not captured by the other sample fields, including quantification, sample treatments and processing.
+   * @return sampleDescription
+   **/
+  @Schema(example = "This sample was taken from the root of a tree", description = "Description of a sample  MIAPPE V1.1 (DM-79) Sample description - Any information not captured by the other sample fields, including quantification, sample treatments and processing.")
+  
+    public String getSampleDescription() {
+    return sampleDescription;
+  }
+
+  public void setSampleDescription(String sampleDescription) {
+    this.sampleDescription = sampleDescription;
   }
 
   public SampleNewRequest sampleGroupDbId(String sampleGroupDbId) {
@@ -288,8 +326,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies a group of samples
    * @return sampleGroupDbId
-  **/
-  @ApiModelProperty(example = "8524b436", value = "The ID which uniquely identifies a group of samples")
+   **/
+  @Schema(example = "8524b436", description = "The ID which uniquely identifies a group of samples")
   
     public String getSampleGroupDbId() {
     return sampleGroupDbId;
@@ -307,8 +345,8 @@ public class SampleNewRequest   {
   /**
    * The name of the sample
    * @return sampleName
-  **/
-  @ApiModelProperty(example = "Sample_alpha_20191022", value = "The name of the sample")
+   **/
+  @Schema(example = "Sample_alpha_20191022", description = "The name of the sample")
   
     public String getSampleName() {
     return sampleName;
@@ -324,10 +362,10 @@ public class SampleNewRequest   {
   }
 
   /**
-   * A permanent unique identifier for the sample (DOI, URL, UUID, etc)
+   * A permanent unique identifier for the sample (DOI, URL, UUID, etc)  MIAPPE V1.1 (DM-81) External ID - An identifier for the sample in a persistent repository, comprising the name of the repository and the accession number of the observation unit therein. Submission to the EBI Biosamples repository is recommended. URI are recommended when possible. 
    * @return samplePUI
-  **/
-  @ApiModelProperty(example = "doi:10.15454/312953986E3", value = "A permanent unique identifier for the sample (DOI, URL, UUID, etc)")
+   **/
+  @Schema(example = "doi:10.15454/312953986E3", description = "A permanent unique identifier for the sample (DOI, URL, UUID, etc)  MIAPPE V1.1 (DM-81) External ID - An identifier for the sample in a persistent repository, comprising the name of the repository and the accession number of the observation unit therein. Submission to the EBI Biosamples repository is recommended. URI are recommended when possible. ")
   
     public String getSamplePUI() {
     return samplePUI;
@@ -343,10 +381,10 @@ public class SampleNewRequest   {
   }
 
   /**
-   * The date and time a sample was collected from the field
+   * The date and time a sample was collected from the field  MIAPPE V1.1 (DM-80) Collection date - The date and time when the sample was collected / harvested
    * @return sampleTimestamp
-  **/
-  @ApiModelProperty(value = "The date and time a sample was collected from the field")
+   **/
+  @Schema(description = "The date and time a sample was collected from the field  MIAPPE V1.1 (DM-80) Collection date - The date and time when the sample was collected / harvested")
   
     @Valid
     public OffsetDateTime getSampleTimestamp() {
@@ -365,8 +403,8 @@ public class SampleNewRequest   {
   /**
    * The type of sample taken. ex. 'DNA', 'RNA', 'Tissue', etc
    * @return sampleType
-  **/
-  @ApiModelProperty(example = "Tissue", value = "The type of sample taken. ex. 'DNA', 'RNA', 'Tissue', etc")
+   **/
+  @Schema(example = "Tissue", description = "The type of sample taken. ex. 'DNA', 'RNA', 'Tissue', etc")
   
     public String getSampleType() {
     return sampleType;
@@ -384,8 +422,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies a study within the given database server
    * @return studyDbId
-  **/
-  @ApiModelProperty(example = "64bd6bf9", value = "The ID which uniquely identifies a study within the given database server")
+   **/
+  @Schema(example = "64bd6bf9", description = "The ID which uniquely identifies a study within the given database server")
   
     public String getStudyDbId() {
     return studyDbId;
@@ -403,8 +441,8 @@ public class SampleNewRequest   {
   /**
    * The name or identifier of the entity which took the sample from the field
    * @return takenBy
-  **/
-  @ApiModelProperty(example = "Bob", value = "The name or identifier of the entity which took the sample from the field")
+   **/
+  @Schema(example = "Bob", description = "The name or identifier of the entity which took the sample from the field")
   
     public String getTakenBy() {
     return takenBy;
@@ -420,10 +458,10 @@ public class SampleNewRequest   {
   }
 
   /**
-   * The type of tissue sampled. ex. 'Leaf', 'Root', etc.
+   * The type of tissue sampled. ex. 'Leaf', 'Root', etc.  MIAPPE V1.1 (DM-78) Plant anatomical entity - A description of  the plant part (e.g. leaf) or the plant product (e.g. resin) from which the sample was taken, in the form of an accession number to a suitable controlled vocabulary (Plant Ontology).
    * @return tissueType
-  **/
-  @ApiModelProperty(example = "Root", value = "The type of tissue sampled. ex. 'Leaf', 'Root', etc.")
+   **/
+  @Schema(example = "Root", description = "The type of tissue sampled. ex. 'Leaf', 'Root', etc.  MIAPPE V1.1 (DM-78) Plant anatomical entity - A description of  the plant part (e.g. leaf) or the plant product (e.g. resin) from which the sample was taken, in the form of an accession number to a suitable controlled vocabulary (Plant Ontology).")
   
     public String getTissueType() {
     return tissueType;
@@ -441,8 +479,8 @@ public class SampleNewRequest   {
   /**
    * The ID which uniquely identifies a trial within the given database server
    * @return trialDbId
-  **/
-  @ApiModelProperty(example = "d34c5349", value = "The ID which uniquely identifies a trial within the given database server")
+   **/
+  @Schema(example = "d34c5349", description = "The ID which uniquely identifies a trial within the given database server")
   
     public String getTrialDbId() {
     return trialDbId;
@@ -458,10 +496,10 @@ public class SampleNewRequest   {
   }
 
   /**
-   * The Well identifier for this samples location in the plate. Ussually a concatination of Row and Column, or just a number if the samples are not part of an ordered plate.
+   * The Well identifier for this samples location in the plate. Usually a concatenation of Row and Column, or just a number if the samples are not part of an ordered plate.
    * @return well
-  **/
-  @ApiModelProperty(example = "B6", value = "The Well identifier for this samples location in the plate. Ussually a concatination of Row and Column, or just a number if the samples are not part of an ordered plate.")
+   **/
+  @Schema(example = "B6", description = "The Well identifier for this samples location in the plate. Usually a concatenation of Row and Column, or just a number if the samples are not part of an ordered plate.")
   
     public String getWell() {
     return well;
@@ -483,14 +521,15 @@ public class SampleNewRequest   {
     SampleNewRequest sampleNewRequest = (SampleNewRequest) o;
     return Objects.equals(this.additionalInfo, sampleNewRequest.additionalInfo) &&
         Objects.equals(this.column, sampleNewRequest.column) &&
+        Objects.equals(this.externalReferences, sampleNewRequest.externalReferences) &&
         Objects.equals(this.germplasmDbId, sampleNewRequest.germplasmDbId) &&
-        Objects.equals(this.notes, sampleNewRequest.notes) &&
         Objects.equals(this.observationUnitDbId, sampleNewRequest.observationUnitDbId) &&
         Objects.equals(this.plateDbId, sampleNewRequest.plateDbId) &&
         Objects.equals(this.plateName, sampleNewRequest.plateName) &&
         Objects.equals(this.programDbId, sampleNewRequest.programDbId) &&
         Objects.equals(this.row, sampleNewRequest.row) &&
         Objects.equals(this.sampleBarcode, sampleNewRequest.sampleBarcode) &&
+        Objects.equals(this.sampleDescription, sampleNewRequest.sampleDescription) &&
         Objects.equals(this.sampleGroupDbId, sampleNewRequest.sampleGroupDbId) &&
         Objects.equals(this.sampleName, sampleNewRequest.sampleName) &&
         Objects.equals(this.samplePUI, sampleNewRequest.samplePUI) &&
@@ -505,7 +544,7 @@ public class SampleNewRequest   {
 
   @Override
   public int hashCode() {
-    return Objects.hash(additionalInfo, column, germplasmDbId, notes, observationUnitDbId, plateDbId, plateName, programDbId, row, sampleBarcode, sampleGroupDbId, sampleName, samplePUI, sampleTimestamp, sampleType, studyDbId, takenBy, tissueType, trialDbId, well);
+    return Objects.hash(additionalInfo, column, externalReferences, germplasmDbId, observationUnitDbId, plateDbId, plateName, programDbId, row, sampleBarcode, sampleDescription, sampleGroupDbId, sampleName, samplePUI, sampleTimestamp, sampleType, studyDbId, takenBy, tissueType, trialDbId, well);
   }
 
   @Override
@@ -515,14 +554,15 @@ public class SampleNewRequest   {
     
     sb.append("    additionalInfo: ").append(toIndentedString(additionalInfo)).append("\n");
     sb.append("    column: ").append(toIndentedString(column)).append("\n");
+    sb.append("    externalReferences: ").append(toIndentedString(externalReferences)).append("\n");
     sb.append("    germplasmDbId: ").append(toIndentedString(germplasmDbId)).append("\n");
-    sb.append("    notes: ").append(toIndentedString(notes)).append("\n");
     sb.append("    observationUnitDbId: ").append(toIndentedString(observationUnitDbId)).append("\n");
     sb.append("    plateDbId: ").append(toIndentedString(plateDbId)).append("\n");
     sb.append("    plateName: ").append(toIndentedString(plateName)).append("\n");
     sb.append("    programDbId: ").append(toIndentedString(programDbId)).append("\n");
     sb.append("    row: ").append(toIndentedString(row)).append("\n");
     sb.append("    sampleBarcode: ").append(toIndentedString(sampleBarcode)).append("\n");
+    sb.append("    sampleDescription: ").append(toIndentedString(sampleDescription)).append("\n");
     sb.append("    sampleGroupDbId: ").append(toIndentedString(sampleGroupDbId)).append("\n");
     sb.append("    sampleName: ").append(toIndentedString(sampleName)).append("\n");
     sb.append("    samplePUI: ").append(toIndentedString(samplePUI)).append("\n");
