@@ -5,6 +5,7 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -12,9 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import javax.validation.Valid;
 
+import org.apache.commons.collections.IteratorUtils;
 import org.brapi.v2.model.CallListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.MetadataTokenPagination;
@@ -91,7 +94,7 @@ public class VariantsApiController implements VariantsApi {
 
 		String module = null;
 		int projId;
-		Query /*varQuery = null, */runQuery = null;
+		Query varQuery = null, runQuery = null;
 
 		VariantListResponseResult result = new VariantListResponseResult();
 		VariantListResponse vlr = new VariantListResponse();
@@ -104,9 +107,10 @@ public class VariantsApiController implements VariantsApi {
         	body.setPageSize(VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE);
         int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
 
+		Collection<String> variantIDs = null;
 		try {
-			if (fGotVariants) {	/*FIXME: this should be applied to varQuery, once the variants collection will also contain variant annotations*/
-				HashSet<String> variantIDs = new HashSet<>();
+			if (fGotVariants) {
+				variantIDs = new HashSet<>();
 				for (String variantDbId : body.getVariantDbIds()) {
 					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
 					if (module != null && !module.equals(info[0])) {
@@ -117,9 +121,9 @@ public class VariantsApiController implements VariantsApi {
 					module = info[0];
 					variantIDs.add(info[1]);
 				}
-				runQuery = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantIDs));
+				varQuery = new Query(Criteria.where("_id").in(variantIDs));
 			}
-	    	else if (fGotRefDbId) {	/*FIXME: this should be applied to varQuery, once the variants collection will also contain variant annotations*/
+	    	else if (fGotRefDbId) {
 	        	String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getReferenceDbId(), 2);
 	        	module = info[0];
 	    		List<Criteria> crits = new ArrayList<>();	    		
@@ -128,7 +132,7 @@ public class VariantsApiController implements VariantsApi {
 	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()));
 	    		if (body.getEnd() != null)
 	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd()));
-	    		runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+	    		varQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
 	    	}
 			else if (fGotVariantSets) {
 				HashMap<Integer, Set<String>> runsByProject = new HashMap<>();
@@ -170,14 +174,27 @@ public class VariantsApiController implements VariantsApi {
 			}
 			
 			List<AbstractVariantData> varList;
-			/*if (varQuery != null) {
+			if (varQuery != null) {
 				varQuery.limit(body.getPageSize());
 				if (page > 0)
 					varQuery.skip(page * body.getPageSize());
 				varList = IteratorUtils.toList(MongoTemplateManager.get(module).find(varQuery, VariantData.class).iterator());
+				
+				// we may need to grab functional annotations from VRD records (FIXME: these should really be duplicated into VariantData)
+            	if (!fGotVariants)
+            		variantIDs = varList.stream().map(avd -> avd.getVariantId()).collect(Collectors.toList());
+            	
+            	HashMap<String, AbstractVariantData> variantsById = new LinkedHashMap<>();
+            	for (AbstractVariantData variant : varList)
+            		variantsById.put(variant.getVariantId(), variant);
+            	
+            	Query q = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantIDs));
+            	q.fields().include(AbstractVariantData.SECTION_ADDITIONAL_INFO);
+            	for (VariantRunData vrd : MongoTemplateManager.get(module).find(q, VariantRunData.class))
+            		variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());	// FIXE: this is sub-optimal as it may be called several times for the same variant
 			}
-			else */if (runQuery != null)
-	        	varList = VariantsApiController.getSortedVariantListChunk(MongoTemplateManager.get(module), fGotVariants ? VariantData.class : VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
+			else if (runQuery != null)
+	        	varList = VariantsApiController.getSortedVariantListChunk(MongoTemplateManager.get(module), VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
 			else {
 				status.setMessage("At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified as parameter!");
 				metadata.addStatusItem(status);
