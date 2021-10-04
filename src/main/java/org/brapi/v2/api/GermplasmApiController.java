@@ -66,6 +66,8 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
 import jhi.brapi.api.germplasm.BrapiGermplasm;
+import org.brapi.v2.model.ExternalReferences;
+import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.GermplasmNewRequestStorageTypes;
 import org.brapi.v2.model.GermplasmNewRequestStorageTypes.CodeEnum;
 
@@ -163,17 +165,37 @@ public class GermplasmApiController implements GermplasmApi {
    	    	gsr.page = body.getPage();
    	    	gsr.pageSize = body.getPageSize();
    	    	
-   			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, programDbId, gsr);
+   			Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, programDbId, gsr, Germplasm.germplasmFields);
    			Map<String, Object> v1Result = (Map<String, Object>) v1response.get("result");
    	    	ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
    	    	String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
    	    	for (Map<String, Object> v1germplasmRecord : v1data) {
     			Germplasm germplasm = new Germplasm();
+                        
+                        //add the extRefId and extRefSrc to externalReferences
+                        //if extRefSrc is sample, then the externalReferences id will be the sample germplasmDbId                        
+                        if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId) != null) {
+                            ExternalReferencesInner ref = new ExternalReferencesInner();
+                            if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceType).equals("sample")) {
+                                if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_extGermplasmDbId) != null) {
+                                    ref.setReferenceID(v1germplasmRecord.get(BrapiService.BRAPI_FIELD_extGermplasmDbId).toString());
+                                }
+                                
+                            } else {
+                                ref.setReferenceID(v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
+                            }
+                            if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null) {
+                                ref.setReferenceSource(v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
+                            }
+                            ExternalReferences refs = new ExternalReferences();
+                            refs.add(ref);
+                            germplasm.setExternalReferences(refs);
+                        }
     			
    	    		for (String key : v1germplasmRecord.keySet()) {
    	    			String sLCkey = key.toLowerCase();
-   	    			Object val = v1germplasmRecord.get(key);
-					if (!BrapiGermplasm.germplasmFields.containsKey(sLCkey) && !lowerCaseIdFieldName.equals(sLCkey)) {
+   	    			Object val = v1germplasmRecord.get(key);                                       
+					if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey)) {
 						if ("additionalinfo".equals(sLCkey)) {
 							for (String aiKey : ((HashMap<String, String>) val).keySet())
 								germplasm.putAdditionalInfoItem(aiKey, ((HashMap<String, String>) val).get(aiKey));
@@ -216,14 +238,12 @@ public class GermplasmApiController implements GermplasmApi {
 							case "biologicalstatusofaccessioncode":
 								germplasm.setBiologicalStatusOfAccessionCode(BiologicalStatusOfAccessionCodeEnum.fromValue(val.toString()));
 								break;
+                                                        case "biologicalstatusofaccessiondescription":
+								germplasm.setBiologicalStatusOfAccessionDescription(val.toString());
+								break;
 							case "countryoforigincode":
 								germplasm.setCountryOfOriginCode(val.toString());
-								break;
-							case "typeofgermplasmstoragecode":
-                                                                GermplasmNewRequestStorageTypes storageType = new GermplasmNewRequestStorageTypes();
-                                                                storageType.setCode(CodeEnum.fromValue(val.toString()));
-								germplasm.setStorageTypes(Arrays.asList(storageType));
-								break;
+								break;							
 							case "genus":
 								germplasm.setGenus(val.toString());
 								break;
@@ -240,12 +260,7 @@ public class GermplasmApiController implements GermplasmApi {
 								germplasm.setSubtaxaAuthority(val.toString());
 								break;
 							case "acquisitiondate":
-								try {
-									germplasm.setAcquisitionDate(LocalDate.parse(val.toString()));
-								}
-								catch (DateTimeParseException dtpe){
-									log.error("Unable to parse germplasm acquisition date: " + val);
-								}
+								germplasm.setAcquisitionDate(val.toString());
 								break;
 						}
 					}
