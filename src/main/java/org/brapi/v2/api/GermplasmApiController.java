@@ -196,6 +196,9 @@ public class GermplasmApiController implements GermplasmApi {
                 for (String key : v1germplasmRecord.keySet()) {
                     String sLCkey = key.toLowerCase();
                     Object val = v1germplasmRecord.get(key);
+                    if (val == null)
+                    	continue;
+
                     if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey)) {
                         if ("additionalinfo".equals(sLCkey)) {
                             for (String aiKey : ((HashMap<String, String>) val).keySet()) {
