@@ -196,7 +196,7 @@ public class CallsApiController implements CallsApi {
 
     	// now deal with samples
 		if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
-			runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELE_LIST);
+			runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
 			for (String callSetDbId : body.getCallSetDbIds()) {
 				String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
 				runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[2]);
