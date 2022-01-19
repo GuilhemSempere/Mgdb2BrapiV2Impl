@@ -4,6 +4,8 @@
 [submodule "Mgdb2BrapiImpl"]
 	path = Mgdb2BrapiImpl
 	url = https://github.com/SouthGreenPlatform/Mgdb2BrapiImpl
+	branch = submodules
 [submodule "Gigwa2ServiceImpl"]
 	path = Gigwa2ServiceImpl
 	url = https://github.com/SouthGreenPlatform/Gigwa2ServiceImpl
+	branch = submodules
