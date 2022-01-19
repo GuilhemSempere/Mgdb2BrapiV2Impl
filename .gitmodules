@@ -1,0 +1,9 @@
+[submodule "Mgdb2BrapiModel"]
+	path = Mgdb2BrapiModel
+	url = https://github.com/SouthGreenPlatform/Mgdb2BrapiModel
+[submodule "Mgdb2BrapiImpl"]
+	path = Mgdb2BrapiImpl
+	url = https://github.com/SouthGreenPlatform/Mgdb2BrapiImpl
+[submodule "Gigwa2ServiceImpl"]
+	path = Gigwa2ServiceImpl
+	url = https://github.com/SouthGreenPlatform/Gigwa2ServiceImpl
