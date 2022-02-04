@@ -51,6 +51,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.context.ServletContextAware;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.BasicDBList;
 import com.mongodb.client.MongoCollection;
 
 import fr.cirad.mgdb.exporting.IExportHandler;
@@ -406,6 +407,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     			log.error("Error generating PLINK file", tempFileGenerationThread.getException());
     			tempFileGenerationThread.getException().printStackTrace(response.getWriter());
+    			exportFile.delete();
     		}
 		}
 		else if (dataFormat.equalsIgnoreCase(DataFormatEnum.FLAPJACK.toString())) {
@@ -473,6 +475,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     			log.error("Error generating Flapjack file", tempFileGenerationThread.getException());
     			tempFileGenerationThread.getException().printStackTrace(response.getWriter());
+    			exportFile.delete();
     		}
 		}
 		else if (dataFormat.equalsIgnoreCase(DataFormatEnum.VCF.toString())) {
@@ -542,6 +545,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     			log.error("Error generating VCF file", tempFileGenerationThread.getException());
     			tempFileGenerationThread.getException().printStackTrace(response.getWriter());
+    			exportFile.delete();
     		}
 		}
 		else {
@@ -582,7 +586,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-				Document varQuery = new Document("$and", Arrays.asList(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId), new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2]), new Document(VariantData.FIELDNAME_TYPE, Type.SNP.toString())) /*only SNPs are supported*/);
+				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); add(new Document(VariantData.FIELDNAME_TYPE, Type.SNP.toString())); /*only SNPs are supported*/ }} );
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 				result = exportHandler.createExportFiles(module, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList<>(), new ArrayList<>(), exportId, new HashMap<>(), new HashMap<>(), samplesToExport, progress);
@@ -592,7 +596,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, module, nQueryChunkSize, varColl, new Document(), null, result, null, progress);
+		        	exportHandler.writeGenotypeFile(os, module, samplesToExport.stream().map(sp -> sp.getIndividual()).distinct().collect(Collectors.toList()), nQueryChunkSize, varColl, new Document(), null, result, null, progress);
 		        }
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
@@ -637,7 +641,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-				Document varQuery = new Document("$and", Arrays.asList(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId), new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])));
+				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 				result = exportHandler.createExportFiles(module, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList<>(), new ArrayList<>(), exportId, new HashMap<>(), new HashMap<>(), samplesToExport, progress);
@@ -692,7 +696,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-				Document varQuery = new Document("$and", Arrays.asList(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId), new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])));
+				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );
 
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
