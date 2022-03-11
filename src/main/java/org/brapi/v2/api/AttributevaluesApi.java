@@ -16,6 +16,7 @@ import javax.validation.Valid;
 import org.brapi.v2.model.GermplasmAttributeValueListResponse;
 import org.brapi.v2.model.SuccessfulSearchResponse;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
@@ -26,6 +27,7 @@ import org.brapi.v2.model.GermplasmAttributeValueSearchRequest;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-09-14T15:37:29.213Z[GMT]")
 @Validated
+@Api(value = "attributevalues", description = "the attributevalues API", tags={ "Attribute values", })
 public interface AttributevaluesApi {
 
     public static String searchAttributevaluesPost_url = "search/attributevalues";
