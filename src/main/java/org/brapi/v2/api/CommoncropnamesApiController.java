@@ -54,16 +54,15 @@ public class CommoncropnamesApiController implements CommoncropnamesApi {
         	if (page == null)
         		page = 0;
         	int nAllowedCropIndex = 0;
-        	for (final String crop : MongoTemplateManager.getAvailableModules().stream()	.filter(db -> {
-																								try {
-																									return tokenManager.canUserReadDB(tokenManager.getAuthenticationFromToken(token), db);
-																								} catch (ObjectNotFoundException e) {
-																									return false;
-																								}
-        																					})
-																							.map(db -> MongoTemplateManager.getTaxonName(db))
-																							.collect(Collectors.toSet()))
-			{
+        	for (final String crop : MongoTemplateManager.getAvailableModules().stream()
+    	        .filter(db -> {
+					try {
+						return tokenManager.canUserReadDB(token, db);
+					} catch (ObjectNotFoundException e) {
+						return false;
+					}
+				}).map(db -> MongoTemplateManager.getTaxonName(db)).collect(Collectors.toSet()))
+        	{
     			if (pageSize == null || (page*pageSize <= nAllowedCropIndex && (page+1)*pageSize > nAllowedCropIndex))
 	        		result.addDataItem(crop == null ? "" : crop);
     			nAllowedCropIndex++;
