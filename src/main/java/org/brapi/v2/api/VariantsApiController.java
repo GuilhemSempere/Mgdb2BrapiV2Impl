@@ -207,7 +207,7 @@ public class VariantsApiController implements VariantsApi {
         	for (AbstractVariantData dbVariant : varList) {
         		Variant variant = new Variant();
         		variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
-        		List<String> alleles = dbVariant.getKnownAlleleList();
+        		List<String> alleles = dbVariant.getKnownAlleles();
         		if (alleles.size() > 0)
         			variant.setReferenceBases(alleles.get(0));
         		if (alleles.size() > 1)
