@@ -12,8 +12,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallListResponse;
@@ -34,9 +32,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import fr.cirad.controller.GigwaMethods;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
@@ -45,6 +40,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -69,7 +65,7 @@ public class CallsApiController implements CallsApi {
 		if (variantSetDbId == null && callSetDbId != null) {
 			String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
 			GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[2]))), GenotypingSample.class).iterator().next();
-			variantSetDbId = info[0] + GigwaMethods.ID_SEPARATOR + sample.getProjectId() + GigwaMethods.ID_SEPARATOR + sample.getRun();
+			variantSetDbId = info[0] + IGigwaService.ID_SEPARATOR + sample.getProjectId() + IGigwaService.ID_SEPARATOR + sample.getRun();
 		}
 		
 		CallsSearchRequest csr = new CallsSearchRequest();
@@ -156,7 +152,7 @@ public class CallsApiController implements CallsApi {
 			// identify the runs those samples are involved in
 			body.setVariantSetDbIds(new ArrayList<>());
 			for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIndividuals.keySet())), GenotypingSample.class)) {
-				String variantSetDbId = module + GigwaMethods.ID_SEPARATOR + sp.getProjectId() + GigwaMethods.ID_SEPARATOR + sp.getRun();
+				String variantSetDbId = module + IGigwaService.ID_SEPARATOR + sp.getProjectId() + IGigwaService.ID_SEPARATOR + sp.getRun();
 				if (!body.getVariantSetDbIds().contains(variantSetDbId)) {
 					body.getVariantSetDbIds().add(variantSetDbId);
 					fGotVariantSetList = true;
@@ -168,7 +164,7 @@ public class CallsApiController implements CallsApi {
 
     	// check permissions
     	Collection<Integer> projectIDs = fGotVariantSetList ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet()) :
-    		mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
+    		mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
     	List<Integer> forbiddenProjectIDs = new ArrayList<>();
 		for (int pj : projectIDs)
 			if (!tokenManager.canUserReadProject(token, module, pj))
@@ -188,7 +184,7 @@ public class CallsApiController implements CallsApi {
 		}
 		
 		if (fGotVariantList) {
-			List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
+			List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
 			crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
 		}
 

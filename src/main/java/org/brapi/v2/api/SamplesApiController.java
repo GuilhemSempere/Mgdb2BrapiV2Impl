@@ -27,10 +27,10 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import fr.cirad.controller.GigwaMethods;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -145,7 +145,7 @@ public class SamplesApiController implements SamplesApi {
         		sample.sampleDbId(ga4ghService.createId(programDbId, projId, mgdbSample.getIndividual(), mgdbSample.getId()));
         		sample.germplasmDbId(ga4ghService.createId(programDbId, projId, mgdbSample.getIndividual()));
         		sample.setSampleName(mgdbSample.getSampleName());
-        		sample.studyDbId(programDbId + GigwaMethods.ID_SEPARATOR + projId);
+        		sample.studyDbId(programDbId + IGigwaService.ID_SEPARATOR + projId);
         		result.addDataItem(sample);
         	}
 

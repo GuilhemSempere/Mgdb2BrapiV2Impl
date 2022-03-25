@@ -28,8 +28,8 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import fr.cirad.controller.GigwaMethods;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
@@ -77,7 +77,7 @@ public class StudiesApiController implements StudiesApi {
 	        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
 		            	result.addDataItem(new Study() {{
 		            		setTrialDbId(module);
-		            		setStudyDbId(module + GigwaMethods.ID_SEPARATOR + pj.getId());
+		            		setStudyDbId(module + IGigwaService.ID_SEPARATOR + pj.getId());
 		            		setStudyType("genotype");
 		            		setStudyName(pj.getName());	/* variantSets in GA4GH correspond to projects, i.e. studies in BrAPI v2 */
 		            		setStudyDescription(pj.getDescription());

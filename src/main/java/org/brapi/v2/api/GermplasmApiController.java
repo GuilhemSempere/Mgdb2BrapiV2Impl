@@ -49,7 +49,6 @@ import org.threeten.bp.format.DateTimeParseException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import fr.cirad.controller.GigwaMethods;
 import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
@@ -60,6 +59,7 @@ import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -161,7 +161,7 @@ public class GermplasmApiController implements GermplasmApi {
             gsr.germplasmPUIs = body.getGermplasmPUIs();
             gsr.germplasmGenus = body.getGermplasmGenus();
             gsr.germplasmSpecies = body.getGermplasmSpecies();
-            gsr.germplasmNames = body.getGermplasmNames() == null ? null : body.getGermplasmNames().stream().map(nm -> nm.substring(1 + nm.lastIndexOf(GigwaMethods.ID_SEPARATOR))).collect(Collectors.toList());
+            gsr.germplasmNames = body.getGermplasmNames() == null ? null : body.getGermplasmNames().stream().map(nm -> nm.substring(1 + nm.lastIndexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
             gsr.germplasmDbIds = germplasmIdsToReturn;
             gsr.page = body.getPage();
             gsr.pageSize = body.getPageSize();

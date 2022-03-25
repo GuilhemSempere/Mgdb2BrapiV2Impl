@@ -2,10 +2,7 @@ package org.brapi.v2.api;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-
-import javax.servlet.http.HttpServletRequest;
 
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
@@ -15,7 +12,6 @@ import org.brapi.v2.model.ReferenceListResponse;
 import org.brapi.v2.model.ReferenceListResponseResult;
 import org.brapi.v2.model.ReferencesSearchRequest;
 import org.brapi.v2.model.Status;
-import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,12 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import fr.cirad.controller.GigwaMethods;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
-import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -129,7 +121,7 @@ public class ReferencesApiController implements ReferencesApi {
 	   					speciesOT.setTerm(speciesName);
 			        	ref.setSpecies(speciesOT);
    					}
-			    	ref.setReferenceDbId(programDbId + GigwaMethods.ID_SEPARATOR + seq);
+			    	ref.setReferenceDbId(programDbId + IGigwaService.ID_SEPARATOR + seq);
 			    	ref.setReferenceName(seq);
 			    	result.addDataItem(ref);
    			}
