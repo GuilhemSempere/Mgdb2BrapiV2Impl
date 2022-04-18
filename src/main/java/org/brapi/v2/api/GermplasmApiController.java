@@ -200,15 +200,13 @@ public class GermplasmApiController implements GermplasmApi {
                     	continue;
 
                     if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey)) {
-                        if ("additionalinfo".equals(sLCkey)) {
-                            for (String aiKey : ((HashMap<String, String>) val).keySet()) {
-                                germplasm.putAdditionalInfoItem(aiKey, ((HashMap<String, String>) val).get(aiKey));
-                            }
-                        } else {
-                            germplasm.putAdditionalInfoItem(key, val.toString());
-                        }
+                        germplasm.putAdditionalInfoItem(key, val.toString());
                     } else {
                         switch (sLCkey) {
+                            case "additionalinfo":
+                                for (String aiKey : ((HashMap<String, String>) val).keySet()) {
+                                    germplasm.putAdditionalInfoItem(aiKey, ((HashMap<String, String>) val).get(aiKey));
+                                }
                             case "germplasmdbid":
                                 germplasm.germplasmDbId(ga4ghService.createId(programDbId, projId, val.toString()));
                                 break;
