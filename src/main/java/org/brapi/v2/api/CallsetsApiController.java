@@ -155,7 +155,7 @@ public class CallsetsApiController implements CallsetsApi {
 			            callset.setVariantSetIds(Arrays.asList(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun()));
             			final Individual ind = listInd.get(i);
             			if (!ind.getAdditionalInfo().isEmpty())
-            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
+            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().filter(k -> ind.getAdditionalInfo().get(k) != null).collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
 	            		result.addDataItem(callset);
 					}
 				}
