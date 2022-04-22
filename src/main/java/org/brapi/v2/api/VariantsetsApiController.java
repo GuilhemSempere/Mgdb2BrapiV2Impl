@@ -97,7 +97,9 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     @Autowired private MongoBrapiCache cache;
     
 	private ServletContext servletContext;
-	static final private String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
+
+	public static final  String brapiV2ExportFilePrefix = "brapiV2export-";
+	public static final String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
 	static final private long EXPORT_FILE_EXPIRATION_DELAY_MILLIS = 1000*60*60*24;	/* 1 day */
 
     private static HashMap<String /*export id*/, Thread /*temporary file generation thread */> exportThreads = new HashMap<>();
@@ -353,7 +355,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
-        	String exportId = "brapiV2export-" + variantSetDbId;
+        	String exportId = brapiV2ExportFilePrefix  + variantSetDbId;
         	
 			String relativeOutputFolder = File.separator + TMP_OUTPUT_FOLDER + File.separator;
 			File outputLocation = new File(servletContext.getRealPath(relativeOutputFolder));
@@ -416,7 +418,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
-        	String exportId = "brapiV2export-" + variantSetDbId;
+        	String exportId = brapiV2ExportFilePrefix + variantSetDbId;
         	
 			String relativeOutputFolder = File.separator + TMP_OUTPUT_FOLDER + File.separator;
 			File outputLocation = new File(servletContext.getRealPath(relativeOutputFolder));
@@ -484,7 +486,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
-        	String exportId = "brapiV2export-" + variantSetDbId;
+        	String exportId = brapiV2ExportFilePrefix + variantSetDbId;
         	
 			String relativeOutputFolder = File.separator + TMP_OUTPUT_FOLDER + File.separator;
 			File outputLocation = new File(servletContext.getRealPath(relativeOutputFolder));
