@@ -27,6 +27,8 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
+import org.brapi.v2.model.CallListResponse2;
+import org.brapi.v2.model.CallsListResponseResult2;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Api(value = "calls", description = "the calls API", tags={ "Calls" })
@@ -34,6 +36,7 @@ public interface CallsApi {
 
 	public static final String callsGet_url = "calls";
     public static final String searchCallsPost_url = "search/calls";
+    public static final String callsPut_url = "calls2";
     
 	@ApiOperation(value = "Returns a filtered list of `Calls`", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
 			@Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
@@ -67,5 +70,18 @@ public interface CallsApi {
 	        consumes = { "application/json" },
 	        method = RequestMethod.POST)
 	    ResponseEntity<CallListResponse> searchCallsPost(@ApiParam @Valid @RequestBody CallsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;
+
+        @ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "callsPut", notes = "update calls", response = SuccessfulSearchResponse.class, authorizations = {
+	        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
+	    @ApiResponses(value = { 
+	        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
+	        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+	        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+	        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+	    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + callsPut_url,
+	        produces = { "application/json" }, 
+	        consumes = { "application/json" },
+	        method = RequestMethod.PUT)
+	    ResponseEntity<CallListResponse2> callsPut(@ApiParam @Valid @RequestBody CallsListResponseResult2 body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;
 
 }
