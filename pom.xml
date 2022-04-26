@@ -8,7 +8,7 @@
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <Gigwa2ServiceImpl.version>2.5-beta</Gigwa2ServiceImpl.version>
+        <Gigwa2ServiceImpl.version>2.5-RELEASE</Gigwa2ServiceImpl.version>
     </properties>
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>

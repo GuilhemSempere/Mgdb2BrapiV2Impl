@@ -139,7 +139,6 @@ public class CallsetsApiController implements CallsetsApi {
     				Query q = new Query(Criteria.where("_id").in(indIdToSampleIdMap.keySet()));
     				q.with(Sort.by(Sort.Direction.ASC, "_id"));
     				
-    				List<Individual> listInd = mongoTemplate.find(q, Individual.class);
     				Map<String, Individual> indMap = mongoTemplate.find(q, Individual.class).stream().collect(Collectors.toMap(Individual::getId, ind -> ind));
 					for (CustomIndividualMetadata cimd : mongoTemplate.find(new Query(Criteria.where("_id." + CustomIndividualMetadataId.FIELDNAME_USER).is(sCurrentUser)), CustomIndividualMetadata.class))	// merge with custom metadata if available
 		                if (cimd.getAdditionalInfo() != null && !cimd.getAdditionalInfo().isEmpty())
@@ -153,9 +152,9 @@ public class CallsetsApiController implements CallsetsApi {
 		            	callset.setCallSetName(callset.getCallSetDbId());
 		            	callset.setSampleDbId(callset.getCallSetDbId());
 			            callset.setVariantSetIds(Arrays.asList(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun()));
-            			final Individual ind = listInd.get(i);
+            			final Individual ind = indMap.get(sample.getIndividual());
             			if (!ind.getAdditionalInfo().isEmpty())
-            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
+            				callset.setAdditionalInfo(ind.getAdditionalInfo().keySet().stream().filter(k -> ind.getAdditionalInfo().get(k) != null).collect(Collectors.toMap(k -> k, k -> (List<String>) Arrays.asList(ind.getAdditionalInfo().get(k).toString()))));
 	            		result.addDataItem(callset);
 					}
 				}
