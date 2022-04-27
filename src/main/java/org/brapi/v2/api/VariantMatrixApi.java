@@ -33,13 +33,13 @@ import org.brapi.v2.model.VariantMatrixSearchRequest;
 @Api(value = "variantMatrix", description = "the variantMatrix API", tags={ "VariantMatrix" })
 public interface VariantMatrixApi {
 
-    public static final String variantMatrixGet_url = "calls";
+    public static final String variantMatrixGet_url = "variantMatrix";
     public static final String searchVariantMatrixPost_url = "search/variantMatrix";
     
 	@ApiOperation(value = "Returns a filtered list of `Calls`", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
 			@Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = CallListResponse.class),
+        @ApiResponse(code = 200, message = "OK", response = VariantMatrixResponse.class),
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
@@ -64,7 +64,7 @@ public interface VariantMatrixApi {
     		@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,
     		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;
 	
-    @ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "searchCallsPost", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "searchVariantMatrixPost", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId", response = SuccessfulSearchResponse.class, authorizations = {
 	        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
 	    @ApiResponses(value = { 
 	        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),

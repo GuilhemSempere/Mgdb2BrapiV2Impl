@@ -33,6 +33,8 @@ import org.brapi.v2.model.ListValue;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
 import org.brapi.v2.model.TokenPagination;
+import org.brapi.v2.model.VariantMatrixPagination;
+import org.brapi.v2.model.VariantMatrixPagination.Dimension;
 import org.brapi.v2.model.VariantMatrixResponse;
 import org.brapi.v2.model.VariantMatrixResponseResult;
 import org.brapi.v2.model.VariantMatrixSearchRequest;
@@ -246,18 +248,25 @@ public class VariantMatrixApiController implements VariantMatrixApi {
             Set<String> variantSetIds = new HashSet<>();
 
             HashSet<String> distinctVariantIDs = new HashSet<>();
+            List<List<String>> data = new ArrayList();
+                    
             for (AbstractVariantData v : varList) {
                 VariantRunData vrd = (VariantRunData) v;
                 VariantSummarized variant = new VariantSummarized();
                 variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getVariantId());
-                variant.setContig(vrd.getReferencePosition().getSequence());
-                variant.setStart(vrd.getReferencePosition().getStartSite());
-                variant.setEnd(vrd.getReferencePosition().getEndSite());
+                
+                if (vrd.getReferencePosition() != null) { 
+                    variant.setContig(vrd.getReferencePosition().getSequence());
+                    variant.setStart(vrd.getReferencePosition().getStartSite());
+                    variant.setEnd(vrd.getReferencePosition().getEndSite());
+                }
 
                 variant.setReferenceBases(vrd.getKnownAlleles().get(0));
                 for (int i=1; i<vrd.getKnownAlleles().size(); i++){
                     variant.addAlternateBases(vrd.getKnownAlleles().get(i));
                 }
+                
+                variants.add(variant);
 
                 List<String> variantGenotypes = new ArrayList<>();
 
@@ -293,11 +302,29 @@ public class VariantMatrixApiController implements VariantMatrixApi {
 //                            }
 
                 }
+                data.add(variantGenotypes);
             }
                 
             result.setCallSetDbIds(new ArrayList(callSetIds));
             result.setVariants(new ArrayList(variants));
             result.setVariantSetDbIds(new ArrayList(variantSetIds));
+            result.setData(data);
+            
+            VariantMatrixPagination variantPagination = new VariantMatrixPagination();
+            variantPagination.setDimension(Dimension.VARIANT);
+            variantPagination.setCurrentPage(0);
+            variantPagination.setPageSize(theoriticalPageSize);
+            variantPagination.setTotalCount(variants.size());
+            variantPagination.setTotalPages(0);
+            
+            VariantMatrixPagination callSetPagination = new VariantMatrixPagination();
+            callSetPagination.setDimension(Dimension.CALLSET);
+            callSetPagination.setCurrentPage(0);
+            callSetPagination.setPageSize(0);
+            callSetPagination.setTotalCount(callSetIds.size());
+            callSetPagination.setTotalPages(0);
+            
+            result.setPagination(Arrays.asList(variantPagination, callSetPagination));
 
 //        	int nNextPage = page + 1;
 //        	TokenPagination pagination = new TokenPagination();
