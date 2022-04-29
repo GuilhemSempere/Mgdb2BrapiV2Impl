@@ -36,6 +36,7 @@ public interface CallsApi {
 
 	public static final String callsGet_url = "calls";
     public static final String searchCallsPost_url = "search/calls";
+     public static final String searchCallsPost_url2 = "search/calls2";
     public static final String callsPut_url = "calls2";
     
 	@ApiOperation(value = "Returns a filtered list of `Calls`", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
@@ -71,7 +72,40 @@ public interface CallsApi {
 	        method = RequestMethod.POST)
 	    ResponseEntity<CallListResponse> searchCallsPost(@ApiParam @Valid @RequestBody CallsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;
 
-        @ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "callsPut", notes = "update calls", response = SuccessfulSearchResponse.class, authorizations = {
+        	@ApiOperation(value = "Returns a filtered list of `Calls`", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", authorizations = {
+			@Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
+    @ApiResponses(value = { 
+        @ApiResponse(code = 200, message = "OK", response = CallListResponse2.class),
+        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+	
+        @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + callsPut_url, produces = { "application/json" }, method = RequestMethod.GET) ResponseEntity<CallListResponse2> callsGet2(
+    		@ApiParam(value = "The ID of the `CallSet` to be retrieved.") @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId,
+    		@ApiParam(value = "The ID of the `Variant` to be retrieved.") @Valid @RequestParam(value = "variantDbId", required = false) String variantDbId,
+    		@ApiParam(value = "The ID of the `VariantSet` to be retrieved.") @Valid @RequestParam(value = "variantSetDbId", required = false) String variantSetDbId,
+    		@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurrence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,
+    		@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,
+    		@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,
+    		@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,
+    		@ApiParam(value = "Used to request a specific page of data to be returned.  Tokenized pages are for large data sets which can not be efficiently broken into indexed pages. Use the nextPageToken and prevPageToken from a prior response to construct a query and move to the next or previous page respectively. ") @Valid @RequestParam(value = "pageToken", required = false) String pageToken,
+    		@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
+    		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;
+	
+	@ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "searchCallsPost", notes = "Returns a filtered list of `Call` objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.  ** THIS ENDPOINT USES TOKEN BASED PAGING **", response = SuccessfulSearchResponse.class, authorizations = {
+	        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
+	    @ApiResponses(value = { 
+	        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
+	        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+	        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+	        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+	    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchCallsPost_url2,
+	        produces = { "application/json" }, 
+	        consumes = { "application/json" },
+	        method = RequestMethod.POST)
+	    ResponseEntity<CallListResponse2> searchCallsPost2(@ApiParam @Valid @RequestBody CallsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException;         
+            
+            @ApiOperation(value = "Returns a filtered list of `Call` objects", nickname = "callsPut", notes = "update calls", response = SuccessfulSearchResponse.class, authorizations = {
 	        @Authorization(value = "AuthorizationToken")    }, tags={ "Calls" })
 	    @ApiResponses(value = { 
 	        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
