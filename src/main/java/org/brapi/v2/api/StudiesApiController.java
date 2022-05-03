@@ -1,6 +1,7 @@
 package org.brapi.v2.api;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.Helper;
@@ -52,6 +54,8 @@ public class StudiesApiController implements StudiesApi {
     	try {
 	    	StudyListResponse slr = new StudyListResponse();
 	    	StudyListResponseResult result = new StudyListResponseResult();
+			Metadata metadata = new Metadata();
+			slr.setMetadata(metadata);
 
 	    	boolean fGotTrialIDs = body != null && body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
 	    	boolean fGotProgramIDs = body != null && body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
@@ -66,6 +70,21 @@ public class StudiesApiController implements StudiesApi {
 					}
 					moduleProjects.add(Integer.parseInt(info[1]));
 				}
+        	 else if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
+                 HashMap<String, HashMap<Integer, Collection<String>>> dbProjectIndividuals = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
+                 for (String db : dbProjectIndividuals.keySet()) {
+                	 HashMap<Integer, Collection<String>> projectIndividuals = dbProjectIndividuals.get(db);
+                	 for (int nProjId : projectIndividuals.keySet())	// make sure at least one germplasm exists in each project before returning it
+                		 if (MongoTemplateManager.get(db).count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(projectIndividuals.get(nProjId)))), GenotypingSample.class) > 0) {
+         					HashSet<Integer> moduleProjects = projectsByModule.get(db);
+        					if (moduleProjects == null) {
+        						moduleProjects = new HashSet<>();
+        						projectsByModule.put(db, moduleProjects);
+        					}
+        					moduleProjects.add(nProjId);
+                		 }
+                 }
+             }
 
 	    	for (String module : MongoTemplateManager.getAvailableModules())
 	    		if (body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {
@@ -73,26 +92,23 @@ public class StudiesApiController implements StudiesApi {
 		    			continue;
 	
 		    		for (GenotypingProject pj : MongoTemplateManager.get(module).find(projectsByModule.isEmpty() ? new Query() : new Query(Criteria.where("id_").in(projectsByModule.get(module))), GenotypingProject.class)) {
-	
-	        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
-		            	result.addDataItem(new Study() {{
-		            		setTrialDbId(module);
-		            		setStudyDbId(module + IGigwaService.ID_SEPARATOR + pj.getId());
-		            		setStudyType("genotype");
-		            		setStudyName(pj.getName());	/* variantSets in GA4GH correspond to projects, i.e. studies in BrAPI v2 */
-		            		setStudyDescription(pj.getDescription());
-	            		}} );
+		        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
+			            	result.addDataItem(new Study() {{
+			            		setTrialDbId(module);
+			            		setStudyDbId(module + IGigwaService.ID_SEPARATOR + pj.getId());
+			            		setStudyType("genotype");
+			            		setStudyName(pj.getName());	/* variantSets in GA4GH correspond to projects, i.e. studies in BrAPI v2 */
+			            		setStudyDescription(pj.getDescription());
+		            		}} );
 		        	}
 		    	}
 	    	
-			Metadata metadata = new Metadata();
 			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);
 			pagination.setTotalPages(1);
 			pagination.setTotalCount(result.getData().size());
 			metadata.setPagination(pagination);
-			slr.setMetadata(metadata);
 	
 			slr.setResult(result);		
             return new ResponseEntity<StudyListResponse>(slr, HttpStatus.OK);

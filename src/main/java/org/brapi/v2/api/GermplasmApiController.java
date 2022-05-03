@@ -1,15 +1,9 @@
 package org.brapi.v2.api;
 
-import java.io.UnsupportedEncodingException;
-import java.net.SocketException;
-import java.net.URLDecoder;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -17,59 +11,36 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
-import org.apache.commons.lang.StringUtils;
-import org.brapi.v2.model.Call;
-import org.brapi.v2.model.CallListResponse;
+import org.brapi.v2.model.ExternalReferences;
+import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmListResponseResult;
-import org.brapi.v2.model.GermplasmMCPD;
+import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.ListValue;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.MetadataTokenPagination;
 import org.brapi.v2.model.Status;
-import org.brapi.v2.model.TokenPagination;
-import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.threeten.bp.LocalDate;
-import org.threeten.bp.format.DateTimeParseException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.io.brapi.BrapiService;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
-import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
-import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
-import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
-import jhi.brapi.api.germplasm.BrapiGermplasm;
-import org.brapi.v2.model.ExternalReferences;
-import org.brapi.v2.model.ExternalReferencesInner;
-import org.brapi.v2.model.GermplasmNewRequestStorageTypes;
-import org.brapi.v2.model.GermplasmNewRequestStorageTypes.CodeEnum;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -95,6 +66,28 @@ public class GermplasmApiController implements GermplasmApi {
     public GermplasmApiController(ObjectMapper objectMapper, HttpServletRequest request) {
         this.objectMapper = objectMapper;
         this.request = request;
+    }
+    
+    public static HashMap<String, HashMap<Integer, Collection<String>>> readGermplasmIDs(Collection<String> germplasmDbIds) {
+    	HashMap<String, HashMap<Integer, Collection<String>>> dbProjectIndividuals = new HashMap<>();
+        for (String gpId : germplasmDbIds) {
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
+	       	 int projId = Integer.parseInt(info[1]);
+	            
+	       	 HashMap<Integer, Collection<String>> projectIndividuals = dbProjectIndividuals.get(info[0]);
+	       	 if (projectIndividuals == null) {
+	       		 projectIndividuals = new HashMap<>();
+	       		 dbProjectIndividuals.put(info[0], projectIndividuals);
+	       	 }
+	
+	       	 Collection<String> individuals = projectIndividuals.get(projId);
+	       	 if (individuals == null) {
+	       		 individuals = new ArrayList<>();
+	       		 projectIndividuals.put(projId, individuals);
+	       	 }
+	       	 individuals.add(info[2]);
+        }
+        return dbProjectIndividuals;
     }
 
     public ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam(value = "Germplasm Search request") @Valid @RequestBody GermplasmSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value = "Authorization", required = false) String authorization) throws Exception {
