@@ -97,12 +97,13 @@ public class AttributesApiController implements AttributesApi {
 
     public ResponseEntity<GermplasmAttributeListResponse> attributesGet(HttpServletResponse response, @ApiParam(value = "The general category for the attribute. very similar to Trait class.") @Valid @RequestParam(value = "attributeCategory", required = false) String attributeCategory,@ApiParam(value = "The unique id for an attribute") @Valid @RequestParam(value = "attributeDbId", required = false) String attributeDbId,@ApiParam(value = "The human readable name for an attribute") @Valid @RequestParam(value = "attributeName", required = false) String attributeName,@ApiParam(value = "Get all attributes associated with this germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {    	
 		String token = ServerinfoApiController.readToken(authorization);
-		String[] info = GigwaSearchVariantsRequest.getInfoFromId(germplasmDbId, 3);
-		if (!tokenManager.canUserReadProject(token, info[0], Integer.parseInt(info[1])))
-			return new ResponseEntity<GermplasmAttributeListResponse>(HttpStatus.FORBIDDEN);
+		String[] info = GigwaSearchVariantsRequest.getInfoFromId(germplasmDbId, 2);
 
         try {
-        	GermplasmAttributeListResponse galr = new GermplasmAttributeListResponse();
+    		if (!tokenManager.canUserReadDB(token, info[0]))
+    			return new ResponseEntity<GermplasmAttributeListResponse>(HttpStatus.FORBIDDEN);
+
+    		GermplasmAttributeListResponse galr = new GermplasmAttributeListResponse();
         	GermplasmAttributeListResponseResult result = new GermplasmAttributeListResponseResult();
         	Map<String, Object> v1Attributes = brapiV1Service.germplasmAttributes(request, response, info[0], info[2], pageSize, pageSize);
         	Collection<Map<String, String>> dataDoc = (Collection<Map<String, String>>) ((Map<String, Object>) v1Attributes.get("result")).get("data");

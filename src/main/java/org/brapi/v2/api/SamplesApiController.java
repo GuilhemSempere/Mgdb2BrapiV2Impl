@@ -3,10 +3,12 @@ package org.brapi.v2.api;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.validation.Valid;
 
+import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Sample;
@@ -22,18 +24,22 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
+import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
@@ -59,6 +65,8 @@ public class SamplesApiController implements SamplesApi {
 
 	public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
+    	Authentication auth = tokenManager.getAuthenticationFromToken(token);
+    	String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 
         try {
         	SampleListResponse slr = new SampleListResponse();
@@ -91,31 +99,23 @@ public class SamplesApiController implements SamplesApi {
         	else if (body.getGermplasmDbIds() != null) {
         		Collection<String> germplasmIds = new HashSet<>();
 	        	for (String gpId : body.getGermplasmDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
+	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 2);
 					if (programDbId == null)
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
 						sErrorMsg += "You may only supply IDs of germplasm records from one program at a time!";
-					if (projId == null)
-						projId = Integer.parseInt(info[1]);
-					else if (!projId.equals(Integer.parseInt(info[1])))
-						sErrorMsg += "You may only supply a single studyDbId at a time!";
-					germplasmIds.add(info[2]);
+					germplasmIds.add(info[1]);
 	        	}
-	        	sampleIds = MgdbDao.getSamplesForProject(programDbId, projId, germplasmIds).stream().map(sp -> sp.getId()).collect(Collectors.toList());
+	        	sampleIds = MongoTemplateManager.get(programDbId).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), "_id", GenotypingSample.class, Integer.class);
         	}
         	else if (body.getSampleDbIds() != null)
 	        	for (String spId : body.getSampleDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 4);
+	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 2);
 					if (programDbId == null)
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
 						sErrorMsg += "You may only supply IDs of sample records from one program at a time!";
-					if (projId == null)
-						projId = Integer.parseInt(info[1]);
-					else if (!projId.equals(Integer.parseInt(info[1])))
-						sErrorMsg += "You may only supply a single studyDbId at a time!";
-					sampleIds.add(Integer.parseInt(info[3]));
+					sampleIds.add(Integer.parseInt(info[1]));
 	        	}
         	else
         		sErrorMsg += "You must provide either a list of germplasmDbIds or a list of sampleDbIds!";
@@ -127,7 +127,7 @@ public class SamplesApiController implements SamplesApi {
 				return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
 			}
 
-   			if (!tokenManager.canUserReadProject(token, programDbId, projId))
+   			if (!tokenManager.canUserReadDB(token, programDbId))
    				return new ResponseEntity<SampleListResponse>(HttpStatus.FORBIDDEN);
 
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(programDbId);
@@ -139,18 +139,32 @@ public class SamplesApiController implements SamplesApi {
                 	q.skip(body.getPage() * body.getPageSize());
             }
             
+			// attach individual metadata to samples
             List<GenotypingSample> genotypingSamples = mongoTemplate.find(q, GenotypingSample.class);
+			Map<String, Individual> indMap = MgdbDao.getInstance().loadIndividualsWithAllMetadata(programDbId, sCurrentUser, null, genotypingSamples.stream().map(sp -> sp.getIndividual()).collect(Collectors.toList()));
+			
+			String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
         	for (GenotypingSample mgdbSample : genotypingSamples) {
         		Sample sample = new Sample();
-        		sample.sampleDbId(ga4ghService.createId(programDbId, projId, mgdbSample.getIndividual(), mgdbSample.getId()));
-        		sample.germplasmDbId(ga4ghService.createId(programDbId, projId, mgdbSample.getIndividual()));
+        		sample.sampleDbId(ga4ghService.createId(programDbId, mgdbSample.getId()));
+        		sample.germplasmDbId(ga4ghService.createId(programDbId, mgdbSample.getIndividual()));
         		sample.setSampleName(mgdbSample.getSampleName());
-        		sample.studyDbId(programDbId + IGigwaService.ID_SEPARATOR + projId);
+        		sample.studyDbId(programDbId + IGigwaService.ID_SEPARATOR + mgdbSample.getProjectId());
+    			final Individual ind = indMap.get(mgdbSample.getIndividual());
+            	for (String key : ind.getAdditionalInfo().keySet()) {
+                    String sLCkey = key.toLowerCase();
+                    Object val = ind.getAdditionalInfo().get(key);
+                    if (val == null)
+                    	continue;
+
+                    if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey))
+                    	sample.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key));
+            	}
         		result.addDataItem(sample);
         	}
 
 			IndexPagination pagination = new IndexPagination();
-			pagination.setPageSize(body.getPageSize());
+			pagination.setPageSize((int) (body.getPageSize() == null ? count : body.getPageSize()));
 			pagination.setCurrentPage(body.getPage());
 			pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) count / body.getPageSize()));
 			pagination.setTotalCount((int) count);
