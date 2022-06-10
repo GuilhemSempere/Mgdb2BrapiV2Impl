@@ -35,6 +35,7 @@ import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
+import java.util.HashMap;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
 @Controller
@@ -146,6 +147,13 @@ public class SamplesApiController implements SamplesApi {
         		sample.germplasmDbId(ga4ghService.createId(programDbId, projId, mgdbSample.getIndividual()));
         		sample.setSampleName(mgdbSample.getSampleName());
         		sample.studyDbId(programDbId + IGigwaService.ID_SEPARATOR + projId);
+                        if (mgdbSample.getAdditionalInfo() != null) {
+                            sample.setAdditionalInfo(new HashMap());
+                            for (String key:mgdbSample.getAdditionalInfo().keySet()) {
+                                String value = mgdbSample.getAdditionalInfo().get(key).toString();
+                                sample.getAdditionalInfo().put(key, value);
+                            }
+                        }
         		result.addDataItem(sample);
         	}
 
