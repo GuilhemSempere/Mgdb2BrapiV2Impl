@@ -34,13 +34,24 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.io.brapi.BrapiService;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import javax.ejb.ObjectNotFoundException;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.security.core.Authentication;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -96,99 +107,215 @@ public class GermplasmApiController implements GermplasmApi {
         if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0) {
             return new ResponseEntity<>(HttpStatus.OK);	// not supported
         }
+        
         try {
             GermplasmListResponse glr = new GermplasmListResponse();
             GermplasmListResponseResult result = new GermplasmListResponseResult();
             Metadata metadata = new Metadata();
             glr.setMetadata(metadata);
+            
+            String sErrorMsg = "";
+            List<Criteria> vsCrits = new ArrayList<>();
 
             String programDbId = null;
             Integer projId = null;
             Collection<String> germplasmIdsToReturn = new HashSet<>(), requestedGermplasmIDs;
-            if (body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty()) {
-                if (body.getStudyDbIds().size() > 1) {
-                    Status status = new Status();
-                    status.setMessage("You may only supply a single studyDbId at a time!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+            
+            Set<Integer> projIds = new HashSet<>();
+            if (body.getStudyDbIds() != null) {
+                for (String studyId : body.getStudyDbIds()) {
+                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+                    if (programDbId == null)
+                        programDbId = info[0];
+                    else if (!programDbId.equals(info[0]))
+                        sErrorMsg += "You may only supply IDs of study records from one program at a time! ";
+                    if (projId == null)
+                        projId = Integer.parseInt(info[1]);
+//                        else if (!projId.equals(Integer.parseInt(info[1])))
+//                            sErrorMsg += "You may only supply a single studyDbId at a time!";
+                    projIds.add(projId);
                 }
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getStudyDbIds().get(0), 2);
-                programDbId = info[0];
-                projId = Integer.parseInt(info[1]);
-                germplasmIdsToReturn = MgdbDao.getProjectIndividuals(programDbId, projId);
-            } else if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
-                requestedGermplasmIDs = body.getGermplasmDbIds();
-                for (String gpId : requestedGermplasmIDs) {
+            }   
+            
+            if (body.getGermplasmDbIds() != null) {                
+                for (String gpId : body.getGermplasmDbIds()) {
                     String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
                     if (programDbId == null) {
                         programDbId = info[0];
                     } else if (!programDbId.equals(info[0])) {
-                        Status status = new Status();
-                        status.setMessage("You may only supply IDs of germplasm records from one program at a time!");
-                        metadata.addStatusItem(status);
-                        return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+                        sErrorMsg += "You may only supply IDs of study records from one program at a time! ";
                     }
-                    if (projId == null) {
-                        projId = Integer.parseInt(info[1]);
-                    } else if (!projId.equals(Integer.parseInt(info[1]))) {
-                        Status status = new Status();
-                        status.setMessage("You may only supply a single studyDbId at a time!");
-                        metadata.addStatusItem(status);
-                        return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
-                    }
+//                    if (projId == null) {
+//                        projId = Integer.parseInt(info[1]);
+//                    } else if (!projId.equals(Integer.parseInt(info[1]))) {
+//                        Status status = new Status();
+//                        status.setMessage("You may only supply a single studyDbId at a time!");
+//                        metadata.addStatusItem(status);
+//                        return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+//                    }
                     germplasmIdsToReturn.add(info[2]);
+//                    projIds.add(projId);                    
                 }
-            } else {
+            }
+            
+            if (body.getGermplasmNames() != null) {
+                germplasmIdsToReturn.addAll(body.getGermplasmNames());
+            }
+                
+            if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
+                vsCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).in(body.getExternalReferenceIds()));
+            }
+            
+            if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
+                vsCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).in(body.getExternalReferenceSources()));
+            }
+
+            if (body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty()) {
+                if (body.getProgramDbIds().size() > 1) {
+                    sErrorMsg += "You may only supply one programDbId at a time! ";  
+                } else if (programDbId != null && !programDbId.equals(body.getProgramDbIds().get(0))) {
+                    sErrorMsg += "the studyDbIds or germplasmDbIds are in a different programDbId from the one specified " ;               
+                } else {
+                    programDbId = body.getProgramDbIds().get(0);
+                }
+            } else if (projIds.isEmpty()) {
+                sErrorMsg += "You must provide at least a programDbId, a studyDbId, a list of germplasmDbIds! ";
+            }
+            
+            if (!sErrorMsg.isEmpty()) {
                 Status status = new Status();
-                status.setMessage("Either a studyDbId or a list of germplasmDbIds must be specified as parameter!");
-                metadata.addStatusItem(status);
+                status.setMessage(sErrorMsg);
+                glr.getMetadata().addStatusItem(status);
                 return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
             }
 
-            if (!tokenManager.canUserReadProject(token, programDbId, projId)) {
-                return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+            String dbSpecies = MongoTemplateManager.getSpecies(programDbId);
+            if (body.getSpecies() != null && dbSpecies != null) {
+                List<String> lcTrimmedTaxonList = body.getSpecies().stream().map(sp -> sp.toLowerCase().trim()).collect(Collectors.toList());
+                if (!lcTrimmedTaxonList.contains(dbSpecies.toLowerCase().trim())) {
+                    return new ResponseEntity<>(glr, HttpStatus.OK);
+                }
+            }
+            
+            MongoTemplate mongoTemplate = MongoTemplateManager.get(programDbId);
+            
+            //Get list of projects the user has access to
+            List<Integer> readableProjIds;
+            try {
+                readableProjIds = MgdbDao.getUserReadableProjectsIds(tokenManager, token, programDbId, true);
+            } catch (ObjectNotFoundException e) {
+                Status status = new Status();
+                status.setMessage("You don't have access to this programDbId: " + programDbId);
+                glr.getMetadata().addStatusItem(status);
+                return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+            }
+            
+            //retrieve individual ids from samples collection based on projects ids
+            Set<String> indIDs = new HashSet<>();
+            if (!readableProjIds.isEmpty()) {
+                if (!projIds.isEmpty()) {
+                    readableProjIds.retainAll(projIds); //to only filter on projects based on filtered studies or germplasm or sample
+                }
+                Query q = new Query(new Criteria().where(GenotypingSample.FIELDNAME_PROJECT_ID).in(readableProjIds));
+                List<GenotypingSample> genotypingSamples = mongoTemplate.find(q, GenotypingSample.class);
+                indIDs = genotypingSamples.stream().map(s -> s.getIndividual()).collect(Collectors.toSet());
+            } else {
+                Status status = new Status();
+                status.setMessage("You don't have access to any projects of this programDbId: " + programDbId);
+                glr.getMetadata().addStatusItem(status);
+                return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+            }
+            
+            if (germplasmIdsToReturn.isEmpty()) {
+                germplasmIdsToReturn = indIDs;
             }
 
-            fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
-            gsr.accessionNumbers = body.getAccessionNumbers();
-            gsr.germplasmPUIs = body.getGermplasmPUIs();
-            gsr.germplasmGenus = body.getGermplasmGenus();
-            gsr.germplasmSpecies = body.getGermplasmSpecies();
-            gsr.germplasmNames = body.getGermplasmNames() == null ? null : body.getGermplasmNames().stream().map(nm -> nm.substring(1 + nm.lastIndexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
-            gsr.germplasmDbIds = germplasmIdsToReturn;
-            gsr.page = body.getPage();
-            gsr.pageSize = body.getPageSize();
+            if (!germplasmIdsToReturn.isEmpty()) {
+                vsCrits.add(new Criteria().where("_id").in(germplasmIdsToReturn));
+            }
 
-            Map<String, Object> v1response = (Map<String, Object>) brapiV1Service.executeGermplasmSearch(request, response, programDbId, gsr, Germplasm.germplasmFields);
-            Map<String, Object> v1Result = (Map<String, Object>) v1response.get("result");
-            ArrayList<Map<String, Object>> v1data = (ArrayList<Map<String, Object>>) v1Result.get("data");
-            String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
-            for (Map<String, Object> v1germplasmRecord : v1data) {
-                Germplasm germplasm = new Germplasm();
+            Query q = !vsCrits.isEmpty() ? new Query(new Criteria().andOperator(vsCrits)) : new Query();
+            long count = mongoTemplate.count(q, Individual.class);
 
-                //add the extRefId and extRefSrc to externalReferences
-                //if extRefSrc is sample, then the externalReferences id will be the sample germplasmDbId                        
-                if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId) != null) {
-                    ExternalReferencesInner ref = new ExternalReferencesInner();
-                    if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceType).equals("sample")) {
-                        if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_extGermplasmDbId) != null) {
-                            ref.setReferenceID(v1germplasmRecord.get(BrapiService.BRAPI_FIELD_extGermplasmDbId).toString());
-                        }
-
-                    } else {
-                        ref.setReferenceID(v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
-                    }
-                    if (v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null) {
-                        ref.setReferenceSource(v1germplasmRecord.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
-                    }
-                    ExternalReferences refs = new ExternalReferences();
-                    refs.add(ref);
-                    germplasm.setExternalReferences(refs);
+            if (body.getPageSize() != null) {
+                q.limit(body.getPageSize());
+                if (body.getPage() != null) {
+                    q.skip(body.getPage() * body.getPage());
                 }
+            }
+            List<Individual> individuals = mongoTemplate.find(q, Individual.class);
 
-                for (String key : v1germplasmRecord.keySet()) {
+//            //check if user has read right to those individuals projects
+//            List<Integer> forbiddenProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, token, body.getProgramDbIds().get(0), false);
+//            
+//            Set<String> individualIds = new HashSet<>();
+//            if (!forbiddenProjects.isEmpty()) {
+//                projMap.keySet().removeAll(forbiddenProjects);
+//                for (Integer key:projMap.keySet()) {
+//                    individualIds.addAll(projMap.get(key));
+//                }
+//            } else {
+//                individualIds = new HashSet<>(indIDsForCurrentPage);
+//            }
+//            
+//            //load individuals metadata
+//            Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
+//            String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+//            List<Individual> indList = new ArrayList(MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, null, individualIds).values());
+//            
+            //convert to brapi format
+            result = convertIndividualsToGermplasm(individuals, programDbId, projId);
+            
+            glr.setResult(result);
+            glr.setMetadata(new Metadata());
+
+            IndexPagination pagination = new IndexPagination();
+            pagination.setPageSize(body.getPageSize());
+            pagination.setCurrentPage(body.getPage());
+            pagination.setTotalCount((int) count);
+            int totalPages = 0;
+            if (count % body.getPageSize() == 0) {
+                totalPages = (int) (count/body.getPageSize());
+            } else {
+                totalPages = (int) (count/body.getPageSize()) + 1;
+            }
+            pagination.setTotalPages(totalPages);
+            glr.getMetadata().setPagination(pagination);
+            
+            return new ResponseEntity<>(glr, HttpStatus.OK);
+            
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private GermplasmListResponseResult convertIndividualsToGermplasm(List<Individual> individuals, String programDbId, Integer projId) {
+        GermplasmListResponseResult result = new GermplasmListResponseResult();
+        String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
+        
+        for (Individual ind : individuals) {
+            Germplasm germplasm = new Germplasm();
+            germplasm.setGermplasmDbId(ga4ghService.createId(programDbId, projId, ind.getId()));
+            germplasm.setGermplasmName(ga4ghService.createId(programDbId, projId, ind.getId())); 
+            
+            LinkedHashMap<String, Object> addInfo = ind.getAdditionalInfo();
+            
+            if (addInfo.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId) != null) {
+                ExternalReferencesInner ref = new ExternalReferencesInner();
+                ref.setReferenceID(addInfo.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
+                
+                if (addInfo.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null) {
+                    ref.setReferenceSource(addInfo.get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
+                }
+                ExternalReferences refs = new ExternalReferences();
+                refs.add(ref);
+                germplasm.setExternalReferences(refs);                
+
+                for (String key : addInfo.keySet()) {
+                    
                     String sLCkey = key.toLowerCase();
-                    Object val = v1germplasmRecord.get(key);
+                    Object val = addInfo.get(key);
                     if (val == null)
                     	continue;
 
@@ -200,14 +327,9 @@ public class GermplasmApiController implements GermplasmApi {
                         } else {
                             germplasm.putAdditionalInfoItem(key, val.toString());
                         }
+                        
                     } else {
                         switch (sLCkey) {
-                            case "germplasmdbid":
-                                germplasm.germplasmDbId(ga4ghService.createId(programDbId, projId, val.toString()));
-                                break;
-                            case "germplasmname":
-                                germplasm.setGermplasmName(val.toString());
-                                break;
                             case "defaultdisplayname":
                                 germplasm.setDefaultDisplayName(val.toString());
                                 break;
@@ -258,25 +380,16 @@ public class GermplasmApiController implements GermplasmApi {
                                 break;
                             case "acquisitiondate":
                                 germplasm.setAcquisitionDate(val.toString());
-                                break;
+                                break;                             
                         }
                     }
                 }
-                result.addDataItem(germplasm);
+                
             }
-            glr.setResult(result);
-            IndexPagination pagination = new IndexPagination();
-            jhi.brapi.api.Metadata v1Metadata = (jhi.brapi.api.Metadata) v1response.get("metadata");
-            pagination.setPageSize(v1Metadata.getPagination().getPageSize());
-            pagination.setCurrentPage(v1Metadata.getPagination().getCurrentPage());
-            pagination.setTotalPages(v1Metadata.getPagination().getTotalPages());
-            pagination.setTotalCount((int) v1Metadata.getPagination().getTotalCount());
-            metadata.setPagination(pagination);
 
-            return new ResponseEntity<>(glr, HttpStatus.OK);
-        } catch (Exception e) {
-            log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            result.addDataItem(germplasm);
         }
+
+        return result;
     }
 }
