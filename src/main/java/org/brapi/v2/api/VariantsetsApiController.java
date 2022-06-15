@@ -171,13 +171,13 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	        else {	// no study or variantSet specified, but we have a list of callSets
 	        	HashMap<String /*module*/, HashSet<Integer> /*samples*/> samplesByModule = new HashMap<>();
 				for (String csId : body.getCallSetDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 3);
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 2);
 					HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
 					if (moduleSamples == null) {
 						moduleSamples = new HashSet<>();
 						samplesByModule.put(info[0], moduleSamples);
 					}
-					moduleSamples.add(Integer.parseInt(info[2]));
+					moduleSamples.add(Integer.parseInt(info[1]));
 				}
 				HashSet<String> addedVariantSets = new HashSet<>();	// will be used to avoid adding the same variantSet several times
 	        	for (String module : samplesByModule.keySet()) {
@@ -377,7 +377,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         				String sLine  = scanner.nextLine();
     					int nFirstSpacePos = sLine.indexOf(" "), nSecondSpacePos = sLine.indexOf(" ", nFirstSpacePos + 1);
     					String ind = sLine.substring(nFirstSpacePos + 1, nSecondSpacePos);
-    					response.getWriter().write(sLine.substring(0, nFirstSpacePos + 1) + splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nSecondSpacePos) + "\n");
+    					response.getWriter().write(sLine.substring(0, nFirstSpacePos + 1) + splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nSecondSpacePos) + "\n");
         			}
         			scanner.close();
         			response.getWriter().close();
@@ -444,7 +444,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         				else {
         					int nFirstTabPos = sLine.indexOf("\t");
         					String ind = sLine.substring(0, nFirstTabPos);
-        					response.getWriter().write(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + ind + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nFirstTabPos) + "\n");
+        					response.getWriter().write(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nFirstTabPos) + "\n");
         				}
         			}
         			scanner.close();
@@ -512,7 +512,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         					String[] splitLine = sLine.split("\t");
         					long nIndCount = runSamples.stream().map(gs -> gs.getIndividual()).distinct().count();
         					for (int i=0; i<nIndCount; i++)
-        						splitLine[splitLine.length - 1 - i] = splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + splitLine[splitLine.length - 1 - i] + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(splitLine[splitLine.length - 1 - i]);
+        						splitLine[splitLine.length - 1 - i] = splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR /*+ splitLine[splitLine.length - 1 - i] + GigwaGa4ghServiceImpl.ID_SEPARATOR*/ + individualToSampleMap.get(splitLine[splitLine.length - 1 - i]);
         					for (int i=0; i<splitLine.length; i++)
         						response.getWriter().write(splitLine[i] + (i == splitLine.length - 1 ? "\n" : "\t"));
         				}

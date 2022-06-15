@@ -1,8 +1,11 @@
 package org.brapi.v2.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
@@ -20,12 +23,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletResponse;
+
+import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmAttributeValue;
 import org.brapi.v2.model.GermplasmAttributeValueListResponse;
 import org.brapi.v2.model.GermplasmAttributeValueListResponseResult;
 import org.brapi.v2.model.GermplasmAttributeValueSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.ProgramListResponse;
 import org.brapi.v2.model.Status;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -110,103 +116,106 @@ public class AttributevaluesApiController implements AttributevaluesApi {
 
     @Override
     public ResponseEntity<GermplasmAttributeValueListResponse> searchAttributevaluesPost(HttpServletResponse response, GermplasmAttributeValueSearchRequest body, String authorization) {
-        String token = ServerinfoApiController.readToken(authorization);
-        
-        Collection<String> germplasmIdsToReturn = new HashSet<>(), requestedGermplasmIDs;
-        Metadata metadata = new Metadata();
-        GermplasmAttributeValueListResponse resp = new GermplasmAttributeValueListResponse();
-        resp.setMetadata(metadata);
-        String programDbId = null;
-        Integer projId = null;
-        if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
-            requestedGermplasmIDs = body.getGermplasmDbIds();
-            for (String gpId : requestedGermplasmIDs) {
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
-                if (programDbId == null) {
-                    programDbId = info[0];
-                } else if (!programDbId.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may only supply IDs of germplasm records from one program at a time!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
-                }
-                if (projId == null) {
-                    projId = Integer.parseInt(info[1]);
-                } else if (!projId.equals(Integer.parseInt(info[1]))) {
-                    Status status = new Status();
-                    status.setMessage("You may only supply a single studyDbId at a time!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
-                }
-                germplasmIdsToReturn.add(info[2]);
-            }
-            
-            fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
-            gsr.germplasmDbIds = germplasmIdsToReturn;
+    	try {
+	        String token = ServerinfoApiController.readToken(authorization);
+	        
+	        Collection<String> germplasmIdsToReturn = new HashSet<>(), requestedGermplasmIDs;
+	        Metadata metadata = new Metadata();
+	        GermplasmAttributeValueListResponse resp = new GermplasmAttributeValueListResponse();
+	        resp.setMetadata(metadata);
+	        String programDbId = null;
+	        if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
+	            requestedGermplasmIDs = body.getGermplasmDbIds();
+	            for (String gpId : requestedGermplasmIDs) {
+	                String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 2);
+	                if (programDbId == null) {
+	                    programDbId = info[0];
+	                } else if (!programDbId.equals(info[0])) {
+	                    Status status = new Status();
+	                    status.setMessage("You may only supply IDs of germplasm records from one program at a time!");
+	                    metadata.addStatusItem(status);
+	                    return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
+	                }
+	                germplasmIdsToReturn.add(info[1]);
+	            }
 
+	            fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest gsr = new fr.cirad.web.controller.rest.BrapiRestController.GermplasmSearchRequest();
+	            gsr.germplasmDbIds = germplasmIdsToReturn;
 
-            if (!tokenManager.canUserReadProject(token, programDbId, projId))
-                return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+	            if (!tokenManager.canUserReadDB(token, programDbId))
+	                return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 
-            try {
-                GermplasmAttributeValueListResponseResult result = new GermplasmAttributeValueListResponseResult();
-                
-                Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
-                String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
-                LinkedHashMap<String, Individual> individuals = MgdbDao.getInstance().loadIndividualsWithAllMetadata(programDbId, sCurrentUser, null, germplasmIdsToReturn);
-                
-                ArrayList<GermplasmAttributeValue> data = new ArrayList<>();
-                for (String germplasmDbId:individuals.keySet()) {
-                    Map<String, Object> addInfo = individuals.get(germplasmDbId).getAdditionalInfo();
-                    if (addInfo != null) {
-                        for (String attributeDbId : addInfo.keySet()) {
-                            GermplasmAttributeValue attrValue = new GermplasmAttributeValue();
-                            attrValue.setGermplasmDbId(programDbId + "§" + projId +"§"+ germplasmDbId);
-                            attrValue.setGermplasmName(germplasmDbId);
-                            attrValue.setAttributeValueDbId(attributeDbId);
-                            attrValue.setValue(addInfo.get(attributeDbId).toString());
-                            data.add(attrValue);
-                        }                    
-                    }
-                }     
-                
-                IndexPagination pagination = new IndexPagination();
-                if (body.getPage() != null && body.getPage() >= 0  && body.getPageSize() != null && body.getPageSize() >= 0) {
-                    int offset = body.getPageSize()*body.getPage();                    
-                    List<GermplasmAttributeValue> elementsList = data.stream().skip(offset).limit(body.getPageSize()).collect(Collectors.toList());
-                    result.setData(elementsList);
-                    pagination.setPageSize(result.getData().size());
-                    pagination.setCurrentPage(body.getPage());
-                    if ((data.size() % body.getPageSize()) == 0) {
-                        pagination.setTotalPages(data.size()/body.getPageSize());
-                    } else {
-                        pagination.setTotalPages(data.size()/body.getPageSize() + 1);
-                    }
-                    pagination.setTotalCount(data.size());
-                    
-                } else {
-                    result.setData(data);                     
-                    pagination.setPageSize(result.getData().size());
-                    pagination.setCurrentPage(0);
-                    pagination.setTotalPages(1);
-                    pagination.setTotalCount(result.getData().size());
-                    
-                }
-                metadata.setPagination(pagination);               
-                
-                resp.setMetadata(metadata);
-                resp.setResult(result);
-                return new ResponseEntity<>(resp, HttpStatus.OK);
-            } catch (Exception e) {
-                log.error("Couldn't serialize response for content type application/json", e);
-                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-            }    
-        } else {
-            Status status = new Status();
-            status.setMessage("A list of germplasmDbIds must be specified as parameter");
-            metadata.addStatusItem(status);
-            return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
-        }        
+	            try {
+	                GermplasmAttributeValueListResponseResult result = new GermplasmAttributeValueListResponseResult();
+	                String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
+	                
+	                Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
+	                String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+	                LinkedHashMap<String, Individual> individuals = MgdbDao.getInstance().loadIndividualsWithAllMetadata(programDbId, sCurrentUser, null, germplasmIdsToReturn);
+	                
+	                ArrayList<GermplasmAttributeValue> data = new ArrayList<>();
+	                for (String individualId : individuals.keySet()) {
+	                    Map<String, Object> addInfo = individuals.get(individualId).getAdditionalInfo();
+	                    if (addInfo != null) {
+	                        for (String attributeDbId : addInfo.keySet()) {
+	                        	String sLCkey = attributeDbId.toLowerCase();
+	                            if (Germplasm.germplasmFields.containsKey(sLCkey) || BrapiRestController.extRefList.contains(attributeDbId) || lowerCaseIdFieldName.equals(sLCkey))
+	                        		continue;
+
+	                        	Object val = addInfo.get(attributeDbId);
+	                        	if (val == null)
+	                        		continue;
+
+	                            GermplasmAttributeValue attrValue = new GermplasmAttributeValue();
+	                            attrValue.setGermplasmDbId(programDbId + IGigwaService.ID_SEPARATOR + individualId);
+	                            attrValue.setGermplasmName(individualId);
+	                            attrValue.setAttributeValueDbId(attributeDbId);
+	                            attrValue.setValue(addInfo.get(attributeDbId).toString());
+	                            data.add(attrValue);
+	                        }                    
+	                    }
+	                }     
+	                
+	                IndexPagination pagination = new IndexPagination();
+	                if (body.getPage() != null && body.getPage() >= 0  && body.getPageSize() != null && body.getPageSize() >= 0) {
+	                    int offset = body.getPageSize()*body.getPage();                    
+	                    List<GermplasmAttributeValue> elementsList = data.stream().skip(offset).limit(body.getPageSize()).collect(Collectors.toList());
+	                    result.setData(elementsList);
+	                    pagination.setPageSize(result.getData().size());
+	                    pagination.setCurrentPage(body.getPage());
+	                    if ((data.size() % body.getPageSize()) == 0) {
+	                        pagination.setTotalPages(data.size()/body.getPageSize());
+	                    } else {
+	                        pagination.setTotalPages(data.size()/body.getPageSize() + 1);
+	                    }
+	                    pagination.setTotalCount(data.size());
+	                    
+	                } else {
+	                    result.setData(data);                     
+	                    pagination.setPageSize(result.getData().size());
+	                    pagination.setCurrentPage(0);
+	                    pagination.setTotalPages(1);
+	                    pagination.setTotalCount(result.getData().size());
+	                    
+	                }
+	                metadata.setPagination(pagination);               
+	                
+	                resp.setMetadata(metadata);
+	                resp.setResult(result);
+	                return new ResponseEntity<>(resp, HttpStatus.OK);
+	            } catch (Exception e) {
+	                log.error("Couldn't serialize response for content type application/json", e);
+	                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+	            }    
+	        } else {
+	            Status status = new Status();
+	            status.setMessage("A list of germplasmDbIds must be specified as parameter");
+	            metadata.addStatusItem(status);
+	            return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
+	        }
+        } catch (Exception e) {
+            log.error("Couldn't serialize response for content type application/json", e);
+            return new ResponseEntity<GermplasmAttributeValueListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
-
 }

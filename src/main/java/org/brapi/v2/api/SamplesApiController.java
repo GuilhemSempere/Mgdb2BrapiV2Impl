@@ -4,10 +4,12 @@ import fr.cirad.io.brapi.BrapiService;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.validation.Valid;
 
+import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Sample;
@@ -23,11 +25,13 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
+import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import static fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample.FIELDNAME_PROJECT_ID;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
@@ -37,6 +41,7 @@ import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -68,6 +73,8 @@ public class SamplesApiController implements SamplesApi {
 
 	public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
+    	Authentication auth = tokenManager.getAuthenticationFromToken(token);
+    	String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 
         try {
             SampleListResponse slr = new SampleListResponse();
@@ -211,6 +218,7 @@ public class SamplesApiController implements SamplesApi {
                     q.skip(body.getPage() * body.getPageSize());
             }
             
+			// attach individual metadata to samples
             List<GenotypingSample> genotypingSamples = mongoTemplate.find(q, GenotypingSample.class);
             //convert to brapi format
             result = convertGenotypingSamplessToBrapiSamples(programDbId, genotypingSamples);
