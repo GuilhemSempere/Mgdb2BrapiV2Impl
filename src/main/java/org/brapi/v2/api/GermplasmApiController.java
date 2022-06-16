@@ -105,16 +105,26 @@ public class GermplasmApiController implements GermplasmApi {
 
 	    	fGotTrialIDs = !body.getTrialDbIds().isEmpty();
 	    	fGotProgramIDs = !body.getProgramDbIds().isEmpty();
+	    	
+            Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
+
         	HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
         	if (body.getStudyDbIds() != null)
 				for (String studyId : body.getStudyDbIds()) {
 					String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
-					HashSet<Integer> moduleIndividuals = projectsByModuleFromSpecifiedStudies.get(info[0]);
-					if (moduleIndividuals == null) {
-						moduleIndividuals = new HashSet<>();
-						projectsByModuleFromSpecifiedStudies.put(info[0], moduleIndividuals);
+					int nProjId = Integer.parseInt(info[1]);
+	            	if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), info[0], nProjId)) {
+	                    Status status = new Status();
+	                    status.setMessage("You don't have access to this study: " + studyId);
+	                    glr.getMetadata().addStatusItem(status);
+	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+	                }
+					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(info[0]);
+					if (moduleProjects == null) {
+						moduleProjects = new HashSet<>();
+						projectsByModuleFromSpecifiedStudies.put(info[0], moduleProjects);
 					}
-					moduleIndividuals.add(Integer.parseInt(info[1]));
+					moduleProjects.add(nProjId);
 				}
         	
         	boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
@@ -138,6 +148,16 @@ public class GermplasmApiController implements GermplasmApi {
 	            return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
         	}
         	
+            if (dbsToAccountFor != null)
+	            for (String db : dbsToAccountFor)
+	            	if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
+	                    Status status = new Status();
+	                    status.setMessage("You don't have access to this program / trial: " + db);
+	                    glr.getMetadata().addStatusItem(status);
+	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+	                }
+            String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+
         	// germplasm name filtering
         	HashMap<String /*module*/, HashSet<String> /*individuals*/> individualsByModuleFromSpecifiedGermplasm = new HashMap<>();
         	if (fGotGermplasmNames) {
@@ -149,14 +169,16 @@ public class GermplasmApiController implements GermplasmApi {
     			}
     			else {
                     for (String db : dbsToAccountFor) {
-                    	List<Criteria> andCrit = new ArrayList<>();
-                    	andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
-                    	
-                    	HashSet<Integer> projectsSpecifiedAsStudies = projectsByModuleFromSpecifiedStudies.get(db);
-                    	if (projectsSpecifiedAsStudies != null && !projectsSpecifiedAsStudies.isEmpty())
-                    		andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectsSpecifiedAsStudies));
-                    	
-                   		List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(andCrit.size() > 1 ? new Criteria().andOperator(andCrit.toArray(new Criteria[andCrit.size()])) : andCrit.get(0)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                    	List<Criteria> andCrits = new ArrayList<>();
+                    	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+	                	 
+	                	// make sure we don't return individuals that are in projects this user doesn't have access to
+	                	Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+	                	if (allowedProjects == null)
+	                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+	                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+	                	 	
+                   		List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
        					individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByName));
                     }
     			}
@@ -173,15 +195,17 @@ public class GermplasmApiController implements GermplasmApi {
     			else {
                     for (String db : dbsToAccountFor) {
                     	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
-                    	List<Criteria> andCrit = new ArrayList<>();	/*TODO: should first check in CustomIndividualMetaData...*/
+                    	List<Criteria> andCrits = new ArrayList<>();	/*TODO: should first check in CustomIndividualMetaData...*/
                     	List<String> individualsWithExtRefs = mongoTemplate.findDistinct(new Query(Criteria.where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_extGermplasmDbId).in(body.getExternalReferenceIds())), "_id", Individual.class, String.class);
-                    	andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individualsWithExtRefs));
+                    	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individualsWithExtRefs));
                     	
-                    	HashSet<Integer> projectsSpecifiedAsStudies = projectsByModuleFromSpecifiedStudies.get(db);
-                    	if (projectsSpecifiedAsStudies != null && !projectsSpecifiedAsStudies.isEmpty())
-                    		andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectsSpecifiedAsStudies));
+                    	// make sure we don't return individuals that are in projects this user doesn't have access to
+                    	Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+	                	if (allowedProjects == null)
+	                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+	                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
                     	
-                   		List<String> individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(andCrit.size() > 1 ? new Criteria().andOperator(andCrit.toArray(new Criteria[andCrit.size()])) : andCrit.get(0)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                   		List<String> individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
      					HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
     					if (moduleIndividuals == null)
     						individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByExtRef));
@@ -196,31 +220,28 @@ public class GermplasmApiController implements GermplasmApi {
                  for (String db : dbsToAccountFor) {
                 	 if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
 	                	 Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
-	                	 List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                		 if (!individualsFoundById.isEmpty()) {
-         					HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
-        					if (moduleIndividuals == null)
-        						individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
-        					else
-        						moduleIndividuals.retainAll(individualsFoundById);
-                		 }
+	                	 List<Criteria> andCrits = new ArrayList<>();
+	                	 andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals));
+	                	 
+	                	 // make sure we don't return individuals that are in projects this user doesn't have access to
+	                	 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+		                	if (allowedProjects == null)
+		                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+		                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+
+	                	 List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+     						HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
+    					 if (moduleIndividuals == null)
+    						 individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
+    					 else
+    						 moduleIndividuals.retainAll(individualsFoundById);
                 	 }
                  }
-             }
+            }
 
-//        	System.err.println(projectsByModuleFromSpecifiedStudies);
-//            System.err.println(individualsByModuleFromSpecifiedGermplasm);
-//            System.err.println(dbsToAccountFor);
-            
         	String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
             for (String database : dbsToAccountFor) {
-                Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
-                String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
-                
-//                Collection<Integer> selectedProjects = projectsByModuleFromSpecifiedStudies.get(database);
-//                Query q = selectedProjects == null || selectedProjects.isEmpty() ? new Query() : new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(selectedProjects));
-
-                for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
+                for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
                 	Germplasm germplasm = new Germplasm();
                 	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
 
