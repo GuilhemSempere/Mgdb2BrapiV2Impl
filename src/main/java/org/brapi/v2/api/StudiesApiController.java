@@ -67,8 +67,8 @@ public class StudiesApiController implements StudiesApi {
         	boolean fGotTrialIDs = false, fGotProgramIDs = false;
 			Collection<String> dbsToAccountFor = null;
 
-			if (body == null)
-				body = new StudySearchRequest();	// should not happen?...
+//			if (body == null)
+//				body = new StudySearchRequest();	// should not happen?...
 			if (body.getTrialDbIds() == null)
 				body.setTrialDbIds(new ArrayList<>());
 			if (body.getProgramDbIds() == null)
@@ -161,11 +161,13 @@ public class StudiesApiController implements StudiesApi {
         	}
 
 	    	for (String module : dbsToAccountFor)
-	    		if (body == null || body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {	// only keep this DB's data if no crop was specified or if it is linked to a specified crop
-	    			if (body != null)
-			    		if ((!projectsByModule.isEmpty() && !projectsByModule.containsKey(module)))
-			    			continue;
-	
+	    		if (/*body == null || */body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {	// only keep this DB's data if no crop was specified or if it is linked to a specified crop
+		    		if (!projectsByModule.isEmpty() && !projectsByModule.containsKey(module))
+		    			continue;
+			    		
+		    		if ((dbIndividualsSpecifiedById != null || fGotGermplasmNames) && !projectsByModuleFromSpecifiedGermplasm.containsKey(module))
+		    			continue;
+
 		    		for (GenotypingProject pj : MongoTemplateManager.get(module).find(projectsByModule.isEmpty() ? new Query() : new Query(Criteria.where("id_").in(projectsByModule.get(module))), GenotypingProject.class)) {
 		        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
 			            	result.addDataItem(new Study() {{
