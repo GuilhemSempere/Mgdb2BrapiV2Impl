@@ -95,149 +95,175 @@ public class GermplasmApiController implements GermplasmApi {
             Metadata metadata = new Metadata();
             glr.setMetadata(metadata);
 
-            boolean fGotTrialIDs = false, fGotProgramIDs = false;
-            Collection<String> dbsToAccountFor = null;
+        	boolean fGotTrialIDs = false, fGotProgramIDs = false;
+			Collection<String> dbsToAccountFor = null;
 
-            if (body.getTrialDbIds() == null)
-                body.setTrialDbIds(new ArrayList<>());
-            if (body.getProgramDbIds() == null)
-                body.setProgramDbIds(new ArrayList<>());
+			if (body.getTrialDbIds() == null)
+				body.setTrialDbIds(new ArrayList<>());
+			if (body.getProgramDbIds() == null)
+				body.setProgramDbIds(new ArrayList<>());
 
-            fGotTrialIDs = !body.getTrialDbIds().isEmpty();
-            fGotProgramIDs = !body.getProgramDbIds().isEmpty();
-            HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
-            if (body.getStudyDbIds() != null)
-                for (String studyId : body.getStudyDbIds()) {
-                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
-                    HashSet<Integer> moduleIndividuals = projectsByModuleFromSpecifiedStudies.get(info[0]);
-                    if (moduleIndividuals == null) {
-                        moduleIndividuals = new HashSet<>();
-                        projectsByModuleFromSpecifiedStudies.put(info[0], moduleIndividuals);
-                    }
-                    moduleIndividuals.add(Integer.parseInt(info[1]));
-                }
+	    	fGotTrialIDs = !body.getTrialDbIds().isEmpty();
+	    	fGotProgramIDs = !body.getProgramDbIds().isEmpty();
+	    	
+            Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
+
+        	HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
+        	if (body.getStudyDbIds() != null)
+				for (String studyId : body.getStudyDbIds()) {
+					String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+					int nProjId = Integer.parseInt(info[1]);
+	            	if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), info[0], nProjId)) {
+	                    Status status = new Status();
+	                    status.setMessage("You don't have access to this study: " + studyId);
+	                    glr.getMetadata().addStatusItem(status);
+	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+	                }
+					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(info[0]);
+					if (moduleProjects == null) {
+						moduleProjects = new HashSet<>();
+						projectsByModuleFromSpecifiedStudies.put(info[0], moduleProjects);
+					}
+					moduleProjects.add(nProjId);
+				}
         	
-            boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
-            boolean fGotExtRefs = body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty();
+        	boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
+        	boolean fGotExtRefs = body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty();
         	
-            HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
-            Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
-            List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
-            if (!projectsByModuleFromSpecifiedStudies.isEmpty())
-                moduleSetsToIntersect.add(projectsByModuleFromSpecifiedStudies.keySet());
-            if (dbIndividualsSpecifiedById != null)
-                moduleSetsToIntersect.add(dbIndividualsSpecifiedById.keySet());
-            if (dbsSpecifiedViaProgramsAndTrials != null)
-                moduleSetsToIntersect.add(dbsSpecifiedViaProgramsAndTrials);
-            if (!moduleSetsToIntersect.isEmpty())
-                dbsToAccountFor = moduleSetsToIntersect.stream().skip(1).collect(() -> new HashSet<>(moduleSetsToIntersect.get(0)), Set::retainAll, Set::retainAll);
-            else if (!fGotGermplasmNames && !fGotExtRefs) {
-                Status status = new Status();
-                status.setMessage("Please specify some of the following parameters: programDbIds, trialDbIds, studyDbIds, germplasmDbIds, germplasmNames, externalReferenceIds");
-                metadata.addStatusItem(status);
-                return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
-            }
+        	HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
+        	Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
+        	List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
+        	if (!projectsByModuleFromSpecifiedStudies.isEmpty())
+        		moduleSetsToIntersect.add(projectsByModuleFromSpecifiedStudies.keySet());
+        	if (dbIndividualsSpecifiedById != null)
+        		moduleSetsToIntersect.add(dbIndividualsSpecifiedById.keySet());
+        	if (dbsSpecifiedViaProgramsAndTrials != null)
+        		moduleSetsToIntersect.add(dbsSpecifiedViaProgramsAndTrials);
+        	if (!moduleSetsToIntersect.isEmpty())
+        		dbsToAccountFor = moduleSetsToIntersect.stream().skip(1).collect(() -> new HashSet<>(moduleSetsToIntersect.get(0)), Set::retainAll, Set::retainAll);
+        	else if (!fGotGermplasmNames && !fGotExtRefs) {
+	            Status status = new Status();
+	            status.setMessage("Please specify some of the following parameters: programDbIds, trialDbIds, studyDbIds, germplasmDbIds, germplasmNames, externalReferenceIds");
+	            metadata.addStatusItem(status);
+	            return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+        	}
         	
-            // germplasm name filtering
-            HashMap<String /*module*/, HashSet<String> /*individuals*/> individualsByModuleFromSpecifiedGermplasm = new HashMap<>();
-            if (fGotGermplasmNames) {
-                if (dbsSpecifiedViaProgramsAndTrials == null && projectsByModuleFromSpecifiedStudies.isEmpty()) {
-                    Status status = new Status();
-                    status.setMessage("You must specify valid studyDbIds, trialDbIds or programDbIds to be able to filter on germplasmNames!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
-                }
-                else {
+            if (dbsToAccountFor != null)
+	            for (String db : dbsToAccountFor)
+	            	if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
+	                    Status status = new Status();
+	                    status.setMessage("You don't have access to this program / trial: " + db);
+	                    glr.getMetadata().addStatusItem(status);
+	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+	                }
+            String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+
+        	// germplasm name filtering
+        	HashMap<String /*module*/, HashSet<String> /*individuals*/> individualsByModuleFromSpecifiedGermplasm = new HashMap<>();
+        	if (fGotGermplasmNames) {
+    			if (dbsSpecifiedViaProgramsAndTrials == null && projectsByModuleFromSpecifiedStudies.isEmpty()) {
+    				Status status = new Status();
+    				status.setMessage("You must specify valid studyDbIds, trialDbIds or programDbIds to be able to filter on germplasmNames!");
+    				metadata.addStatusItem(status);
+    				return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
+    			}
+    			else {
                     for (String db : dbsToAccountFor) {
-                    	List<Criteria> andCrit = new ArrayList<>();
-                    	andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
-                    	
-                    	HashSet<Integer> projectsSpecifiedAsStudies = projectsByModuleFromSpecifiedStudies.get(db);
-                    	if (projectsSpecifiedAsStudies != null && !projectsSpecifiedAsStudies.isEmpty())
-                            andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectsSpecifiedAsStudies));
-
-                            List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(andCrit.size() > 1 ? new Criteria().andOperator(andCrit.toArray(new Criteria[andCrit.size()])) : andCrit.get(0)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                            individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByName));
-                        }
+                    	List<Criteria> andCrits = new ArrayList<>();
+                    	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+	                	 
+	                	// make sure we don't return individuals that are in projects this user doesn't have access to
+	                	Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+	                	if (allowedProjects == null)
+	                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+	                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+	                	 	
+                   		List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+       					individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByName));
                     }
+    			}
         	}
         	
         	// ext ref filtering
         	if (fGotExtRefs) {
-                    if (dbsSpecifiedViaProgramsAndTrials == null && projectsByModuleFromSpecifiedStudies.isEmpty()) {
-                        Status status = new Status();
-                        status.setMessage("You must specify valid studyDbIds, trialDbIds or programDbIds to be able to filter on externalReferences!");
-                        metadata.addStatusItem(status);
-                        return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
+    			if (dbsSpecifiedViaProgramsAndTrials == null && projectsByModuleFromSpecifiedStudies.isEmpty()) {
+    				Status status = new Status();
+    				status.setMessage("You must specify valid studyDbIds, trialDbIds or programDbIds to be able to filter on externalReferences!");
+    				metadata.addStatusItem(status);
+    				return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
+    			}
+    			else {
+                    for (String db : dbsToAccountFor) {
+                    	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
+                    	List<Criteria> andCrits = new ArrayList<>();	/*TODO: should first check in CustomIndividualMetaData...*/
+                    	List<String> individualsWithExtRefs = mongoTemplate.findDistinct(new Query(Criteria.where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_extGermplasmDbId).in(body.getExternalReferenceIds())), "_id", Individual.class, String.class);
+                    	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individualsWithExtRefs));
+                    	
+                    	// make sure we don't return individuals that are in projects this user doesn't have access to
+                    	Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+	                	if (allowedProjects == null)
+	                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+	                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                    	
+                   		List<String> individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+     					HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
+    					if (moduleIndividuals == null)
+    						individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByExtRef));
+    					else
+    						moduleIndividuals.retainAll(individualsFoundByExtRef);
                     }
-                    else {
-                        for (String db : dbsToAccountFor) {
-                            MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
-                            List<Criteria> andCrit = new ArrayList<>();	/*TODO: should first check in CustomIndividualMetaData...*/
-                            List<String> individualsWithExtRefs = mongoTemplate.findDistinct(new Query(Criteria.where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_extGermplasmDbId).in(body.getExternalReferenceIds())), "_id", Individual.class, String.class);
-                            andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individualsWithExtRefs));
-
-                            HashSet<Integer> projectsSpecifiedAsStudies = projectsByModuleFromSpecifiedStudies.get(db);
-                            if (projectsSpecifiedAsStudies != null && !projectsSpecifiedAsStudies.isEmpty())
-                                andCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectsSpecifiedAsStudies));
-
-                                List<String> individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(andCrit.size() > 1 ? new Criteria().andOperator(andCrit.toArray(new Criteria[andCrit.size()])) : andCrit.get(0)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                                    HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
-                                    if (moduleIndividuals == null)
-                                        individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByExtRef));
-                                    else
-                                        moduleIndividuals.retainAll(individualsFoundByExtRef);
-                        }
-                    }
+    			}
         	}
 
         	// germplasm id filtering
         	if (dbIndividualsSpecifiedById != null) {
-                    for (String db : dbsToAccountFor) {
-                        if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
-                            Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
-                            List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                            if (!individualsFoundById.isEmpty()) {
-                                HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
-                                if (moduleIndividuals == null)
-                                    individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
-                                else
-                                    moduleIndividuals.retainAll(individualsFoundById);
-                            }
-                         }
-                    }
-             }
+                 for (String db : dbsToAccountFor) {
+                	 if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
+	                	 Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
+	                	 List<Criteria> andCrits = new ArrayList<>();
+	                	 andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals));
+	                	 
+	                	 // make sure we don't return individuals that are in projects this user doesn't have access to
+	                	 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+		                	if (allowedProjects == null)
+		                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+		                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
-//        	System.err.println(projectsByModuleFromSpecifiedStudies);
-//            System.err.println(individualsByModuleFromSpecifiedGermplasm);
-//            System.err.println(dbsToAccountFor);
-            
-            String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
+	                	 List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+     						HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
+    					 if (moduleIndividuals == null)
+    						 individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
+    					 else
+    						 moduleIndividuals.retainAll(individualsFoundById);
+                	 }
+                 }
+            }
+
+        	String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
             for (String database : dbsToAccountFor) {
-                Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
-                String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
-                
-//                Collection<Integer> selectedProjects = projectsByModuleFromSpecifiedStudies.get(database);
-//                Query q = selectedProjects == null || selectedProjects.isEmpty() ? new Query() : new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(selectedProjects));
+                for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
+                	Germplasm germplasm = new Germplasm();
+                	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
 
-                for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
-                    Germplasm germplasm = new Germplasm();
-                    germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
+	                // Add the extRefId and extRefSrc to externalReferences. If extRefSrc is sample, then the externalReferences id will be the sample germplasmDbId                        
+	                if (ind.getAdditionalInfo().containsKey(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
+	                    ExternalReferencesInner ref = new ExternalReferencesInner();
+	                    if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceType).equals("sample")) {
+	                        if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_extGermplasmDbId) != null)
+	                            ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_extGermplasmDbId).toString());
+	                    }
+	                    else
+	                        ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
+	                    if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null)
+	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
+	                    germplasm.setExternalReferences(new ExternalReferences() {{ add(ref);}});
+	                }
 
-                    // Add the extRefId and extRefSrc to externalReferences                       
-                    if (ind.getAdditionalInfo().containsKey(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
-                        ExternalReferencesInner ref = new ExternalReferencesInner();
-                        ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
-                        if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null)
-                            ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
-                        germplasm.setExternalReferences(new ExternalReferences() {{ add(ref);}});
-                    }
-
-                    for (String key : ind.getAdditionalInfo().keySet()) {
+                	for (String key : ind.getAdditionalInfo().keySet()) {
                         String sLCkey = key.toLowerCase();
                         Object val = ind.getAdditionalInfo().get(key);
                         if (val == null)
-                                continue;
+                        	continue;
 
                         if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey)) {
                             if (HashMap.class.isAssignableFrom(Map.class))
@@ -303,17 +329,17 @@ public class GermplasmApiController implements GermplasmApi {
                                     break;
                             }
                         }
-                    } 	
-                    result.addDataItem(germplasm);
+                	}                	
+                	result.addDataItem(germplasm);
                 }
             }
             glr.setResult(result);
-            IndexPagination pagination = new IndexPagination();
-            pagination.setPageSize(result.getData().size());
-            pagination.setCurrentPage(0);
-            pagination.setTotalPages(1);
-            pagination.setTotalCount(result.getData().size());
-            metadata.setPagination(pagination);
+			IndexPagination pagination = new IndexPagination();
+			pagination.setPageSize(result.getData().size());
+			pagination.setCurrentPage(0);
+			pagination.setTotalPages(1);
+			pagination.setTotalCount(result.getData().size());
+			metadata.setPagination(pagination);
 
             return new ResponseEntity<>(glr, HttpStatus.OK);
         } catch (Exception e) {

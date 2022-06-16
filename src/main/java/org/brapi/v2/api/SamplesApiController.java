@@ -74,7 +74,6 @@ public class SamplesApiController implements SamplesApi {
 	public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
     	Authentication auth = tokenManager.getAuthenticationFromToken(token);
-    	String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 
         try {
             SampleListResponse slr = new SampleListResponse();
@@ -190,7 +189,7 @@ public class SamplesApiController implements SamplesApi {
             //Get list of projects the user has access to
             List<Integer> readableProjIds;
             try {
-                readableProjIds = MgdbDao.getUserReadableProjectsIds(tokenManager, token, programDbId, true);
+                readableProjIds = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), programDbId, true);
             } catch (ObjectNotFoundException e) {
                 Status status = new Status();
                 status.setMessage("You don't have access to this programDbId: " + programDbId);
