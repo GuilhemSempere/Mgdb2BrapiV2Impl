@@ -46,6 +46,7 @@ import io.swagger.annotations.ApiParam;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.logging.Level;
 import javax.ejb.ObjectNotFoundException;
 import org.brapi.v2.model.ExternalReferences;
 import org.brapi.v2.model.ExternalReferencesInner;
@@ -71,235 +72,221 @@ public class SamplesApiController implements SamplesApi {
 //        this.request = request;
 //    }
 
-	public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-    	String token = ServerinfoApiController.readToken(authorization);
+    @Override
+    public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+        String token = ServerinfoApiController.readToken(authorization);
     	Authentication auth = tokenManager.getAuthenticationFromToken(token);
 
-        try {
-            SampleListResponse slr = new SampleListResponse();
-            slr.setMetadata(new Metadata());
-            SampleListResponseResult result = new SampleListResponseResult();
-            String programDbId = null;
-            Integer projId = null;
-            List<Criteria> vsCrits = new ArrayList<>();
+        SampleListResponse slr = new SampleListResponse();
+        Metadata metadata = new Metadata();
+        slr.setMetadata(metadata);
+        SampleListResponseResult result = new SampleListResponseResult();
+        slr.setResult(result);
+        
+        if ((body.getObservationUnitDbIds() != null && body.getObservationUnitDbIds().size() > 0) || (body.getPlateDbIds() != null && body.getPlateDbIds().size() > 0)) {
+            Status status = new Status();
+            status.setMessage("observationUnitDbIds and plateDbIds filters are not supported");
+            slr.getMetadata().addStatusItem(status);
+        }
 
-            String sErrorMsg = "";
+        boolean fGotTrialIDs, fGotProgramIDs;
+        Collection<String> dbsToAccountFor = new ArrayList();
+        if (body.getTrialDbIds() == null)
+            body.setTrialDbIds(new ArrayList<>());
+        if (body.getProgramDbIds() == null)
+            body.setProgramDbIds(new ArrayList<>());
+        fGotTrialIDs = !body.getTrialDbIds().isEmpty();
+        fGotProgramIDs = !body.getProgramDbIds().isEmpty();
 
-            if ((body.getObservationUnitDbIds() != null && body.getObservationUnitDbIds().size() > 0) || (body.getPlateDbIds() != null && body.getPlateDbIds().size() > 0)) {
-                sErrorMsg += "Searching by Plate or ObservationUnit is not supported! ";                
-            } 
-            
-            Set<Integer> projIds = new HashSet<>();
-            if (body.getStudyDbIds() != null) {                    
-                for (String studyId : body.getStudyDbIds()) {
-                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
-                    if (programDbId == null)
-                        programDbId = info[0];
-                    else if (!programDbId.equals(info[0]))
-                        sErrorMsg += "You may only supply IDs of study records from one program at a time! ";
-                    if (projId == null)
-                        projId = Integer.parseInt(info[1]);
-//                        else if (!projId.equals(Integer.parseInt(info[1])))
-//                            sErrorMsg += "You may only supply a single studyDbId at a time!";
-                    projIds.add(projId);
+        boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
+        boolean fGotSampleIds = body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty();
+        boolean fGotSampleNames = body.getSampleNames() != null && !body.getSampleNames().isEmpty();
+        boolean fGotExtRefs = body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty();
+
+        HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
+
+        if (body.getStudyDbIds() != null) {                    
+            for (String studyId : body.getStudyDbIds()) {
+                String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+                String module = info[0];
+                int nProjId = Integer.parseInt(info[1]);
+                if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), module, nProjId)) {
+                    Status status = new Status();
+                    status.setMessage("You don't have access to this study: " + studyId);
+                    slr.getMetadata().addStatusItem(status);
+                    return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
                 }
-                //sampleIds = MgdbDao.getSamplesForProject(programDbId, projId, null).stream().map(sp -> sp.getId()).collect(Collectors.toList());
+                HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(module);
+                if (moduleProjects == null) {
+                    moduleProjects = new HashSet<>();
+                    projectsByModuleFromSpecifiedStudies.put(module, moduleProjects);
+                }
+                moduleProjects.add(nProjId);
+            }
+        }
+
+        HashMap<String /*module*/, Collection<String>/*germplasmIds*/> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
+        HashMap<String /*module*/, Collection<Long>/*sampleIds*/> dbSamplesSpecifiedById = body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty() ? readSampleIDs(body.getSampleDbIds()) : null;	        	
+        
+        Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
+        List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
+        if (!projectsByModuleFromSpecifiedStudies.isEmpty())
+            moduleSetsToIntersect.add(projectsByModuleFromSpecifiedStudies.keySet());
+        if (dbIndividualsSpecifiedById != null)
+            moduleSetsToIntersect.add(dbIndividualsSpecifiedById.keySet());
+        if (dbSamplesSpecifiedById != null)
+            moduleSetsToIntersect.add(dbSamplesSpecifiedById.keySet());
+        if (dbsSpecifiedViaProgramsAndTrials != null)
+            moduleSetsToIntersect.add(dbsSpecifiedViaProgramsAndTrials);
+        if (!moduleSetsToIntersect.isEmpty())
+            dbsToAccountFor = moduleSetsToIntersect.stream().skip(1).collect(() -> new HashSet<>(moduleSetsToIntersect.get(0)), Set::retainAll, Set::retainAll);
+        else if (!fGotGermplasmNames && !fGotExtRefs && !fGotSampleIds && !fGotSampleNames) {
+            Status status = new Status();
+            status.setMessage("Please specify some of the following parameters: programDbIds, trialDbIds, studyDbIds, germplasmDbIds, germplasmNames, externalReferenceIds, sampleIds, sampleNames");
+            metadata.addStatusItem(status);
+            return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+        }
+
+        if (fGotGermplasmNames) {
+            if (dbsSpecifiedViaProgramsAndTrials == null && projectsByModuleFromSpecifiedStudies.isEmpty()) {
+                Status status = new Status();
+                status.setMessage("You must specify valid studyDbIds, trialDbIds or programDbIds to be able to filter on germplasmNames!");
+                metadata.addStatusItem(status);
+                return new ResponseEntity<SampleListResponse>(slr, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+
+        HashMap<String /*module*/, List<Long>/*sampleIds*/> dbSamplesIds = new HashMap<>();
+        long totalCount = 0;
+
+        for (String db : dbsToAccountFor) {
+
+            try {                    
+                if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
+                    Status status = new Status();
+                    status.setMessage("You don't have access to this program / trial: " + db);
+                    slr.getMetadata().addStatusItem(status);
+                    return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+                }
+            } catch (ObjectNotFoundException ex) {
+                log.error(ex.getMessage());
             }
 
-            if (body.getGermplasmDbIds() != null) {
-                Collection<String> germplasmIds = new HashSet<>();
-                for (String gpId : body.getGermplasmDbIds()) {
-                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 3);
-                    if (programDbId == null)
-                        programDbId = info[0];
-                    else if (!programDbId.equals(info[0]))
-                        sErrorMsg += "You may only supply IDs of germplasm records from one program at a time! ";
-                    if (projId == null)
-                        projId = Integer.parseInt(info[1]);
-//                        else if (!projId.equals(Integer.parseInt(info[1])))
-//                            sErrorMsg += "You may only supply a single studyDbId at a time!";
-                    germplasmIds.add(info[2]);
-                    projIds.add(projId);
-                }
+            List<Criteria> andCrits = new ArrayList<>();
+            if (fGotGermplasmNames) {
+                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));                    
+            }
+
+            if (dbIndividualsSpecifiedById != null && dbIndividualsSpecifiedById.get(db) != null) {
+                Collection<String> germplasmIds = dbIndividualsSpecifiedById.get(db);
                 if (!germplasmIds.isEmpty()) {
-                    vsCrits.add(new Criteria().where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds));
+                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds));
                 }
-                //sampleIds = MgdbDao.getSamplesForProject(programDbId, projId, germplasmIds).stream().map(sp -> sp.getId()).collect(Collectors.toList());
-            }
-            if (body.getSampleDbIds() != null) {
-                Collection<Integer> sampleIds = new HashSet<>();                
-                for (String spId : body.getSampleDbIds()) {
-                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(spId, 4);
-                    if (programDbId == null)
-                        programDbId = info[0];
-                    else if (!programDbId.equals(info[0]))
-                        sErrorMsg += "You may only supply IDs of sample records from one program at a time! ";
-                    if (projId == null)
-                        projId = Integer.parseInt(info[1]);
-//                        else if (!projId.equals(Integer.parseInt(info[1])))
-//                            sErrorMsg += "You may only supply a single studyDbId at a time!";
-                    sampleIds.add(Integer.parseInt(info[3]));
-                    projIds.add(projId);
-                }
+            }    
+
+            if (dbSamplesSpecifiedById != null && dbSamplesSpecifiedById.get(db) != null) {
+                Collection<Long> sampleIds = dbSamplesSpecifiedById.get(db);
                 if (!sampleIds.isEmpty()) {
-                    vsCrits.add(new Criteria().where("_id").in(sampleIds));
+                    andCrits.add(Criteria.where("_id").in(sampleIds));
                 }
+            }
+
+            if (body.getSampleNames() != null && !body.getSampleNames().isEmpty()) {
+                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
             }
 
             if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
-                vsCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).in(body.getExternalReferenceIds()));
+                andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).in(body.getExternalReferenceIds()));
             }
-            
+
             if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
-                vsCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).in(body.getExternalReferenceSources()));
+                andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).in(body.getExternalReferenceSources()));
             }
-            
-            if (body.getSampleNames() != null && !body.getSampleNames().isEmpty())  {
-                vsCrits.add(new Criteria().where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
-            }            
 
-            if (body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty()) {
-                if (body.getProgramDbIds().size() > 1) {
-                    sErrorMsg += "You may only supply one programDbId at a time! ";  
-                } else if (programDbId != null && !programDbId.equals(body.getProgramDbIds().get(0))) {
-                    sErrorMsg += "the studyDbIds or germplasmDbIds are in a different programDbId from the one specified " ;               
-                } else {
-                    programDbId = body.getProgramDbIds().get(0);
+            // make sure we don't return individuals that are in projects this user doesn't have access to
+            Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+            if (allowedProjects == null) {
+                try {
+                    allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+                } catch (ObjectNotFoundException ex) {
+                    log.error(ex.getMessage());
                 }
-            } else if (projIds.isEmpty()) {
-                sErrorMsg += "You must provide at least a programDbId, a studyDbId, a list of germplasmDbIds or a list of sampleDbIds! ";
-            }
-            
-            if (!sErrorMsg.isEmpty()) {
-                Status status = new Status();
-                status.setMessage(sErrorMsg);
-                slr.getMetadata().addStatusItem(status);
-                return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
-            }
-            
-            MongoTemplate mongoTemplate = MongoTemplateManager.get(programDbId);
-            
-            if (mongoTemplate == null) {
-                Status status = new Status();
-                status.setMessage("the programDbId " + programDbId + " doesn't exist");
-                slr.getMetadata().addStatusItem(status);
-                return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
-            }
-            
-            //Get list of projects the user has access to
-            List<Integer> readableProjIds;
-            try {
-                readableProjIds = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), programDbId, true);
-            } catch (ObjectNotFoundException e) {
-                Status status = new Status();
-                status.setMessage("You don't have access to this programDbId: " + programDbId);
-                slr.getMetadata().addStatusItem(status);
-                return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
-            }
-            
-            if (!readableProjIds.isEmpty()) {
-                if (!projIds.isEmpty()) {
-                    readableProjIds.retainAll(projIds); //to only filter on projects based on filtered studies or germplasm or sample
-                }
-                vsCrits.add(new Criteria().where(GenotypingSample.FIELDNAME_PROJECT_ID).in(readableProjIds));
-            } else {
-                Status status = new Status();
-                status.setMessage("You don't have access to any projects of this programDbId: " + programDbId);
-                slr.getMetadata().addStatusItem(status);
-                return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
             }
 
-            Query q = !vsCrits.isEmpty() ? new Query(new Criteria().andOperator(vsCrits)) : new Query();
-            long count = mongoTemplate.count(q, GenotypingSample.class);
-            if (body.getPageSize() != null) {
-            	q.limit(body.getPageSize());
-                if (body.getPage() != null)
-                    q.skip(body.getPage() * body.getPageSize());
+            if (allowedProjects != null && !allowedProjects.isEmpty()) {
+                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
             }
-            
-			// attach individual metadata to samples
-            List<GenotypingSample> genotypingSamples = mongoTemplate.find(q, GenotypingSample.class);
-            //convert to brapi format
-            result = convertGenotypingSamplessToBrapiSamples(programDbId, genotypingSamples);
-            
-            slr.setResult(result);
 
-            IndexPagination pagination = new IndexPagination();
-            pagination.setPageSize(body.getPageSize());
-            pagination.setCurrentPage(body.getPage());
-            pagination.setTotalPages(body.getPageSize() == null ? 1 : (int) Math.ceil((float) count / body.getPageSize()));
-            pagination.setTotalCount((int) count);
-            slr.getMetadata().setPagination(pagination);
+            Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
 
-            return new ResponseEntity<SampleListResponse>(slr, HttpStatus.OK);
-        } catch (Exception e) {
-            log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<SampleListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+            List<Long> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, Long.class);
+            if (!foundSampleIds.isEmpty()) {
+                totalCount = totalCount + foundSampleIds.size();
+                dbSamplesIds.put(db, foundSampleIds);
+            }
+
+        } 
+            
+        //convert to brapi format
+        List<Sample> allBrapiSamples = new ArrayList<>();
+
+        int page = body.getPage();            
+        int pageSize = body.getPageSize();
+        int totalPages = 0;
+        if (totalCount % pageSize == 0) {
+            totalPages = (int) (totalCount / pageSize);
+        } else {
+            totalPages = (int) (totalCount / pageSize + 1);
         }
-    }
-	
-//    public ResponseEntity<SampleListResponse> samplesGet(@ApiParam(value = "the internal DB id for a sample") @Valid @RequestParam(value = "sampleDbId", required = false) String sampleDbId,@ApiParam(value = "the internal DB id for an observation unit where a sample was taken from") @Valid @RequestParam(value = "observationUnitDbId", required = false) String observationUnitDbId,@ApiParam(value = "the internal DB id for a plate of samples") @Valid @RequestParam(value = "plateDbId", required = false) String plateDbId,@ApiParam(value = "the internal DB id for a germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        String accept = request.getHeader("Accept");
-//        if (accept != null && accept.contains("application/json")) {
-//            try {
-//                return new ResponseEntity<SampleListResponse>(objectMapper.readValue("{\n  \"result\" : {\n    \"data\" : [ \"\", \"\" ]\n  },\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", SampleListResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//            } catch (IOException e) {
-//                log.error("Couldn't serialize response for content type application/json", e);
-//                return new ResponseEntity<SampleListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//            }
-//        }
-//
-//        return new ResponseEntity<SampleListResponse>(HttpStatus.NOT_IMPLEMENTED);
-//    }
-//
-//    public ResponseEntity<SampleListResponse> samplesPost(@ApiParam(value = ""  )  @Valid @RequestBody List<SampleNewRequest> body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        String accept = request.getHeader("Accept");
-//        if (accept != null && accept.contains("application/json")) {
-//            try {
-//                return new ResponseEntity<SampleListResponse>(objectMapper.readValue("{\n  \"result\" : {\n    \"data\" : [ \"\", \"\" ]\n  },\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", SampleListResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//            } catch (IOException e) {
-//                log.error("Couldn't serialize response for content type application/json", e);
-//                return new ResponseEntity<SampleListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//            }
-//        }
-//
-//        return new ResponseEntity<SampleListResponse>(HttpStatus.NOT_IMPLEMENTED);
-//    }
-//
-//    public ResponseEntity<SampleSingleResponse> samplesSampleDbIdGet(@ApiParam(value = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        String accept = request.getHeader("Accept");
-//        if (accept != null && accept.contains("application/json")) {
-//            try {
-//                return new ResponseEntity<SampleSingleResponse>(objectMapper.readValue("{\n  \"result\" : \"\",\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", SampleSingleResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//            } catch (IOException e) {
-//                log.error("Couldn't serialize response for content type application/json", e);
-//                return new ResponseEntity<SampleSingleResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//            }
-//        }
-//
-//        return new ResponseEntity<SampleSingleResponse>(HttpStatus.NOT_IMPLEMENTED);
-//    }
-//
-//    public ResponseEntity<SampleSingleResponse> samplesSampleDbIdPut(@ApiParam(value = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@ApiParam(value = ""  )  @Valid @RequestBody SampleNewRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
-//        String accept = request.getHeader("Accept");
-//        if (accept != null && accept.contains("application/json")) {
-//            try {
-//                return new ResponseEntity<SampleSingleResponse>(objectMapper.readValue("{\n  \"result\" : \"\",\n  \"metadata\" : {\n    \"pagination\" : {\n      \"totalPages\" : 1,\n      \"pageSize\" : \"1000\",\n      \"currentPage\" : 0,\n      \"totalCount\" : 1\n    },\n    \"datafiles\" : [ {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    }, {\n      \"fileDescription\" : \"This is an Excel data file\",\n      \"fileName\" : \"datafile.xslx\",\n      \"fileSize\" : 4398,\n      \"fileMD5Hash\" : \"c2365e900c81a89cf74d83dab60df146\",\n      \"fileURL\" : \"https://wiki.brapi.org/examples/datafile.xslx\",\n      \"fileType\" : \"application/vnd.ms-excel\"\n    } ],\n    \"status\" : [ {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    }, {\n      \"messageType\" : \"INFO\",\n      \"message\" : \"Request accepted, response successful\"\n    } ]\n  },\n  \"@context\" : [ \"https://brapi.org/jsonld/context/metadata.jsonld\" ]\n}", SampleSingleResponse.class), HttpStatus.NOT_IMPLEMENTED);
-//            } catch (IOException e) {
-//                log.error("Couldn't serialize response for content type application/json", e);
-//                return new ResponseEntity<SampleSingleResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-//            }
-//        }
-//
-//        return new ResponseEntity<SampleSingleResponse>(HttpStatus.NOT_IMPLEMENTED);
-//    }
+        int firstIndex;
+        int lastIndex;
+        int elementsNb = 0;
+        int previousDbNb = 0;
+        for (String db : dbSamplesIds.keySet()) {
+            if (elementsNb < pageSize) {
+                firstIndex = page * pageSize - previousDbNb;
+                lastIndex = firstIndex + pageSize;  
 
-    private SampleListResponseResult convertGenotypingSamplessToBrapiSamples(String database, List<GenotypingSample> genotypingSamples) {
-        SampleListResponseResult result = new SampleListResponseResult();
+                List<Long> sampleIds = dbSamplesIds.get(db);
+                previousDbNb = previousDbNb + sampleIds.size();
+                if (firstIndex>sampleIds.size()) {
+                    continue;
+                }
+                if (lastIndex > sampleIds.size()) {
+                    sampleIds = sampleIds.subList(firstIndex, sampleIds.size());
+                } else {
+                    sampleIds = sampleIds.subList(firstIndex, lastIndex);
+                }
+
+                elementsNb = elementsNb + sampleIds.size();
+
+                Query q = new Query(Criteria.where("_id").in(sampleIds));
+
+                List<GenotypingSample> foundSamples = MongoTemplateManager.get(db).find(q, GenotypingSample.class);
+                List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, foundSamples);
+                allBrapiSamples.addAll(brapiSamples);
+            }
+        }
+            
+        result.setData(allBrapiSamples);
+        IndexPagination pagination = new IndexPagination();
+        pagination.setPageSize(body.getPageSize());
+        pagination.setCurrentPage(body.getPage());
+        pagination.setTotalPages(totalPages);
+        pagination.setTotalCount((int) totalCount);
+        slr.getMetadata().setPagination(pagination);
+
+        return new ResponseEntity<SampleListResponse>(slr, HttpStatus.OK);
+
+    }
+    
+    private List<Sample> convertGenotypingSampleToBrapiSample(String database, List<GenotypingSample> genotypingSamples) {
+        List<Sample> brapiSamples = new ArrayList<>();
         for (GenotypingSample mgdbSample : genotypingSamples) {
             Sample sample = new Sample();
-            sample.sampleDbId(ga4ghService.createId(database, mgdbSample.getProjectId(), mgdbSample.getIndividual(), mgdbSample.getId()));
-            sample.germplasmDbId(ga4ghService.createId(database, mgdbSample.getProjectId(), mgdbSample.getIndividual()));
+            sample.sampleDbId(ga4ghService.createId(database, mgdbSample.getIndividual(), mgdbSample.getId()));
+            sample.germplasmDbId(ga4ghService.createId(database, mgdbSample.getIndividual()));
             sample.setSampleName(mgdbSample.getSampleName());
             sample.studyDbId(database + IGigwaService.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
@@ -310,7 +297,7 @@ public class SamplesApiController implements SamplesApi {
                     if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
                         ref.setReferenceID(value);
                     } else if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource))  {
-                        ref.setReferenceSource(value);
+                        ref.setReferenceSource(value);                    
                     } else {
                         sample.getAdditionalInfo().put(key, value);
                     }
@@ -322,9 +309,25 @@ public class SamplesApiController implements SamplesApi {
                 }
             }
             
-            result.addDataItem(sample);
+            brapiSamples.add(sample);
         }
-        return result;
+        return brapiSamples;
+    }
+
+    private HashMap<String, Collection<Long>> readSampleIDs(List<String> sampleDbIds) {
+        HashMap<String, Collection<Long>> dbSampleIDs = new HashMap<>();
+        for (String sId : sampleDbIds) {
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(sId, 3);
+            String db = info[0];
+            Long id = Long.parseLong(info[2]);
+            Collection<Long> sampleIDs = dbSampleIDs.get(db);
+            if (sampleIDs == null) {
+               sampleIDs = new ArrayList<>();
+               dbSampleIDs.put(info[0], sampleIDs);
+            }
+            sampleIDs.add(id);
+        }
+        return dbSampleIDs;   
     }
 
 }

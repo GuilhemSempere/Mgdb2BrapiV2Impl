@@ -248,12 +248,7 @@ public class GermplasmApiController implements GermplasmApi {
 	                // Add the extRefId and extRefSrc to externalReferences. If extRefSrc is sample, then the externalReferences id will be the sample germplasmDbId                        
 	                if (ind.getAdditionalInfo().containsKey(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
 	                    ExternalReferencesInner ref = new ExternalReferencesInner();
-	                    if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceType).equals("sample")) {
-	                        if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_extGermplasmDbId) != null)
-	                            ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_extGermplasmDbId).toString());
-	                    }
-	                    else
-	                        ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
+                            ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
 	                    if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null)
 	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
 	                    germplasm.setExternalReferences(new ExternalReferences() {{ add(ref);}});
@@ -334,12 +329,12 @@ public class GermplasmApiController implements GermplasmApi {
                 }
             }
             glr.setResult(result);
-			IndexPagination pagination = new IndexPagination();
-			pagination.setPageSize(result.getData().size());
-			pagination.setCurrentPage(0);
-			pagination.setTotalPages(1);
-			pagination.setTotalCount(result.getData().size());
-			metadata.setPagination(pagination);
+            IndexPagination pagination = new IndexPagination();
+            pagination.setPageSize(result.getData().size());
+            pagination.setCurrentPage(0);
+            pagination.setTotalPages(1);
+            pagination.setTotalCount(result.getData().size());
+            metadata.setPagination(pagination);
 
             return new ResponseEntity<>(glr, HttpStatus.OK);
         } catch (Exception e) {
