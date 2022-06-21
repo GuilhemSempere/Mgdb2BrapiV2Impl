@@ -239,33 +239,43 @@ public class SamplesApiController implements SamplesApi {
         } else {
             totalPages = (int) (totalCount / pageSize + 1);
         }
-        int firstIndex;
+        int firstIndex = 0;
         int lastIndex;
-        int elementsNb = 0;
+        int nbOfReturnedElts = 0;
         int previousDbNb = 0;
         for (String db : dbSamplesIds.keySet()) {
-            if (elementsNb < pageSize) {
-                firstIndex = page * pageSize - previousDbNb;
-                lastIndex = firstIndex + pageSize;  
-
-                List<Long> sampleIds = dbSamplesIds.get(db);
+            List<Long> sampleIds = dbSamplesIds.get(db);
+            
+            if (nbOfReturnedElts < pageSize) {
+                
+                if (nbOfReturnedElts == 0) {
+                    firstIndex = page * pageSize - previousDbNb;
+                }
+                
                 previousDbNb = previousDbNb + sampleIds.size();
+                
                 if (firstIndex>sampleIds.size()) {
                     continue;
                 }
+                
+                lastIndex = firstIndex + pageSize;
+
                 if (lastIndex > sampleIds.size()) {
                     sampleIds = sampleIds.subList(firstIndex, sampleIds.size());
                 } else {
                     sampleIds = sampleIds.subList(firstIndex, lastIndex);
                 }
 
-                elementsNb = elementsNb + sampleIds.size();
+                nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
                 Query q = new Query(Criteria.where("_id").in(sampleIds));
 
                 List<GenotypingSample> foundSamples = MongoTemplateManager.get(db).find(q, GenotypingSample.class);
                 List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, foundSamples);
                 allBrapiSamples.addAll(brapiSamples);
+                firstIndex = 0;
+                
+
             }
         }
             
