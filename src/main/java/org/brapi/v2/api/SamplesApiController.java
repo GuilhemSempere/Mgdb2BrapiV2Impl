@@ -1,15 +1,18 @@
 package org.brapi.v2.api;
 
-import fr.cirad.io.brapi.BrapiService;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.ejb.ObjectNotFoundException;
 import javax.validation.Valid;
 
-import org.brapi.v2.model.Germplasm;
+import org.brapi.v2.model.ExternalReferences;
+import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Sample;
@@ -20,7 +23,6 @@ import org.brapi.v2.model.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
@@ -33,7 +35,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import static fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample.FIELDNAME_PROJECT_ID;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
@@ -41,15 +42,7 @@ import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Set;
-import java.util.logging.Level;
-import javax.ejb.ObjectNotFoundException;
-import org.brapi.v2.model.ExternalReferences;
-import org.brapi.v2.model.ExternalReferencesInner;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @CrossOrigin
 @Controller
@@ -281,7 +274,7 @@ public class SamplesApiController implements SamplesApi {
             
         result.setData(allBrapiSamples);
         IndexPagination pagination = new IndexPagination();
-        pagination.setPageSize(body.getPageSize());
+        pagination.setPageSize(result.getData().size());
         pagination.setCurrentPage(body.getPage());
         pagination.setTotalPages(totalPages);
         pagination.setTotalCount((int) totalCount);
