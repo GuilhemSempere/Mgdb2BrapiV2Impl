@@ -244,6 +244,7 @@ public class GermplasmApiController implements GermplasmApi {
                 for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
                 	Germplasm germplasm = new Germplasm();
                 	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
+                	germplasm.setGermplasmName(ind.getId());
 
 	                // Add the extRefId and extRefSrc to externalReferences. If extRefSrc is sample, then the externalReferences id will be the sample germplasmDbId                        
 	                if (ind.getAdditionalInfo().containsKey(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
@@ -268,9 +269,6 @@ public class GermplasmApiController implements GermplasmApi {
                                 germplasm.putAdditionalInfoItem(key, val.toString());
                         } else {
                             switch (sLCkey) {
-                                case "germplasmname":
-                                    germplasm.setGermplasmName(val.toString());
-                                    break;
                                 case "defaultdisplayname":
                                     germplasm.setDefaultDisplayName(val.toString());
                                     break;
