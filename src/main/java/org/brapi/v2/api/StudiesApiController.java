@@ -1,15 +1,20 @@
 package org.brapi.v2.api;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.validation.Valid;
 
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.Status;
 import org.brapi.v2.model.Study;
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyListResponseResult;
@@ -20,6 +25,7 @@ import org.brapi.v2.model.StudySearchRequest.SortOrderEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
@@ -56,41 +62,110 @@ public class StudiesApiController implements StudiesApi {
 	    	StudyListResponseResult result = new StudyListResponseResult();
 			Metadata metadata = new Metadata();
 			slr.setMetadata(metadata);
+			
+        	HashMap<String /*module*/, Collection<Integer> /*samples*/> projectsByModule = new HashMap<>();
+        	boolean fGotTrialIDs = false, fGotProgramIDs = false;
+			Collection<String> dbsToAccountFor = null;
 
-	    	boolean fGotTrialIDs = body != null && body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
-	    	boolean fGotProgramIDs = body != null && body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
-        	HashMap<String /*module*/, HashSet<Integer> /*samples*/> projectsByModule = new HashMap<>();
-        	if (body != null && body.getStudyDbIds() != null)
+			if (body.getTrialDbIds() == null)
+				body.setTrialDbIds(new ArrayList<>());
+			if (body.getProgramDbIds() == null)
+				body.setProgramDbIds(new ArrayList<>());
+
+	    	fGotTrialIDs = !body.getTrialDbIds().isEmpty();
+	    	fGotProgramIDs = !body.getProgramDbIds().isEmpty();
+        	HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
+        	if (body.getStudyDbIds() != null)
 				for (String studyId : body.getStudyDbIds()) {
 					String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
-					HashSet<Integer> moduleProjects = projectsByModule.get(info[0]);
+					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(info[0]);
 					if (moduleProjects == null) {
 						moduleProjects = new HashSet<>();
-						projectsByModule.put(info[0], moduleProjects);
+						projectsByModuleFromSpecifiedStudies.put(info[0], moduleProjects);
 					}
 					moduleProjects.add(Integer.parseInt(info[1]));
 				}
-        	 else if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
-                 HashMap<String, HashMap<Integer, Collection<String>>> dbProjectIndividuals = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
-                 for (String db : dbProjectIndividuals.keySet()) {
-                	 HashMap<Integer, Collection<String>> projectIndividuals = dbProjectIndividuals.get(db);
-                	 for (int nProjId : projectIndividuals.keySet())	// make sure at least one germplasm exists in each project before returning it
-                		 if (MongoTemplateManager.get(db).count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(projectIndividuals.get(nProjId)))), GenotypingSample.class) > 0) {
-         					HashSet<Integer> moduleProjects = projectsByModule.get(db);
+        	
+        	boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
+        	
+        	HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
+        	Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
+        	List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
+        	if (!projectsByModuleFromSpecifiedStudies.isEmpty())
+        		moduleSetsToIntersect.add(projectsByModuleFromSpecifiedStudies.keySet());
+        	if (dbIndividualsSpecifiedById != null)
+        		moduleSetsToIntersect.add(dbIndividualsSpecifiedById.keySet());
+        	if (dbsSpecifiedViaProgramsAndTrials != null)
+        		moduleSetsToIntersect.add(dbsSpecifiedViaProgramsAndTrials);
+        	if (!moduleSetsToIntersect.isEmpty())
+        		dbsToAccountFor = moduleSetsToIntersect.stream().skip(1).collect(() -> new HashSet<>(moduleSetsToIntersect.get(0)), Set::retainAll, Set::retainAll);
+        	else
+        		dbsToAccountFor = MongoTemplateManager.getAvailableModules();	// case where no supported parameters were found: return all allowed projects we find
+        	
+        	HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedGermplasm = new HashMap<>();
+        	if (fGotGermplasmNames) {
+    			if (dbsSpecifiedViaProgramsAndTrials == null && projectsByModuleFromSpecifiedStudies.isEmpty()) {
+    				Status status = new Status();
+    				status.setMessage("You must specify valid studyDbIds, trialDbIds or programDbIds to be able to filter on germplasmNames!");
+    				metadata.addStatusItem(status);
+    				return new ResponseEntity<StudyListResponse>(slr, HttpStatus.BAD_REQUEST);
+    			}
+    			else {
+                    for (String db : dbsToAccountFor) {
+                    	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
+	                   	for (int nProjId : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class))	// make sure at least one germplasm exists in each project before returning it
+	                   		 if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()))), GenotypingSample.class) > 0) {
+	            					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);
+	           					if (moduleProjects == null) {
+	           						moduleProjects = new HashSet<>();
+	           						projectsByModuleFromSpecifiedGermplasm.put(db, moduleProjects);
+	           					}
+	           					moduleProjects.add(nProjId);
+	                   		 }
+                    }
+    			}
+        	}
+
+        	if (dbIndividualsSpecifiedById != null) {
+                 for (String db : dbsToAccountFor) {
+                	 if ((dbsSpecifiedViaProgramsAndTrials == null) || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
+	                	 Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
+	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals)), GenotypingSample.FIELDNAME_PROJECT_ID, GenotypingSample.class, Integer.class);
+                		 if (!projectsInvolvingIndividuals.isEmpty()) {
+         					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);
         					if (moduleProjects == null) {
-        						moduleProjects = new HashSet<>();
-        						projectsByModule.put(db, moduleProjects);
+        						moduleProjects = new HashSet<>(projectsInvolvingIndividuals);
+        						projectsByModuleFromSpecifiedGermplasm.put(db, moduleProjects);
         					}
-        					moduleProjects.add(nProjId);
+        					else
+        						moduleProjects.retainAll(projectsInvolvingIndividuals);
                 		 }
+                	 }
                  }
              }
+        	
+        	// apply AND operator on active filters
+        	for (String module : Stream.of(projectsByModuleFromSpecifiedStudies.keySet(), projectsByModuleFromSpecifiedGermplasm.keySet()).flatMap(x -> x.stream()).collect(Collectors.toList())) {
+        		HashSet<Integer> retainedModuleProjects = projectsByModuleFromSpecifiedStudies.get(module);
+        		HashSet<Integer> moduleProjectsFromGermplasm = projectsByModuleFromSpecifiedGermplasm.get(module);
+        		if (moduleProjectsFromGermplasm != null) {
+        			if (retainedModuleProjects != null)
+        				retainedModuleProjects.retainAll(moduleProjectsFromGermplasm);
+        			else
+        				retainedModuleProjects = moduleProjectsFromGermplasm;
+        		}
+        		if (!retainedModuleProjects.isEmpty())
+        			projectsByModule.put(module, retainedModuleProjects);
+        	}
 
-	    	for (String module : MongoTemplateManager.getAvailableModules())
-	    		if (body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {
-		    		if ((!projectsByModule.isEmpty() && !projectsByModule.containsKey(module)) || (fGotTrialIDs && !body.getTrialDbIds().contains(module)) || (fGotProgramIDs && !body.getProgramDbIds().contains(module)))
+	    	for (String module : dbsToAccountFor)
+	    		if (body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module)))) {	// only keep this DB's data if no crop was specified or if it is linked to a specified crop
+		    		if (!projectsByModule.isEmpty() && !projectsByModule.containsKey(module))
 		    			continue;
-	
+			    		
+		    		if ((dbIndividualsSpecifiedById != null || fGotGermplasmNames) && !projectsByModuleFromSpecifiedGermplasm.containsKey(module))
+		    			continue;
+
 		    		for (GenotypingProject pj : MongoTemplateManager.get(module).find(projectsByModule.isEmpty() ? new Query() : new Query(Criteria.where("id_").in(projectsByModule.get(module))), GenotypingProject.class)) {
 		        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
 			            	result.addDataItem(new Study() {{
