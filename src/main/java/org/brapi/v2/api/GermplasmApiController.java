@@ -50,6 +50,9 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
+import java.lang.reflect.MalformedParametersException;
+import java.text.ParseException;
+import javax.ejb.ObjectNotFoundException;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -71,16 +74,20 @@ public class GermplasmApiController implements GermplasmApi {
         this.request = request;
     }
     
-    public static HashMap<String, Collection<String>> readGermplasmIDs(Collection<String> germplasmDbIds) {
+    public static HashMap<String, Collection<String>> readGermplasmIDs(Collection<String> germplasmDbIds) throws Exception {
     	HashMap<String, Collection<String>> dbIndividuals = new HashMap<>();
         for (String gpId : germplasmDbIds) {
-            String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 2);  
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 2); 
+            if (info == null) {
+                throw new MalformedParametersException("malformed germplasmDbId: " + gpId);
+            } else {
 	       	 Collection<String> individuals = dbIndividuals.get(info[0]);
 	       	 if (individuals == null) {
 	       		 individuals = new ArrayList<>();
 	       		 dbIndividuals.put(info[0], individuals);
 	       	 }
 	       	individuals.add(info[1]);
+            }
         }
         return dbIndividuals;
     }
@@ -89,22 +96,22 @@ public class GermplasmApiController implements GermplasmApi {
         if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0) {
             return new ResponseEntity<>(HttpStatus.OK);	// not supported
         }
+        
+        GermplasmListResponse glr = new GermplasmListResponse();
+        GermplasmListResponseResult result = new GermplasmListResponseResult();
+        Metadata metadata = new Metadata();
+        glr.setMetadata(metadata); 
         try {
-            GermplasmListResponse glr = new GermplasmListResponse();
-            GermplasmListResponseResult result = new GermplasmListResponseResult();
-            Metadata metadata = new Metadata();
-            glr.setMetadata(metadata);
+            boolean fGotTrialIDs = false, fGotProgramIDs = false;
+            Collection<String> dbsToAccountFor = null;
 
-        	boolean fGotTrialIDs = false, fGotProgramIDs = false;
-			Collection<String> dbsToAccountFor = null;
+            if (body.getTrialDbIds() == null)
+                    body.setTrialDbIds(new ArrayList<>());
+            if (body.getProgramDbIds() == null)
+                    body.setProgramDbIds(new ArrayList<>());
 
-			if (body.getTrialDbIds() == null)
-				body.setTrialDbIds(new ArrayList<>());
-			if (body.getProgramDbIds() == null)
-				body.setProgramDbIds(new ArrayList<>());
-
-	    	fGotTrialIDs = !body.getTrialDbIds().isEmpty();
-	    	fGotProgramIDs = !body.getProgramDbIds().isEmpty();
+            fGotTrialIDs = !body.getTrialDbIds().isEmpty();
+            fGotProgramIDs = !body.getProgramDbIds().isEmpty();
 	    	
             Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
 
@@ -130,8 +137,8 @@ public class GermplasmApiController implements GermplasmApi {
         	boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
         	boolean fGotExtRefs = body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty();
         	
-        	HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
-        	Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
+                HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
+                Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
         	List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
         	if (!projectsByModuleFromSpecifiedStudies.isEmpty())
         		moduleSetsToIntersect.add(projectsByModuleFromSpecifiedStudies.keySet());
@@ -150,13 +157,13 @@ public class GermplasmApiController implements GermplasmApi {
         	
             if (dbsToAccountFor != null)
 	            for (String db : dbsToAccountFor)
-	            	if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
-	                    Status status = new Status();
-	                    status.setMessage("You don't have access to this program / trial: " + db);
-	                    glr.getMetadata().addStatusItem(status);
-	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
-	                }
-            String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+                        if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
+                            Status status = new Status();
+                            status.setMessage("You don't have access to this program / trial: " + db);
+                            glr.getMetadata().addStatusItem(status);
+                            return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+                        }
+                String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 
         	// germplasm name filtering
         	HashMap<String /*module*/, HashSet<String> /*individuals*/> individualsByModuleFromSpecifiedGermplasm = new HashMap<>();
@@ -335,6 +342,11 @@ public class GermplasmApiController implements GermplasmApi {
             metadata.setPagination(pagination);
 
             return new ResponseEntity<>(glr, HttpStatus.OK);
+        } catch (ObjectNotFoundException | MalformedParametersException e) {
+            Status status = new Status();
+            status.setMessage(e.getMessage());
+            glr.getMetadata().addStatusItem(status);
+            return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);        
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
