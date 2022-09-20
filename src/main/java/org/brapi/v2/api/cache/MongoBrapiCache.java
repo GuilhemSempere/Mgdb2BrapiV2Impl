@@ -30,7 +30,7 @@ import fr.cirad.web.controller.BackOfficeController;
 @Component
 public class MongoBrapiCache {
 
-	private static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet";
+	public static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet";
 
 	@Autowired private AppConfig appConfig;
 	
