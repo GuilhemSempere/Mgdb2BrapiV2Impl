@@ -24,7 +24,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
 import org.brapi.v2.api.cache.MongoBrapiCache;
-import org.brapi.v2.model.CallListResponse;
+import org.brapi.v2.model.CallsListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
@@ -243,17 +243,17 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	}
 	
 	@Override
-	public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize, String authorization) throws UnsupportedEncodingException, SocketException, UnknownHostException {
+	public ResponseEntity<CallsListResponse> variantsetsVariantSetDbIdCallsGet(String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, Integer page, Integer pageSize, String authorization) throws UnsupportedEncodingException, SocketException, UnknownHostException {
 		CallsSearchRequest csr = new CallsSearchRequest();
 		csr.setExpandHomozygotes(expandHomozygotes);
 		csr.setUnknownString(unknownString);
 		csr.setSepUnphased(sepUnphased);
 		csr.setSepPhased(sepPhased);
 		csr.setPageSize(pageSize);
-		csr.setPageToken(pageToken);
+		csr.setPage(page);
 		csr.setVariantSetDbIds(Arrays.asList(variantSetDbId));
 		
-		return callsApiController.searchCallsPost(csr, authorization);
+		return callsApiController.searchCallsPost(authorization, csr);
 	}
 	
 //    public ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {

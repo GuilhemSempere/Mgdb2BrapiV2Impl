@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import io.swagger.annotations.ApiParam;
+import java.util.Arrays;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
 @CrossOrigin
@@ -33,7 +34,7 @@ public class ServerinfoApiController implements ServerinfoApi {
     	ServerInfo result = new ServerInfo();
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(ServerinfoApi.serverinfoGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(StudiesApi.studiesGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
-		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(CallsApi.callsGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
+		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().addAll(Arrays.asList(MethodsEnum.GET,MethodsEnum.PUT)); setService(CallsApi.callsGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(ReferencesetsApi.referencesetsGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(VariantsetsApi.variantsetsGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(VariantsetsApi.variantsetsVariantSetDbIdCallsGet_url); setDataTypes(new ArrayList<WSMIMEDataTypes>() {{ add(WSMIMEDataTypes.fromValue("application/json")); }}); }});

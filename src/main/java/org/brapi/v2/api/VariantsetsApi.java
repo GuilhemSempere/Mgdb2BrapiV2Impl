@@ -12,7 +12,7 @@ import java.net.UnknownHostException;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
-import org.brapi.v2.model.CallListResponse;
+import org.brapi.v2.model.CallsListResponse;
 import org.brapi.v2.model.SuccessfulSearchResponse;
 import org.brapi.v2.model.VariantSetListResponse;
 import org.brapi.v2.model.VariantSetResponse;
@@ -90,23 +90,24 @@ public interface VariantsetsApi {
     														@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
     											    		@RequestHeader(value="Authorization", required=false) String authorization);
 
-    @ApiOperation(value = "Gets a list of `Calls` associated with a `VariantSet`.", nickname = "variantsetsVariantSetDbIdCallsGet", notes = " Gets a list of `Calls` associated with a `VariantSet`. Also See: `GET /calls?variantSetDbId={variantSetDbId}` ", response = CallListResponse.class, authorizations = {
+    @ApiOperation(value = "Gets a list of `Calls` associated with a `VariantSet`.", nickname = "variantsetsVariantSetDbIdCallsGet", notes = " Gets a list of `Calls` associated with a `VariantSet`. Also See: `GET /calls?variantSetDbId={variantSetDbId}` ", response = CallsListResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Variant Sets", })
     @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = CallListResponse.class),
+        @ApiResponse(code = 200, message = "OK", response = CallsListResponse.class),
         @ApiResponse(code = 400, message = "Bad Request", response = String.class),
         @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
         @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + variantsetsVariantSetDbIdCallsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<CallListResponse> variantsetsVariantSetDbIdCallsGet(	@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,
+    ResponseEntity<CallsListResponse> variantsetsVariantSetDbIdCallsGet(	@ApiParam(value = "The ID of the `VariantSet` to be retrieved.",required=true) @PathVariable("variantSetDbId") String variantSetDbId,
     																	@ApiParam(value = "Should homozygotes be expanded (true) or collapsed into a single occurence (false)") @Valid @RequestParam(value = "expandHomozygotes", required = false) Boolean expandHomozygotes,
     																	@ApiParam(value = "The string to use as a representation for missing data") @Valid @RequestParam(value = "unknownString", required = false) String unknownString,
     																	@ApiParam(value = "The string to use as a separator for phased allele calls") @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased,
     																	@ApiParam(value = "The string to use as a separator for unphased allele calls") @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased,
-    																	@ApiParam(value = "Used to request a specific page of data to be returned.  Tokenized pages are for large data sets which can not be efficiently broken into indexed pages. Use the nextPageToken and prevPageToken from a prior response to construct a query and move to the next or previous page respectively.") @Valid @RequestParam(value = "pageToken", required = false) String pageToken,
-    																	@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
+    																	//@ApiParam(value = "Used to request a specific page of data to be returned.  Tokenized pages are for large data sets which can not be efficiently broken into indexed pages. Use the nextPageToken and prevPageToken from a prior response to construct a query and move to the next or previous page respectively.") @Valid @RequestParam(value = "pageToken", required = false) String pageToken,
+    																	@ApiParam(value= "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
+                                                                                                                                        @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
     																	@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws UnsupportedEncodingException, SocketException, UnknownHostException;
 //
 //
