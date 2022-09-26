@@ -368,7 +368,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         }
 
     	String unknownGtCode = body.getUnknownString() == null ? "-" : body.getUnknownString();
-        result.setSepPhased(unknownGtCode);
+        result.setUnknownString(unknownGtCode);
     	String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
         result.setSepPhased(phasedSeparator);
     	String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();

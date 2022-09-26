@@ -29,6 +29,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
 @Api(value = "Allele Matrix", description = "the alleleMatrix API", tags={ "Allele Matrix" })
 public interface AllelematrixApi {
+    
+    public static final String alleleMatrixGet_url = "allelematrix";
+    public static final String searchAlleleMatrixPost_url = "search/allelematrix";
 
     @Operation(summary = "Use this endpoint to retrieve a two dimensional matrix of genotype data", description = "Use this endpoint to retrieve a two dimensional matrix of genotype data. The response structure is based on the VCF file format,  but the search and filter parameters give the ability to slice and merge data sets. This allows the user to return the subset of data they are interested in,  without having to download the entire genotype file. <br/>Each row of data (outer array) corresponds to a variant definition, and each column (inner array) corresponds to a callSet.    ", security = {
         @SecurityRequirement(name = "AuthorizationToken")}, tags = {"Allele Matrix"})
@@ -37,7 +40,7 @@ public interface AllelematrixApi {
         @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/allelematrix",
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + alleleMatrixGet_url,
             produces = {"application/json"},
             method = RequestMethod.GET)
     ResponseEntity<AlleleMatrixResponse> allelematrixGet(@Parameter(in = ParameterIn.QUERY, description = "The requested page number for the Variant dimension of the matrix", schema = @Schema()) @Valid @RequestParam(value = "dimensionVariantPage", required = false) Integer dimensionVariantPage,
@@ -67,7 +70,7 @@ public interface AllelematrixApi {
         @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/search/allelematrix",
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchAlleleMatrixPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" }, 
         method = RequestMethod.POST)
