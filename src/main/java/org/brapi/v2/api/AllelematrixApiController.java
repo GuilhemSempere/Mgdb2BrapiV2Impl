@@ -376,7 +376,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         
         //count variants
         int nTotalMarkerCount = (int) mongoTemplate.count(runQuery, VariantRunData.class);      
-         AlleleMatrixPagination variantPagination = new AlleleMatrixPagination();
+        AlleleMatrixPagination variantPagination = new AlleleMatrixPagination();
         variantPagination.setDimension(AlleleMatrixPagination.DimensionEnum.VARIANTS);
         variantPagination.setPage(variantsPage);
         variantPagination.setPageSize(numberOfMarkersPerPage);
@@ -409,7 +409,6 @@ public class AllelematrixApiController implements AllelematrixApi {
             
             Document filter = new Document();
             if (fGotVariantSetList) {
-                List<Criteria> vsCrits = new ArrayList<>();
                 List<Document> filtersList = new ArrayList<>();
                 for (String vsId : body.getVariantSetDbIds()) {
                     String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
@@ -423,7 +422,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                 filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, new Document("$in", projectIDs)); // we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
             }
 
-            Map<String, AlleleMatrixDataMatrices> metadataMatricesMap = new HashMap<>();            
+            Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();            
             MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
             //List<DBVCFHeader> vcfHeaders = mongoTemplate.find(headersQuery, DBVCFHeader.class);
             Document fields = new Document();
@@ -433,44 +432,55 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
             }            
             
+            //add GT matrix in the case of data with no VCFheader metadata
+            AlleleMatrixDataMatrices gtMmatrix = new AlleleMatrixDataMatrices();
+            gtMmatrix.setDataMatrix(new ArrayList());
+            gtMmatrix.setDataMatrixAbbreviation("GT");
+            gtMmatrix.setDataMatrixName("Genotype");
+            gtMmatrix.setDataType(DataTypeEnum.STRING);
+            matricesMap.put("GT", gtMmatrix);
+            
+            //try retrieving metadata information from DBVCFHeader collection
             MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).projection(fields).iterator();
             while (headerCursor.hasNext()) {
                 DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
                 Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData();
-                for (String key:vcfMetadata.keySet()) {
-                    if (body.getDataMatrixNames() != null && !body.getDataMatrixNames().isEmpty()) {
-                        if (vcfMetadata.get(key).getDescription() != null) {
-                            if (body.getDataMatrixNames().contains(vcfMetadata.get(key).getDescription())) {
-                                AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
-                                matrix.setDataMatrix(new ArrayList());
-                                matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
-                                matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
-                                VCFHeaderLineType type = vcfMetadata.get(key).getType();
-                                DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString());
-                                matrix.setDataType(brapiType);
-                                metadataMatricesMap.put(key, matrix);
+                if (vcfMetadata != null) {
+                    for (String key:vcfMetadata.keySet()) {
+                        if (body.getDataMatrixNames() != null && !body.getDataMatrixNames().isEmpty()) {
+                            if (vcfMetadata.get(key).getDescription() != null) {
+                                if (body.getDataMatrixNames().contains(vcfMetadata.get(key).getDescription())) {
+                                    AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
+                                    matrix.setDataMatrix(new ArrayList());
+                                    matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
+                                    matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
+                                    VCFHeaderLineType type = vcfMetadata.get(key).getType();
+                                    DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString());
+                                    matrix.setDataType(brapiType);
+                                    if (matricesMap.get(key) == null) {
+                                        matricesMap.put(key, matrix);
+                                    }
+                                }
                             }
+                        } else { 
+                            AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
+                            matrix.setDataMatrix(new ArrayList());
+                            matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
+                            matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
+                            VCFHeaderLineType type = vcfMetadata.get(key).getType();
+                            DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString());
+                            matrix.setDataType(brapiType);
+                            if (matricesMap.get(key) == null) {
+                                matricesMap.put(key, matrix);
+                            }                                              
                         }
-                    } else { 
-                        AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
-                        matrix.setDataMatrix(new ArrayList());
-                        matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
-                        matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
-                        VCFHeaderLineType type = vcfMetadata.get(key).getType();
-                        DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString());
-                        matrix.setDataType(brapiType);
-                        metadataMatricesMap.put(key, matrix);                                               
                     }
                 }
-            }
-                       
+            }                       
             
             HashMap<Integer, String> previousPhasingIds = new HashMap<>();
-
             List<String> variantIds = new ArrayList<>();            
             Set<String> variantSetIds = new HashSet();
-
-            List<List<String>> data = new ArrayList(); 
  
             for (AbstractVariantData v : varList) {
                 VariantRunData vrd = (VariantRunData) v;
@@ -478,10 +488,10 @@ public class AllelematrixApiController implements AllelematrixApi {
                 variantSetIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + Integer.toString(vrd.getId().getProjectId()) + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getRunName());
                 variantIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getVariantId());
 
-                List<String> variantGenotypes = new ArrayList<>();
-                Map<String, List<String>> otherDataMap= new HashMap<>();
-                for (String key:metadataMatricesMap.keySet()) {
-                    otherDataMap.put(key, new ArrayList<>());
+                Map<String, List<String>> dataMap= new HashMap<>(); //key="GT", value=List<GT> list of genotypes of these variant
+                                                                    //key="DP", value=List<DP> list of DP of these variant
+                for (String key:matricesMap.keySet()) {
+                    dataMap.put(key, new ArrayList<>());
                 }
 
                 for (Integer spId : sampleIndividuals.keySet()) {
@@ -489,72 +499,50 @@ public class AllelematrixApiController implements AllelematrixApi {
                     if (sg != null) {
                         String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
                         boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-                        previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/
-
-                        String gtCode = sg.getCode();
-                        if (gtCode == null || gtCode.length() == 0) {
-                            variantGenotypes.add(unknownGtCode);
-                        } else {
-                            List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-                            String sep = fPhased ? "|" : "/";
-                            if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
-                                variantGenotypes.add(gtCode.split(sep)[0]);
-                            } else {
-                                variantGenotypes.add(gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator));
-                            }
-                        }
+                        previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/                        
 
                         Map<String, Object> ai = sg.getAdditionalInfo();
-                        for (String key:metadataMatricesMap.keySet()) {
-                            AlleleMatrixDataMatrices matrix = metadataMatricesMap.get(key);
-                            if (ai.get(key) != null) {
-                                otherDataMap.get(key).add(ai.get(key).toString());
-                            } else {
-                                otherDataMap.get(key).add(unknownGtCode);
+                        for (String key:matricesMap.keySet()) {
+                            if (!key.equals("GT")) {  //adding additionalInfo
+                                if (ai.get(key) != null) {
+                                    dataMap.get(key).add(ai.get(key).toString());
+                                } else {
+                                    dataMap.get(key).add(unknownGtCode);
+                                }
+                            } else {  //adding genotypes
+                                String gtCode = sg.getCode();
+                                if (gtCode == null || gtCode.length() == 0) {
+                                    dataMap.get(key).add(unknownGtCode);
+                                } else {
+                                    List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
+                                    String sep = fPhased ? "|" : "/";
+                                    if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
+                                        dataMap.get(key).add(gtCode.split(sep)[0]);
+                                    } else {
+                                        dataMap.get(key).add(gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator));
+                                    }
+                                }
                             }
                         }                        
                     }
                 }
-                data.add(variantGenotypes);
-                for (String key:metadataMatricesMap.keySet()) {
-                    metadataMatricesMap.get(key).getDataMatrix().add(otherDataMap.get(key));
+
+                //Filling metadataMatrices with data (additionalInfo of VariantRunData will be displayed only if the key has been discribed in DBVCFheader)
+                for (String key:matricesMap.keySet()) {
+                    matricesMap.get(key).getDataMatrix().add(dataMap.get(key));
                 }
             }
                 
             result.setCallSetDbIds(callSetIds);
             result.setVariantDbIds(variantIds);
-            result.setVariantSetDbIds(new ArrayList(variantSetIds));
-            metadataMatricesMap.get("GT").setDataMatrix(data);
-            
-//            AlleleMatrixDataMatrices gtMatrix = new AlleleMatrixDataMatrices();
-//            gtMatrix.setDataMatrix(data);
-//            gtMatrix.setDataMatrixAbbreviation("GT");
-//            gtMatrix.setDataMatrixName("Genotype");
-//            gtMatrix.setDataType(AlleleMatrixDataMatrices.DataTypeEnum.STRING);
-//
-//            result.getDataMatrices().add(gtMatrix);
-            
-            //Add metadata matrices
-            for (String key:metadataMatricesMap.keySet()) {
-                result.getDataMatrices().add(metadataMatricesMap.get(key));
-            }
-		
+            result.setVariantSetDbIds(new ArrayList(variantSetIds));            
+            result.setDataMatrices(new ArrayList(matricesMap.values())); //convert Map to List
+
             response.setResult(result);
             return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<AlleleMatrixResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    private DBVCFHeader getVCFHeader(MongoTemplate mongoTemplate, Integer project, String run) {
-        BasicDBObject whereQuery = new BasicDBObject();
-        Query query = new Query(new Criteria().andOperator(Criteria.where("_id."+ DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT).is(project), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(run)));
-        List<DBVCFHeader> vcfHeaders = mongoTemplate.findDistinct(query, GenotypingProject.FIELDNAME_RUNS, DBVCFHeader.class, DBVCFHeader.class);
-        if (vcfHeaders == null || vcfHeaders.isEmpty()) {
-            return null;
-        } else {
-            return vcfHeaders.get(0);        
         }
     }
 
