@@ -198,8 +198,8 @@ public class CallsApiController implements CallsApi {
             return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
         }
 
-        String module = null;
 
+        String module = null;
         if (fGotVariantSetList) {
             for (String variantDbId : body.getVariantSetDbIds()) {
                 if (module == null) {
@@ -228,9 +228,10 @@ public class CallsApiController implements CallsApi {
         }
 
     	HashMap<Integer, String> sampleIndividuals = new HashMap<>();	// we are going to need the individual each sample is related to, in order to build callSetDbIds
+
         if (fGotCallSetList) {
             for (String callSetDbId : body.getCallSetDbIds()) {
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
+                String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
                 if (module == null) {
                     module = info[0];
                 } else if (!module.equals(info[0])) {
@@ -239,7 +240,7 @@ public class CallsApiController implements CallsApi {
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
                 }
-                sampleIndividuals.put(Integer.parseInt(info[2]), info[1]);
+                sampleIndividuals.put(Integer.parseInt(info[1]), info[1]);
             }
 
             // identify the runs those samples are involved in
@@ -288,8 +289,8 @@ public class CallsApiController implements CallsApi {
         if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
             runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
             for (String callSetDbId : body.getCallSetDbIds()) {
-                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
-                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[2]);
+                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
+                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
             }
         } else { // find out which samples are involved and keep track of corresponding individuals
             Query sampleQuery;
@@ -356,8 +357,8 @@ public class CallsApiController implements CallsApi {
                     call.setGenotypeValue(gtCode);
                     call.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
                     call.setVariantName(call.getVariantDbId());
-                    call.setCallSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sampleIndividuals.get(spId) + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
-                    call.setCallSetName(call.getCallSetDbId());
+                    call.setCallSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
+                    //call.setCallSetName(call.getCallSetDbId());
                     call.setVariantSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getRunName());
                     for (String key : sg.getAdditionalInfo().keySet()) {
                         CallGenotypeMetadata gm = new CallGenotypeMetadata();
