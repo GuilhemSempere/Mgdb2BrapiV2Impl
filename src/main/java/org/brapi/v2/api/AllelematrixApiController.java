@@ -9,6 +9,9 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_END_SITE;
+import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_SEQUENCE;
+import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_START_SITE;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
@@ -234,6 +237,30 @@ public class AllelematrixApiController implements AllelematrixApi {
         if (fGotVariantList) {
             List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
             crits.add(Criteria.where("_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
+        }
+        
+        if (body.getPositionRanges() != null) {
+            List<Criteria> vsCrits = new ArrayList<>();
+            for (String positionRange:body.getPositionRanges()) {
+                String[] pr = positionRange.split(":");
+                String chr = pr[0];
+                String[] range = pr[1].split("-");
+                int start = Integer.parseInt(range[0]);  
+                int end = Integer.parseInt(range[1]); 
+                vsCrits.add(new Criteria().andOperator(
+                        Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(chr),
+                        Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).gte(start), 
+                        Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).lte(end))
+                );
+                vsCrits.add(new Criteria().andOperator(
+                        Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(chr),
+                        Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_END_SITE).gte(start), 
+                        Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_END_SITE).lte(end))
+                );
+                
+            }
+            crits.add(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
+            
         }
 
         Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
