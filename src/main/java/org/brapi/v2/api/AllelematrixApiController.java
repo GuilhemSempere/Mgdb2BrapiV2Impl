@@ -407,6 +407,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         try {            
             List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, variantsPage * numberOfMarkersPerPage, numberOfMarkersPerPage);
             
+            Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
+            
+            //try retrieving metadata information from DBVCFHeader collection
             Document filter = new Document();
             if (fGotVariantSetList) {
                 List<Document> filtersList = new ArrayList<>();
@@ -421,8 +424,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             } else {
                 filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, new Document("$in", projectIDs)); // we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
             }
-
-            Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();            
+                        
             MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
             //List<DBVCFHeader> vcfHeaders = mongoTemplate.find(headersQuery, DBVCFHeader.class);
             Document fields = new Document();
@@ -430,17 +432,8 @@ public class AllelematrixApiController implements AllelematrixApi {
                 for (String key:body.getDataMatrixAbbreviations()) {
                     fields.put(DBVCFHeader.FIELDNAME_FORMAT_METADATA + "." + key, 1);
                 }
-            }            
+            }             
             
-            //add GT matrix in the case of data with no VCFheader metadata
-            AlleleMatrixDataMatrices gtMmatrix = new AlleleMatrixDataMatrices();
-            gtMmatrix.setDataMatrix(new ArrayList());
-            gtMmatrix.setDataMatrixAbbreviation("GT");
-            gtMmatrix.setDataMatrixName("Genotype");
-            gtMmatrix.setDataType(DataTypeEnum.STRING);
-            matricesMap.put("GT", gtMmatrix);
-            
-            //try retrieving metadata information from DBVCFHeader collection
             MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).projection(fields).iterator();
             while (headerCursor.hasNext()) {
                 DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
@@ -455,7 +448,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                                     matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
                                     matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
                                     VCFHeaderLineType type = vcfMetadata.get(key).getType();
-                                    DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString());
+                                    DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
                                     matrix.setDataType(brapiType);
                                     if (matricesMap.get(key) == null) {
                                         matricesMap.put(key, matrix);
@@ -468,13 +461,21 @@ public class AllelematrixApiController implements AllelematrixApi {
                             matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
                             matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
                             VCFHeaderLineType type = vcfMetadata.get(key).getType();
-                            DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString());
+                            DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
                             matrix.setDataType(brapiType);
                             if (matricesMap.get(key) == null) {
                                 matricesMap.put(key, matrix);
                             }                                              
                         }
                     }
+                } else {
+                    //add GT matrix in the case of data with no VCFheader metadata
+                    AlleleMatrixDataMatrices gtMmatrix = new AlleleMatrixDataMatrices();
+                    gtMmatrix.setDataMatrix(new ArrayList());
+                    gtMmatrix.setDataMatrixAbbreviation("GT");
+                    gtMmatrix.setDataMatrixName("Genotype");
+                    gtMmatrix.setDataType(DataTypeEnum.STRING);
+                    matricesMap.put("GT", gtMmatrix);
                 }
             }                       
             

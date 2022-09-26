@@ -1,5 +1,8 @@
 package org.brapi.v2.api;
 
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import java.io.UnsupportedEncodingException;
 import java.net.SocketException;
 import java.net.URLDecoder;
@@ -43,10 +46,15 @@ import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import htsjdk.variant.vcf.VCFFormatHeaderLine;
+import java.util.Map;
+import org.brapi.v2.model.AlleleMatrixDataMatrices;
 import org.brapi.v2.model.CallGenotypeMetadata;
+import org.brapi.v2.model.CallGenotypeMetadata.DataTypeEnum;
 import org.brapi.v2.model.CallsListResponse;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
+import org.bson.Document;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -286,8 +294,10 @@ public class CallsApiController implements CallsApi {
         Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
 
     	// now deal with samples
+        int numberOfSamples = 0;
         if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
             runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
+            numberOfSamples = body.getCallSetDbIds().size();
             for (String callSetDbId : body.getCallSetDbIds()) {
                 String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
                 runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
@@ -307,15 +317,14 @@ public class CallsApiController implements CallsApi {
             for (GenotypingSample gs : mongoTemplate.find(sampleQuery, GenotypingSample.class)) {
                 sampleIndividuals.put(gs.getId(), gs.getIndividual());
             }
+            numberOfSamples = sampleIndividuals.size();
         }
 
-        int page = 0;
-        if (body.getPage() == null) {
-            page = body.getPage();
-        }
-
-	int theoriticalPageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
-        int numberOfMarkersPerPage = (int) Math.ceil(1f * theoriticalPageSize / sampleIndividuals.size());
+        int page = body.getPage() == null ? 1000 : body.getPage();        
+        int pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
+        
+	//int theoriticalPageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
+        int numberOfMarkersPerPage = (int) Math.ceil(1f * pageSize / sampleIndividuals.size());
         Integer nTotalMarkerCount = fGotVariantList ? body.getVariantDbIds().size() : null;
         if (nTotalMarkerCount == null) {	// we don't have a definite variant list: see if we can guess it (only possible for single-run projects since there is no run index on VariantRunData)
             if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id").in(projectIDs), Criteria.where(GenotypingProject.FIELDNAME_RUNS + ".1").exists(false))), GenotypingProject.class) == projectIDs.size())
@@ -330,6 +339,35 @@ public class CallsApiController implements CallsApi {
         try {
             List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersPerPage, numberOfMarkersPerPage);
             HashMap<Integer, String> previousPhasingIds = new HashMap<>();
+            
+            //try retrieving metadata information from DBVCFHeader collection
+            Document filter = new Document();
+            if (fGotVariantSetList) {
+                List<Document> filtersList = new ArrayList<>();
+                for (String vsId : body.getVariantSetDbIds()) {
+                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
+                    Document ifilter = new Document("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, Integer.parseInt(info[1]));
+                    ifilter.append("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_RUN, info[2]);
+                    filtersList.add(ifilter);
+                }
+                filter.put("$or", filtersList);
+                
+            } else {
+                filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, new Document("$in", projectIDs)); // we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
+            }
+                        
+            MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));         
+            
+            MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).iterator();
+            Map<String, VCFFormatHeaderLine> metadataMap = new HashMap<>();
+            while (headerCursor.hasNext()) {
+                DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
+                Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData(); 
+                if (vcfMetadata != null) {
+                    metadataMap.putAll(vcfMetadata);
+                }
+            }            
+            
 
             HashSet<String> distinctVariantIDs = new HashSet<>();
             for (AbstractVariantData v : varList) {
@@ -363,8 +401,13 @@ public class CallsApiController implements CallsApi {
                     for (String key : sg.getAdditionalInfo().keySet()) {
                         CallGenotypeMetadata gm = new CallGenotypeMetadata();
                         gm.setFieldAbbreviation(key);
-                        gm.setDataType(CallGenotypeMetadata.DataTypeEnum.FLOAT); //TODO see what to put in datatype and fieldName
-                        gm.setFieldName(key);
+                        if (metadataMap.get(key) != null) {
+                            try {
+                                gm.setDataType(CallGenotypeMetadata.DataTypeEnum.fromValue(metadataMap.get(key).getType().toString().toLowerCase()));
+                                gm.setFieldName(metadataMap.get(key).getDescription());
+                            } catch (Exception e) {                                
+                            }
+                        }
                         gm.setFieldValue(sg.getAdditionalInfo().get(key).toString());
                         call.addGenotypeMetadataItem(gm);
                     }
@@ -374,9 +417,9 @@ public class CallsApiController implements CallsApi {
 
             IndexPagination pagination = new IndexPagination();
             pagination.setCurrentPage(page);
-            pagination.setPageSize(numberOfMarkersPerPage * sampleIndividuals.size());
+            pagination.setPageSize(pageSize);
             if (nTotalMarkerCount != null) {
-                pagination.setTotalCount(nTotalMarkerCount);
+                pagination.setTotalCount(nTotalMarkerCount*sampleIndividuals.size());
                 pagination.setTotalPages(varList.isEmpty() ? 0 : (int) Math.ceil((float) pagination.getTotalCount() / pagination.getPageSize()));
             }            
             metadata.setPagination(pagination);
