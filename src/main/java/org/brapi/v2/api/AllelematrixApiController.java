@@ -367,7 +367,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             callSetIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
         }
 
-    	String unknownGtCode = body.getUnknownString() == null ? "-" : body.getUnknownString();
+    	String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
         result.setUnknownString(unknownGtCode);
     	String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
         result.setSepPhased(phasedSeparator);

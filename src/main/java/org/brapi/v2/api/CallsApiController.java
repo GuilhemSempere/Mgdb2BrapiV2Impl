@@ -164,11 +164,14 @@ public class CallsApiController implements CallsApi {
 
 
                 runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
-                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 3);
-                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[2]);
+                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2);
+                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
 
                 Update update = new Update();
-                update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[2] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, c.getGenotypeValue());
+                update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, c.getGenotypeValue());
+                for (CallGenotypeMetadata gm:c.getGenotypeMetadata()) {
+                    update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
+                }
                 
                 try {
                     VariantRunData vrd = mongoTemplate.findAndModify(runQuery, update, new FindAndModifyOptions().returnNew(true), VariantRunData.class, mongoTemplate.getCollectionName(VariantRunData.class));
@@ -324,15 +327,15 @@ public class CallsApiController implements CallsApi {
         int pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
         
 	//int theoriticalPageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
-        int numberOfMarkersPerPage = (int) Math.ceil(1f * pageSize / sampleIndividuals.size());
+        int numberOfMarkersPerPage = (int) Math.ceil(1f * pageSize / numberOfSamples);
         Integer nTotalMarkerCount = fGotVariantList ? body.getVariantDbIds().size() : null;
         if (nTotalMarkerCount == null) {	// we don't have a definite variant list: see if we can guess it (only possible for single-run projects since there is no run index on VariantRunData)
             if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id").in(projectIDs), Criteria.where(GenotypingProject.FIELDNAME_RUNS + ".1").exists(false))), GenotypingProject.class) == projectIDs.size())
                 nTotalMarkerCount = (int) mongoTemplate.count(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).in(projectIDs)), VariantRunData.class);
         }
         
-    	String unknownGtCode = body.getUnknownString() == null ? "-" : body.getUnknownString();
-    	//String phasedSeparator = body.getSepPhased() == null ? "|" : URLDecoder.decode(body.getSepPhased(), "UTF-8");
+    	String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
+    	String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
     	String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();
     	result.setSepUnphased(unPhasedSeparator);
 
@@ -380,19 +383,22 @@ public class CallsApiController implements CallsApi {
                     previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/
 
                     String gtCode = sg.getCode();
+                    String genotype;
                     if (gtCode == null || gtCode.length() == 0) {
-                        gtCode = unknownGtCode;
+                        genotype = unknownGtCode;                    
+                    } else {
+                        List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
+                        String sep = fPhased ? "|" : "/";
+                        if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
+                            //genotype = alleles.get(0);                            
+                            genotype = gtCode.split(sep)[0];
+                        } else {
+                            //genotype = StringUtils.join(alleles, fPhased ? phasedSeparator : unPhasedSeparator);
+                            genotype = gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator);
+                        }
                     }
-//                    } else {
-//						List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-//						if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
-//							genotype = alleles.get(0);
-//						else
-//							genotype = StringUtils.join(alleles, fPhased ? phasedSeparator : unPhasedSeparator);
-//                                }
                     Call call = new Call();
-                    ListValue lv = new ListValue();
-                    call.setGenotypeValue(gtCode);
+                    call.setGenotypeValue(genotype);
                     call.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
                     call.setVariantName(call.getVariantDbId());
                     call.setCallSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
@@ -419,7 +425,7 @@ public class CallsApiController implements CallsApi {
             pagination.setCurrentPage(page);
             pagination.setPageSize(pageSize);
             if (nTotalMarkerCount != null) {
-                pagination.setTotalCount(nTotalMarkerCount*sampleIndividuals.size());
+                pagination.setTotalCount(nTotalMarkerCount*numberOfSamples);
                 pagination.setTotalPages(varList.isEmpty() ? 0 : (int) Math.ceil((float) pagination.getTotalCount() / pagination.getPageSize()));
             }            
             metadata.setPagination(pagination);
