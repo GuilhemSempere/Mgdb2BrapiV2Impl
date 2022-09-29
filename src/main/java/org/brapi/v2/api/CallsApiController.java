@@ -1,39 +1,40 @@
 package org.brapi.v2.api;
 
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
-import java.io.UnsupportedEncodingException;
-import java.net.SocketException;
-import java.net.URLDecoder;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.model.Call;
+import org.brapi.v2.model.CallGenotypeMetadata;
+import org.brapi.v2.model.CallsListResponse;
 import org.brapi.v2.model.CallsListResponseResult;
 import org.brapi.v2.model.CallsSearchRequest;
-import org.brapi.v2.model.ListValue;
-import org.brapi.v2.model.MetadataTokenPagination;
+import org.brapi.v2.model.IndexPagination;
+import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
-import org.brapi.v2.model.TokenPagination;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.result.UpdateResult;
+
+import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
@@ -47,16 +48,6 @@ import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
-import java.util.Map;
-import org.brapi.v2.model.AlleleMatrixDataMatrices;
-import org.brapi.v2.model.CallGenotypeMetadata;
-import org.brapi.v2.model.CallGenotypeMetadata.DataTypeEnum;
-import org.brapi.v2.model.CallsListResponse;
-import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.Metadata;
-import org.bson.Document;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.query.Update;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -81,8 +72,8 @@ public class CallsApiController implements CallsApi {
             String authorization) {
         
         if (variantSetDbId == null && callSetDbId != null) {
-            String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
-            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[2]))), GenotypingSample.class).iterator().next();
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
+            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
             variantSetDbId = info[0] + IGigwaService.ID_SEPARATOR + sample.getProjectId() + IGigwaService.ID_SEPARATOR + sample.getRun();
         }
 		
@@ -109,30 +100,35 @@ public class CallsApiController implements CallsApi {
         
         CallsListResponse response = new CallsListResponse();
         Metadata metadata = new Metadata();
-	response.setMetadata(metadata);
+        response.setMetadata(metadata);
         
         String module = null;
         for (Call c:callsToUpdate) {
-            if (c.getVariantSetDbId() != null) {
+        	if (c.getVariantDbId() == null || c.getVariantSetDbId() == null || c.getCallSetDbId() == null) {
+				Status status = new Status();
+				status.setMessage("You must provide variantDbId, variantSetDbId and callSetDbId for each call");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+        	else if (module == null)
                 module = GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0];
-            } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0])) {
+            else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0])) {
                 Status status = new Status();
-                status.setMessage("You must specify VariantSets belonging to the same referenceSet!");
+                status.setMessage("You must specify VariantSets belonging to the same program / trial!");
                 response.getMetadata().addStatusItem(status);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-
             }
         }
         
         MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-
+        if (mongoTemplate == null)
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        
     	// check permissions
     	Collection<Integer> projectIDs = callsToUpdate.stream()
                 .map(call -> Integer.parseInt(GigwaSearchVariantsRequest.getInfoFromId(call.getVariantSetDbId(), 3)[1]))
                 .collect(Collectors.toSet());
-        
-    	mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(callsToUpdate.stream().map(call -> call.getVariantSetDbId().substring(1 + call.getVariantSetDbId().indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
-    	
+
         List<Integer> forbiddenProjectIDs = new ArrayList<>();
         for (int pj : projectIDs) {
             if (!tokenManager.canUserReadProject(token, module, pj))
@@ -147,47 +143,39 @@ public class CallsApiController implements CallsApi {
         List<Call> updatedCalls = new ArrayList<>();
         
         for (Call c:callsToUpdate) {
+            List<Criteria> crits = new ArrayList<>();
+
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3);
+            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])));
+            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));
+            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).is(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantDbId(), 2)[1]));                
+
+            Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+
+            runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
+            String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2);
+            runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
+
+            Update update = new Update();
+            update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, c.getGenotypeValue());
+            for (CallGenotypeMetadata gm:c.getGenotypeMetadata())
+                update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
             
-            if (c.getVariantDbId() == null || c.getVariantSetDbId() == null || c.getCallSetDbId() == null) {
-               return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-               
-            } else {
-
-                List<Criteria> crits = new ArrayList<>();
-
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3);
-                crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])));
-                crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));
-                crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).is(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantDbId(), 2)[1]));                
-
-                Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-
-
-                runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
-                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2);
-                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
-
-                Update update = new Update();
-                update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, c.getGenotypeValue());
-                for (CallGenotypeMetadata gm:c.getGenotypeMetadata()) {
-                    update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
-                }
-                
-                try {
-                    VariantRunData vrd = mongoTemplate.findAndModify(runQuery, update, new FindAndModifyOptions().returnNew(true), VariantRunData.class, mongoTemplate.getCollectionName(VariantRunData.class));
-                    updatedCalls.add(c);
-                } catch(Exception e) {
-                    Status status = new Status();
-                    status.setMessage(e.getMessage());
-                    response.getMetadata().addStatusItem(status);
-                    return new ResponseEntity(response, HttpStatus.EXPECTATION_FAILED);
-                }
+            try {
+                UpdateResult ur = mongoTemplate.updateFirst(runQuery, update, VariantRunData.class, mongoTemplate.getCollectionName(VariantRunData.class));
+                if (ur.getMatchedCount() > 0)
+                	updatedCalls.add(c);
+            } catch(Exception e) {
+                Status status = new Status();
+                status.setMessage(e.getMessage());
+                response.getMetadata().addStatusItem(status);
+                return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
             }
         }
         CallsListResponseResult result = new CallsListResponseResult(); //TODO retrieve information of sepPhased, unknownString...
         result.setData(updatedCalls);
         response.setResult(result);
-        return new ResponseEntity(response, HttpStatus.OK);
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @Override
@@ -197,7 +185,7 @@ public class CallsApiController implements CallsApi {
     	CallsListResponse clr = new CallsListResponse();
     	CallsListResponseResult result = new CallsListResponseResult();
     	Metadata metadata = new Metadata();
-	clr.setMetadata(metadata);
+    	clr.setMetadata(metadata);
 
         boolean fGotVariantSetList = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
         boolean fGotVariantList = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
@@ -217,7 +205,7 @@ public class CallsApiController implements CallsApi {
                     module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0];
                 } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0])) {
                     Status status = new Status();
-                    status.setMessage("You must specify VariantSets belonging to the same referenceSet!");
+                    status.setMessage("You must specify VariantSets belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
 
@@ -231,7 +219,7 @@ public class CallsApiController implements CallsApi {
                     module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0];
                 } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0])) {
                     Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants only belonging to the same referenceSet!");
+                    status.setMessage("You may specify VariantSets / Variants only belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
                 }
@@ -247,7 +235,7 @@ public class CallsApiController implements CallsApi {
                     module = info[0];
                 } else if (!module.equals(info[0])) {
                     Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same referenceSet!");
+                    status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
                 }
