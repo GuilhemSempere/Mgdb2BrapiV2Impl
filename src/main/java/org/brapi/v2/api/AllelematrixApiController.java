@@ -70,8 +70,8 @@ public class AllelematrixApiController implements AllelematrixApi {
             String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString,String sepPhased, String sepUnphased, String authorization) {
         
         if (variantSetDbId == null && callSetDbId != null) {
-            String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
-            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[2]))), GenotypingSample.class).iterator().next();
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
+            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
             variantSetDbId = info[0] + IGigwaService.ID_SEPARATOR + sample.getProjectId() + IGigwaService.ID_SEPARATOR + sample.getRun();
         }
 		
@@ -146,9 +146,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         boolean fGotVariantSetList = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
         boolean fGotVariantList = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
         boolean fGotCallSetList = body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty();
-        boolean fGotGermplasmFilter = ((body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty())
-                || (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty())
-                || (body.getGermplasmPUIs() != null && !body.getGermplasmPUIs().isEmpty()));
+//        boolean fGotGermplasmFilter = ((body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty())
+//                || (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty())
+//                || (body.getGermplasmPUIs() != null && !body.getGermplasmPUIs().isEmpty()));
         
         if (!fGotVariantSetList && !fGotVariantList && !fGotCallSetList) {
             Status status = new Status();
@@ -165,7 +165,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0];
                 } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0])) {
                     Status status = new Status();
-                    status.setMessage("You must specify VariantSets belonging to the same referenceSet!");
+                    status.setMessage("You must specify VariantSets belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     response.setMetadata(metadata);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -180,7 +180,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0];
                 } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0])) {
                     Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants only belonging to the same referenceSet!");
+                    status.setMessage("You may specify VariantSets / Variants only belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     response.setMetadata(metadata);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -202,7 +202,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     module = gMap.keySet().iterator().next(); //get first element of 
                 } else if (!module.equals(gMap.keySet().iterator().next())) {
                     Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / germplasm only belonging to the same referenceSet!");
+                    status.setMessage("You may specify VariantSets / Variants / CallSets / germplasm only belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -225,38 +225,29 @@ public class AllelematrixApiController implements AllelematrixApi {
             }
         }        
         
-        HashMap<Integer, String> sampleIndividuals = new HashMap<>();	// we are going to need the individual each sample is related to, in order to build callSetDbIds
-        if (!germplasmIds.isEmpty()) { //search sample id based on germplasm id
-
-            Query q = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds));                
-
-            List<GenotypingSample> foundSampleIds = MongoTemplateManager.get(module).find(q, GenotypingSample.class);    
-            for (GenotypingSample s:foundSampleIds) {
-                sampleIndividuals.put(s.getId(), s.getIndividual());
-            }
-            
-        }  
+        HashSet<Integer> sampleIDs = new HashSet<>();
+        if (!germplasmIds.isEmpty())
+            for (GenotypingSample s : MongoTemplateManager.get(module).find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
+            	sampleIDs.add(s.getId());
     	
         if (fGotCallSetList) {
             for (String callSetDbId : body.getCallSetDbIds()) {
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
+                String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
                 if (module == null)
                     module = info[0];
                 else if (!module.equals(info[0])) {
                     Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same referenceSet!");
+                    status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
-                sampleIndividuals.put(Integer.parseInt(info[2]), info[1]);
+                sampleIDs.add(Integer.parseInt(info[1]));
             }
-            
         }
 
-        if (!sampleIndividuals.isEmpty()) {
-            // identify the runs those samples are involved in
+        if (!sampleIDs.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
             body.setVariantSetDbIds(new ArrayList<>());
-            for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIndividuals.keySet())), GenotypingSample.class)) {
+            for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class)) {
                 String variantSetDbId = module + IGigwaService.ID_SEPARATOR + sp.getProjectId() + IGigwaService.ID_SEPARATOR + sp.getRun();
                 if (!body.getVariantSetDbIds().contains(variantSetDbId)) {
                     body.getVariantSetDbIds().add(variantSetDbId);
@@ -264,15 +255,17 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
             }
         }
-	MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+
+        MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 
     	// check permissions
-    	Collection<Integer> projectIDs = fGotVariantSetList ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet()) :
+    	Collection<Integer> projectIDs = fGotVariantSetList ?
+    		body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet()) :
     		mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunData.VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
     	List<Integer> forbiddenProjectIDs = new ArrayList<>();
         for (int pj : projectIDs)
             if (!tokenManager.canUserReadProject(token, module, pj))
-                        forbiddenProjectIDs.add(pj);
+            	forbiddenProjectIDs.add(pj);
         projectIDs.removeAll(forbiddenProjectIDs);
         if (projectIDs.isEmpty() && !forbiddenProjectIDs.isEmpty())
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
@@ -337,13 +330,13 @@ public class AllelematrixApiController implements AllelematrixApi {
 
     	// now deal with samples
         int nTotalSamplesCount = 0;
-        if (!sampleIndividuals.isEmpty()) {	// project necessary fields to get only the required genotypes
+        if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
             runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
-            for (Integer s:sampleIndividuals.keySet()) {
+            for (Integer s : sampleIDs) {
                 //String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
                 runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + s);
             }
-            nTotalSamplesCount = sampleIndividuals.keySet().size();
+            nTotalSamplesCount = sampleIDs.size();
         } else {	// find out which samples are involved and keep track of corresponding individuals
             Query sampleQuery;
             if (fGotVariantSetList) {
@@ -359,13 +352,12 @@ public class AllelematrixApiController implements AllelematrixApi {
             //count samples
             nTotalSamplesCount = (int) mongoTemplate.count(sampleQuery, GenotypingSample.class);  
             for (GenotypingSample gs : mongoTemplate.find(sampleQuery.skip(callSetsPage * numberOfCallSetsPerPage).limit(numberOfCallSetsPerPage), GenotypingSample.class)) {
-                sampleIndividuals.put(gs.getId(), gs.getIndividual());
+            	sampleIDs.add(gs.getId());
             }
         }
         List<String> callSetIds = new ArrayList<>();
-        for (Integer spId:sampleIndividuals.keySet()) {
+        for (Integer spId : sampleIDs)
             callSetIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
-        }
 
     	String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
         result.setUnknownString(unknownGtCode);
@@ -481,21 +473,20 @@ public class AllelematrixApiController implements AllelematrixApi {
             
             HashMap<Integer, String> previousPhasingIds = new HashMap<>();
             List<String> variantIds = new ArrayList<>();            
-            Set<String> variantSetIds = new HashSet();
+            Set<String> variantSetDbIds = new HashSet<>();
  
             for (AbstractVariantData v : varList) {
                 VariantRunData vrd = (VariantRunData) v;
                 
-                variantSetIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + Integer.toString(vrd.getId().getProjectId()) + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getRunName());
+                variantSetDbIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + Integer.toString(vrd.getId().getProjectId()) + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getRunName());
                 variantIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getVariantId());
 
                 Map<String, List<String>> dataMap= new HashMap<>(); //key="GT", value=List<GT> list of genotypes of these variant
                                                                     //key="DP", value=List<DP> list of DP of these variant
-                for (String key:matricesMap.keySet()) {
+                for (String key:matricesMap.keySet())
                     dataMap.put(key, new ArrayList<>());
-                }
 
-                for (Integer spId : sampleIndividuals.keySet()) {
+                for (Integer spId : sampleIDs) {
                     SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
                     if (sg != null) {
                         String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
@@ -536,8 +527,8 @@ public class AllelematrixApiController implements AllelematrixApi {
                 
             result.setCallSetDbIds(callSetIds);
             result.setVariantDbIds(variantIds);
-            result.setVariantSetDbIds(new ArrayList(variantSetIds));            
-            result.setDataMatrices(new ArrayList(matricesMap.values())); //convert Map to List
+            result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));            
+            result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
 
             response.setResult(result);
             return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
