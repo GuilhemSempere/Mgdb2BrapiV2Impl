@@ -29,7 +29,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
@@ -45,7 +44,6 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
 import java.lang.reflect.MalformedParametersException;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@CrossOrigin
 @Controller
 //@ApiIgnore
 public class SamplesApiController implements SamplesApi {

@@ -45,7 +45,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.context.ServletContextAware;
@@ -80,7 +79,6 @@ import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@CrossOrigin
 @Controller
 public class VariantsetsApiController implements ServletContextAware, VariantsetsApi {
 
