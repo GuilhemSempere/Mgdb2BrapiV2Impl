@@ -1,32 +1,9 @@
 package org.brapi.v2.api;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
-import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_END_SITE;
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_SEQUENCE;
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_START_SITE;
-import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
-import fr.cirad.tools.mongo.MongoTemplateManager;
-import fr.cirad.tools.security.base.AbstractTokenManager;
-import htsjdk.variant.vcf.VCFConstants;
-import htsjdk.variant.vcf.VCFFormatHeaderLine;
-import htsjdk.variant.vcf.VCFHeader;
-import htsjdk.variant.vcf.VCFHeaderLineCount;
-import htsjdk.variant.vcf.VCFHeaderLineType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,9 +12,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
+
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
 import org.brapi.v2.model.AlleleMatrixDataMatrices.DataTypeEnum;
@@ -45,16 +22,36 @@ import org.brapi.v2.model.AlleleMatrixPagination;
 import org.brapi.v2.model.AlleleMatrixResponse;
 import org.brapi.v2.model.AlleleMatrixSearchRequest;
 import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
-import org.brapi.v2.model.CallGenotypeMetadata;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CrossOrigin;
+
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+
+import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
+import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
+import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
+import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.mgdb.service.IGigwaService;
+import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.mongo.MongoTemplateManager;
+import fr.cirad.tools.security.base.AbstractTokenManager;
+import htsjdk.variant.vcf.VCFFormatHeaderLine;
+import htsjdk.variant.vcf.VCFHeaderLineType;
 
 @CrossOrigin
 @Controller
@@ -157,7 +154,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-	String module = null;
+        String module = null;
 
         if (fGotVariantSetList) {
             for (String variantDbId : body.getVariantSetDbIds()) {
@@ -202,7 +199,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     module = gMap.keySet().iterator().next(); //get first element of 
                 } else if (!module.equals(gMap.keySet().iterator().next())) {
                     Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / germplasm only belonging to the same program / trial!");
+                    status.setMessage("You may specify VariantSets / Variants / CallSets / Germplasm only belonging to the same program / trial!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -318,10 +315,16 @@ public class AllelematrixApiController implements AllelematrixApi {
 
         if (body.getPagination() != null) {
             for (AlleleMatrixSearchRequestPagination pagination:body.getPagination()) {
-                if (pagination.getDimension().equals(AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS)) {
+            	if (pagination.getDimension() == null)  {
+                    Status status = new Status();
+                    status.setMessage("Invalid pagination dimension specified, only 'VARIANTS' and 'CALLSETS' are accepeted!");
+                    metadata.addStatusItem(status);
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+                if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS) {
                     numberOfCallSetsPerPage = pagination.getPageSize();
                     callSetsPage = pagination.getPage();
-                } else if (pagination.getDimension().equals(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS)) {
+                } else if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS) {
                     numberOfMarkersPerPage = pagination.getPageSize();
                     variantsPage = pagination.getPage();
                 }
@@ -330,7 +333,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 
     	// now deal with samples
         int nTotalSamplesCount = 0;
-        if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
+        if (!sampleIDs.isEmpty()) {	// project necessary fields to get only the required genotypes
             runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
             for (Integer s : sampleIDs) {
                 //String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
