@@ -1,5 +1,6 @@
 package org.brapi.v2.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.result.UpdateResult;
+import fr.cirad.manager.IModuleManager;
 
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
@@ -41,6 +43,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import static fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData.GT_FIELD_PHASED_GT;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
@@ -48,6 +51,12 @@ import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
+import htsjdk.variant.vcf.VCFHeaderLineCount;
+import htsjdk.variant.vcf.VCFHeaderLineType;
+import htsjdk.variant.vcf.VCFHeaderVersion;
+import java.util.Date;
+import java.util.Objects;
+import jhi.brapi.api.Pagination;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -57,6 +66,8 @@ public class CallsApiController implements CallsApi {
     private static final Logger log = LoggerFactory.getLogger(CallsApiController.class);
 
     @Autowired AbstractTokenManager tokenManager;
+    
+    @Autowired MongoTemplateManager mongoTemplateManager;
 
     @Override
     public ResponseEntity<CallsListResponse> callsGet(
@@ -95,8 +106,13 @@ public class CallsApiController implements CallsApi {
     }
 
     @Override
-    public ResponseEntity<CallsListResponse> callsPut(String authorization, List<Call> callsToUpdate) {
+    public ResponseEntity<CallsListResponse> callsPut(String authorization, CallsListResponseResult body) {
+        boolean updateDBInfo = false;
         String token = ServerinfoApiController.readToken(authorization);
+        List<Call> callsToUpdate = body.getData();
+        String unknownGT = body.getUnknownString() != null ? body.getUnknownString() : ".";
+        String sepPhased = body.getSepPhased() != null ? body.getSepPhased()  : "/";
+        String sepUnphased = body.getSepUnphased() != null ? body.getSepUnphased() : "|";
         
         CallsListResponse response = new CallsListResponse();
         Metadata metadata = new Metadata();
@@ -104,15 +120,14 @@ public class CallsApiController implements CallsApi {
         
         String module = null;
         for (Call c:callsToUpdate) {
-        	if (c.getVariantDbId() == null || c.getVariantSetDbId() == null || c.getCallSetDbId() == null) {
-				Status status = new Status();
-				status.setMessage("You must provide variantDbId, variantSetDbId and callSetDbId for each call");
-				metadata.addStatusItem(status);
-				return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-        	else if (module == null)
+            if (c.getVariantDbId() == null || c.getVariantSetDbId() == null || c.getCallSetDbId() == null) {
+                Status status = new Status();
+                status.setMessage("You must provide variantDbId, variantSetDbId and callSetDbId for each call");
+                metadata.addStatusItem(status);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            } else if (module == null) {
                 module = GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0];
-            else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0])) {
+            } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0])) {
                 Status status = new Status();
                 status.setMessage("You must specify VariantSets belonging to the same program / trial!");
                 response.getMetadata().addStatusItem(status);
@@ -131,7 +146,7 @@ public class CallsApiController implements CallsApi {
 
         List<Integer> forbiddenProjectIDs = new ArrayList<>();
         for (int pj : projectIDs) {
-            if (!tokenManager.canUserReadProject(token, module, pj))
+            if (!tokenManager.canUserWriteToProject(token, module, pj))
                 forbiddenProjectIDs.add(pj);
         }
         projectIDs.removeAll(forbiddenProjectIDs);
@@ -140,39 +155,202 @@ public class CallsApiController implements CallsApi {
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
         
+        Query query = new Query(Criteria.where("_id").in(projectIDs));
+        List<GenotypingProject> projects = mongoTemplate.find(query, GenotypingProject.class);        
+        Map<Integer, Integer> ploidyLevels = projects.stream().collect(Collectors.toMap(GenotypingProject::getId, GenotypingProject::getPloidyLevel));
+        
+        //try retrieving metadata information from DBVCFHeader collection
+        Document filter = new Document();
+        filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, new Document("$in", projectIDs));                        
+        MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));         
+
+        MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).iterator();
+        Map<Integer, Map<String, VCFFormatHeaderLine>> metadataMap = new HashMap<>();
+        while (headerCursor.hasNext()) {
+            DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
+            int key = Objects.hash(Integer.toString(dbVcfHeader.getId().getProject()), dbVcfHeader.getId().getRun());
+            if (metadataMap.get(key) == null) {
+                //add a new DBVCFHeader
+                metadataMap.put(key, new HashMap());
+            }
+            Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData(); 
+            if (vcfMetadata != null) {
+                metadataMap.get(key).putAll(vcfMetadata);
+            }
+        }        
+        
         List<Call> updatedCalls = new ArrayList<>();
         
         for (Call c:callsToUpdate) {
             List<Criteria> crits = new ArrayList<>();
 
             String[] info = GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3);
-            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])));
-            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));
+            int projectId = Integer.parseInt(info[1]);
+            String runName = info[2];
+
+            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projectId));
+            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(runName));
             crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).is(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantDbId(), 2)[1]));                
 
-            Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-
-            runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
-            String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2);
-            runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
-
-            Update update = new Update();
-            update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, c.getGenotypeValue());
-            for (CallGenotypeMetadata gm:c.getGenotypeMetadata())
-                update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
+            Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()]))); 
             
+            //update DBVCFHeader if not in DB yet
+            int hash = Objects.hash(Integer.toString(projectId), runName);
+            if (!c.getGenotypeMetadata().isEmpty()) {
+                boolean newVCFHeader = false;
+                Map<String, VCFFormatHeaderLine> newVcfFormatHLines = new HashMap<>();
+                for (CallGenotypeMetadata cgm:c.getGenotypeMetadata()) {                    
+                    if (metadataMap.get(hash) == null) {                        
+                        metadataMap.put(hash, new HashMap<>());
+                        newVCFHeader = true;
+                    }                    
+                    if (metadataMap.get(hash).get(cgm.getFieldAbbreviation()) == null) {
+                        VCFHeaderLineType type = null;
+                        try {
+                            String str = cgm.getDataType().toString();
+                            type = VCFHeaderLineType.valueOf(str.substring(0, 1).toUpperCase() + str.substring(1));
+                        } catch (Exception e) {
+                            Status status = new Status();
+                            status.setMessage("Wrong genotypeMetadata type: " + cgm.getDataType().toString());
+                            response.getMetadata().addStatusItem(status);
+                            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        }
+                        VCFFormatHeaderLine vcfHLine = new VCFFormatHeaderLine(cgm.getFieldName(), 1, type, "");
+                        metadataMap.get(hash).put(cgm.getFieldAbbreviation(), vcfHLine);
+                        newVcfFormatHLines.put(cgm.getFieldAbbreviation(), vcfHLine);
+                    }                    
+                }
+                if (newVCFHeader) {
+                    //insert new VCFHeader
+                    DBVCFHeader vcfHeader = new DBVCFHeader();
+                    vcfHeader.setId(new DBVCFHeader.VcfHeaderId(projectId, runName));
+                    vcfHeader.setmFormatMetaData(newVcfFormatHLines);
+                    mongoTemplate.insert(vcfHeader, mongoTemplate.getCollectionName(DBVCFHeader.class));
+
+                } else if (!newVcfFormatHLines.isEmpty()) {
+                    //update VCFHeader
+                    Query q = new Query(new Criteria().andOperator(
+                            Criteria.where("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT).is(projectId),
+                            Criteria.where("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_RUN).is(runName)
+                    ));
+                    Update update = new Update();
+                    for (String key:newVcfFormatHLines.keySet()) {
+                        ObjectMapper oMapper = new ObjectMapper();
+                        update.set(DBVCFHeader.FIELDNAME_FORMAT_METADATA + "." + key, newVcfFormatHLines.get(key));
+                    }
+                    UpdateResult result = mongoTemplate.updateFirst(q, update, DBVCFHeader.class, mongoTemplate.getCollectionName(DBVCFHeader.class));                        
+                }
+            }            
+            
+            //Check if variant exists
+            List<VariantRunData> vrd;
             try {
-                UpdateResult ur = mongoTemplate.updateFirst(runQuery, update, VariantRunData.class, mongoTemplate.getCollectionName(VariantRunData.class));
-                if (ur.getMatchedCount() > 0)
-                	updatedCalls.add(c);
-            } catch(Exception e) {
+                vrd = mongoTemplate.find(runQuery, VariantRunData.class);
+            }  catch (Exception e) {
                 Status status = new Status();
                 status.setMessage(e.getMessage());
                 response.getMetadata().addStatusItem(status);
                 return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
             }
+            
+            if (vrd.isEmpty()) { //create variantRunData                
+                List<VariantData> vd = mongoTemplate.find(runQuery, VariantData.class);
+                if (vd.isEmpty()) { //variant doesn't exist
+                    Status status = new Status();
+                    status.setMessage("variantDbId " + c.getVariantDbId() + "doesn't exist" );
+                    response.getMetadata().addStatusItem(status);
+                    return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
+                } else {
+                    VariantRunData newVrd = convertCallToVrd(c, vd.get(0), projectId, runName);
+                    mongoTemplate.insert(newVrd, mongoTemplate.getCollectionName(VariantRunData.class));
+                    updateDBInfo = true;
+                }
+                
+            } else { //update variantRunData
+                runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
+                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2);
+                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
+                
+                Update update = new Update();
+                
+                if (c.getGenotypeValue() != null) { 
+                    String gt = null;
+                    if (c.getGenotypeValue().equals(unknownGT)) {
+                        if (c.getAdditionalInfo().isEmpty() && c.getGenotypeMetadata().isEmpty()) {
+                            update.unset(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]); //remove the sp
+                        } else {                        
+                            update.unset(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE); //remove gt field
+                        }
+                    } else {
+                        String[] splitUnphased = c.getGenotypeValue().split(sepUnphased);
+                        String[] splitPhased = c.getGenotypeValue().split(sepPhased);                        
+                        if (splitUnphased.length > 1 && splitUnphased.length == ploidyLevels.get(projectId)) {
+                            gt = String.join("/", splitUnphased);
+                        } else if (splitPhased.length > 1 && splitPhased.length == ploidyLevels.get(projectId)) {
+                            gt = String.join("/", splitPhased);
+                            //add phGT and phID into ai
+                            update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + VariantData.GT_FIELD_PHASED_GT, String.join("|", splitPhased));
+                            update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + VariantData.GT_FIELD_PHASED_ID, splitCallSetDbId[1]);
+                        } else if ((c.getGenotypeValue().equals("0") || c.getGenotypeValue().equals("1")) && !body.isExpandHomozygotes()){
+                            gt = c.getGenotypeValue();
+                        }       
+                        
+                    }
+                    if (gt != null) {
+                        if (gt.equals("1/0")) {
+                            gt = "0/1";
+                        }
+                        update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, gt);
+                    }
+                }
+                
+                
+                //add additionalInfo into variantRunData ai
+                if (c.getAdditionalInfo() !=  null && !c.getAdditionalInfo().isEmpty()) {
+                    for (String key:c.getAdditionalInfo().keySet()) {
+                        update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + key, c.getAdditionalInfo().get(key));
+                    }
+                }
+                
+                //add genotypeMetadata into variantRunData ai
+                if (c.getGenotypeMetadata() != null) {
+                    for (CallGenotypeMetadata gm:c.getGenotypeMetadata())
+                        update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
+                }
+                
+                try {
+                    UpdateResult ur = mongoTemplate.updateFirst(runQuery, update, VariantRunData.class, mongoTemplate.getCollectionName(VariantRunData.class));
+                    if (ur.getModifiedCount() > 0)
+                        updateDBInfo = true;
+                    if (ur.getMatchedCount() > 0)
+                        updatedCalls.add(c);
+                } catch(Exception e) {
+                    Status status = new Status();
+                    status.setMessage(e.getMessage());
+                    response.getMetadata().addStatusItem(status);
+                    return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
+                }
+            }
         }
         CallsListResponseResult result = new CallsListResponseResult(); //TODO retrieve information of sepPhased, unknownString...
+        
+        if (updateDBInfo) {
+            MongoTemplateManager.updateDatabaseLastModification(module);
+        }
+        
+        //Metadata part
+        Status status = new Status();
+        status.setMessage("Calls updated");
+        status.setMessageType(Status.MessageTypeEnum.INFO);
+        metadata.addStatusItem(status);
+        metadata.setPagination(new IndexPagination());
+        metadata.getPagination().setCurrentPage(0);
+        metadata.getPagination().setTotalCount(updatedCalls.size());
+        int pageSize = 1000;
+        metadata.getPagination().setPageSize(pageSize);
+        int totalPages = updatedCalls.size() % pageSize > 0 ? updatedCalls.size() / pageSize + 1 : updatedCalls.size() / pageSize;
+        metadata.getPagination().setTotalPages(totalPages);        
+        
         result.setData(updatedCalls);
         response.setResult(result);
         return new ResponseEntity<>(response, HttpStatus.OK);
@@ -365,19 +543,19 @@ public class CallsApiController implements CallsApi {
                 VariantRunData vrd = (VariantRunData) v;
                 distinctVariantIDs.add(v.getVariantId());
                 for (Integer spId : vrd.getSampleGenotypes().keySet()) {
-                    SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
+                    SampleGenotype sg = vrd.getSampleGenotypes().get(spId);                    
                     String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
+                    previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);
                     boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-                    previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/
-
+                    	
                     String gtCode = sg.getCode();
                     String genotype;
                     if (gtCode == null || gtCode.length() == 0) {
                         genotype = unknownGtCode;                    
                     } else {
                         List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-                        String sep = fPhased ? "|" : "/";
-                        if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
+                        String sep = "/";
+                        if (!body.isExpandHomozygotes() && new HashSet<String>(alleles).size() == 1) {
                             //genotype = alleles.get(0);                            
                             genotype = gtCode.split(sep)[0];
                         } else {
@@ -393,17 +571,19 @@ public class CallsApiController implements CallsApi {
                     //call.setCallSetName(call.getCallSetDbId());
                     call.setVariantSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getRunName());
                     for (String key : sg.getAdditionalInfo().keySet()) {
-                        CallGenotypeMetadata gm = new CallGenotypeMetadata();
-                        gm.setFieldAbbreviation(key);
-                        if (metadataMap.get(key) != null) {
-                            try {
-                                gm.setDataType(CallGenotypeMetadata.DataTypeEnum.fromValue(metadataMap.get(key).getType().toString().toLowerCase()));
-                                gm.setFieldName(metadataMap.get(key).getDescription());
-                            } catch (Exception e) {                                
+                        if (!key.equals(VariantData.GT_FIELD_PHASED_ID) && !key.equals(VariantData.GT_FIELD_PHASED_GT)) {
+                            CallGenotypeMetadata gm = new CallGenotypeMetadata();
+                            gm.setFieldAbbreviation(key);
+                            if (metadataMap.get(key) != null) {
+                                try {
+                                    gm.setDataType(CallGenotypeMetadata.DataTypeEnum.fromValue(metadataMap.get(key).getType().toString().toLowerCase()));
+                                    gm.setFieldName(metadataMap.get(key).getDescription());
+                                } catch (Exception e) {                                
+                                }
                             }
+                            gm.setFieldValue(sg.getAdditionalInfo().get(key).toString());
+                            call.addGenotypeMetadataItem(gm);
                         }
-                        gm.setFieldValue(sg.getAdditionalInfo().get(key).toString());
-                        call.addGenotypeMetadataItem(gm);
                     }
                     result.addDataItem(call);
                 }
@@ -424,6 +604,21 @@ public class CallsApiController implements CallsApi {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<CallsListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private VariantRunData convertCallToVrd(Call c, VariantData vd, int projectId, String runName) {
+        VariantRunData vrd = new VariantRunData(new VariantRunDataId(projectId, runName, vd.getId()));
+        vrd.setAdditionalInfo((HashMap<String, Object>) (Map) c.getAdditionalInfo());
+        vrd.setReferencePosition(vd.getReferencePosition());
+        vrd.setKnownAlleles(vd.getKnownAlleles());
+        HashMap<Integer, SampleGenotype> genotypes = new HashMap();
+        SampleGenotype sg = new SampleGenotype();
+        String gt = c.getGenotypeValue().equals("1/0") ? "0/1" : c.getGenotypeValue();
+        sg.setCode(gt);
+        String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2);
+        genotypes.put(Integer.valueOf(splitCallSetDbId[1]), sg);
+        vrd.setSampleGenotypes(genotypes);
+        return vrd;
     }
 
 }

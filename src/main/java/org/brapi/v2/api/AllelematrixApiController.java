@@ -507,7 +507,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                                     dataMap.get(key).add(unknownGtCode);
                                 } else {
                                     List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-                                    String sep = fPhased ? "|" : "/";
+                                    String sep = "/";
                                     if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
                                         dataMap.get(key).add(gtCode.split(sep)[0]);
                                     } else {

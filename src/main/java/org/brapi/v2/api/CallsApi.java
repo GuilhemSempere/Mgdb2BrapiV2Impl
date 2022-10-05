@@ -26,6 +26,7 @@ import javax.validation.Valid;
 import java.util.List;
 import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallsListResponse;
+import org.brapi.v2.model.CallsListResponseResult;
 import org.brapi.v2.model.CallsSearchRequest;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
@@ -59,7 +60,7 @@ public interface CallsApi {
     @Operation(summary = "Update existing `Calls` with new genotype value or metadata", description = "Update existing `Calls` with new genotype value or metadata <br/>Implementation Note -  <br/>A `Call` object does not have a DbId of its own. It is defined by the unique combination of  `callSetDbId`, `variantDbId`, and `variantSetDbId`. These three fields MUST be present for every  `call` update request. This endpoint should not allow these fields to be modified for a given  `call`. Modifying these fields in the database is effectively moving a cell to a different location in the genotype matrix. This action is dangerous and can cause data collisions.     ", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
-        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),        
+        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponseResult.class))),        
         @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
@@ -68,7 +69,7 @@ public interface CallsApi {
         consumes = { "application/json" }, 
         method = RequestMethod.PUT)
     ResponseEntity<CallsListResponse> callsPut(@Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) @RequestHeader(value="Authorization", required=false) String authorization, 
-            @Parameter(in = ParameterIn.DEFAULT, description = "", schema=@Schema()) @Valid @RequestBody List<Call> body);
+            @Parameter(in = ParameterIn.DEFAULT, description = "", schema=@Schema()) @Valid @RequestBody CallsListResponseResult body);
 
     @Operation(summary = "Submit a search request for `Calls`", description = "Submit a search request for `Calls`<br/> Search requests allow a client to send a complex query for data. However, the server may not respond with the search results immediately.  If a server needs more time to process the request, it might respond with a `searchResultsDbId`.  Use the corresponding `GET /search/calls/{searchResultsDbId}` to retrieve the results of the search. <br/>  Review the <a target=\"_blank\" href=\"https://wiki.brapi.org/index.php/Search_Services#POST_Search_Entity\">Search Services documentation</a> for additional implementation details.  <br/> <br/> <strong>NOTE:</strong> This endpoint uses Token based pagination. Please Review the  <a target=\"_blank\" href=\"https://wiki.brapi.org/index.php/Pagination\">Pagination documentation</a> for additional implementation details.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
