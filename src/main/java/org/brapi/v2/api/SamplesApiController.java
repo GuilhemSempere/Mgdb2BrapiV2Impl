@@ -51,8 +51,6 @@ import java.lang.reflect.MalformedParametersException;
 public class SamplesApiController implements SamplesApi {
 
     private static final Logger log = LoggerFactory.getLogger(SamplesApiController.class);
-
-    @Autowired private GigwaGa4ghServiceImpl ga4ghService;
     
     @Autowired AbstractTokenManager tokenManager;
     
@@ -153,12 +151,10 @@ public class SamplesApiController implements SamplesApi {
             }
 
 
-            HashMap<String /*module*/, List<Long>/*sampleIds*/> dbSamplesIds = new HashMap<>();
+            HashMap<String /*module*/, List<Integer>/*sampleIds*/> dbSamplesIds = new HashMap<>();
             long totalCount = 0;
 
             for (String db : dbsToAccountFor) {
-
-                                   
                 if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
                     Status status = new Status();
                     status.setMessage("You don't have access to this program / trial: " + db);
@@ -212,13 +208,11 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
-
-                List<Long> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, Long.class);
+                List<Integer> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, Integer.class);
                 if (!foundSampleIds.isEmpty()) {
                     totalCount = totalCount + foundSampleIds.size();
                     dbSamplesIds.put(db, foundSampleIds);
                 }
-
             } 
 
             //convert to brapi format
@@ -237,7 +231,7 @@ public class SamplesApiController implements SamplesApi {
             int nbOfReturnedElts = 0;
             int previousDbNb = 0;
             for (String db : dbSamplesIds.keySet()) {
-                List<Long> sampleIds = dbSamplesIds.get(db);
+                List<Integer> sampleIds = dbSamplesIds.get(db);
 
                 if (nbOfReturnedElts < pageSize) {
 
@@ -261,14 +255,9 @@ public class SamplesApiController implements SamplesApi {
 
                     nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
-                    Query q = new Query(Criteria.where("_id").in(sampleIds));
-
-                    List<GenotypingSample> foundSamples = MongoTemplateManager.get(db).find(q, GenotypingSample.class);
-                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, foundSamples);
+                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, auth.getName(), null, sampleIds).values());
                     allBrapiSamples.addAll(brapiSamples);
                     firstIndex = 0;
-
-
                 }
             }
 
@@ -294,16 +283,16 @@ public class SamplesApiController implements SamplesApi {
 
     }
     
-    private List<Sample> convertGenotypingSampleToBrapiSample(String database, List<GenotypingSample> genotypingSamples) {
+    private List<Sample> convertGenotypingSampleToBrapiSample(String database, Collection<GenotypingSample> genotypingSamples) {
         List<Sample> brapiSamples = new ArrayList<>();
         for (GenotypingSample mgdbSample : genotypingSamples) {
             Sample sample = new Sample();
-            sample.sampleDbId(ga4ghService.createId(database, mgdbSample.getIndividual(), mgdbSample.getId()));
-            sample.germplasmDbId(ga4ghService.createId(database, mgdbSample.getIndividual()));
+            sample.sampleDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getIndividual(), mgdbSample.getId()));
+            sample.germplasmDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getIndividual()));
             sample.setSampleName(mgdbSample.getSampleName());
             sample.studyDbId(database + IGigwaService.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
-                sample.setAdditionalInfo(new HashMap());
+                sample.setAdditionalInfo(new HashMap<>());
                 ExternalReferencesInner ref = new ExternalReferencesInner();
                 for (String key:mgdbSample.getAdditionalInfo().keySet()) {
                     String value = mgdbSample.getAdditionalInfo().get(key).toString();
