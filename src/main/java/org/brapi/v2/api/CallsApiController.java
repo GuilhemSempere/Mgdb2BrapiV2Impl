@@ -56,7 +56,9 @@ import htsjdk.variant.vcf.VCFHeaderLineType;
 import htsjdk.variant.vcf.VCFHeaderVersion;
 import java.util.Date;
 import java.util.Objects;
+import java.util.Set;
 import jhi.brapi.api.Pagination;
+import org.apache.commons.lang.StringUtils;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @CrossOrigin
@@ -119,6 +121,9 @@ public class CallsApiController implements CallsApi {
         response.setMetadata(metadata);
         
         String module = null;
+        Set<String> variantSetDbIds = new HashSet();
+        Set<String> variantIds = new HashSet();
+        Set<Integer> callSetIds = new HashSet();
         for (Call c:callsToUpdate) {
             if (c.getVariantDbId() == null || c.getVariantSetDbId() == null || c.getCallSetDbId() == null) {
                 Status status = new Status();
@@ -127,9 +132,23 @@ public class CallsApiController implements CallsApi {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             } else if (module == null) {
                 module = GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0];
+                variantIds.add(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantDbId(), 2)[1]);
+                callSetIds.add(Integer.valueOf(GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2)[1]));    
+                variantSetDbIds.add(c.getVariantSetDbId());
+                
             } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantSetDbId(), 3)[0])) {
                 Status status = new Status();
                 status.setMessage("You must specify VariantSets belonging to the same program / trial!");
+                response.getMetadata().addStatusItem(status);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getCallSetDbId(), 2)[0])) {
+                Status status = new Status();
+                status.setMessage("You must specify CallSets belonging to the same program / trial!");
+                response.getMetadata().addStatusItem(status);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(c.getVariantDbId(), 2)[0])) {
+                Status status = new Status();
+                status.setMessage("You must specify Variants belonging to the same program / trial!");
                 response.getMetadata().addStatusItem(status);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
@@ -138,6 +157,47 @@ public class CallsApiController implements CallsApi {
         MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
         if (mongoTemplate == null)
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        
+        //check if callSetDbIds, variantDbIds, variantSetDbIds exist
+        Query sQuery = new Query(Criteria.where("_id").in(callSetIds));
+        List<GenotypingSample> samples = mongoTemplate.find(sQuery, GenotypingSample.class); 
+        if (samples.size() < callSetIds.size()) { //at least one sample doesn't exist
+            List<Integer> existingSampleIds = samples.stream().map(GenotypingSample::getId).collect(Collectors.toList());
+            callSetIds.removeAll(existingSampleIds);
+            Status status = new Status();
+            status.setMessage("Those callSetDbIds don't exist: " + callSetIds.toString());
+            response.getMetadata().addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        } 
+        
+        Query vQuery = new Query(Criteria.where("_id").in(variantIds));
+        List<VariantData> variants = mongoTemplate.find(vQuery, VariantData.class); 
+        if (variants.size() < variantIds.size()) { //at least one sample doesn't exist
+            List<String> existingVariantIds = variants.stream().map(VariantData::getId).collect(Collectors.toList());
+            variantIds.removeAll(existingVariantIds);
+            Status status = new Status();
+            status.setMessage("Those variantDbIds don't exist: " + variantIds.toString());
+            response.getMetadata().addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        } 
+        
+        ArrayList<String> missingVariantSets = new ArrayList<>();
+        for (String vsId:variantSetDbIds) {
+            Query q = new Query(new Criteria().andOperator(
+                    Criteria.where("_id." + VariantRunData.VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.valueOf(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[1])),
+                    Criteria.where("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_RUN).is(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[2])
+            ));
+            List<VariantRunData> vrd = mongoTemplate.find(q, VariantRunData.class); 
+            if (vrd == null || vrd.isEmpty()) {
+                missingVariantSets.add(vsId);
+            }
+        }
+        if (!missingVariantSets.isEmpty()) {
+            Status status = new Status();
+            status.setMessage("Those variantSetDbIds don't exist: " + missingVariantSets.toString());
+            response.getMetadata().addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
         
     	// check permissions
     	Collection<Integer> projectIDs = callsToUpdate.stream()
@@ -242,7 +302,7 @@ public class CallsApiController implements CallsApi {
                 }
             }            
             
-            //Check if variant exists
+            //Check if variantRunData exists
             List<VariantRunData> vrd;
             try {
                 vrd = mongoTemplate.find(runQuery, VariantRunData.class);
@@ -358,6 +418,9 @@ public class CallsApiController implements CallsApi {
 
     @Override
     public ResponseEntity<CallsListResponse> searchCallsPost(String authorization, CallsSearchRequest body) {
+        if (body.isExpandHomozygotes() == null) {
+            body.setExpandHomozygotes(Boolean.FALSE);
+        }
         String token = ServerinfoApiController.readToken(authorization);
 
     	CallsListResponse clr = new CallsListResponse();
