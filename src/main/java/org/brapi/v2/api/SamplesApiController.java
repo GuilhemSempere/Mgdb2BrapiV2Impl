@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.io.brapi.BrapiService;
+import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
@@ -255,7 +256,7 @@ public class SamplesApiController implements SamplesApi {
 
                     nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
-                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, auth.getName(), null, sampleIds).values());
+                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, IExportHandler.getLoggedUserName(), null, sampleIds).values());
                     allBrapiSamples.addAll(brapiSamples);
                     firstIndex = 0;
                 }
