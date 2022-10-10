@@ -105,7 +105,7 @@ public class AttributesApiController implements AttributesApi {
 
     		GermplasmAttributeListResponse galr = new GermplasmAttributeListResponse();
         	GermplasmAttributeListResponseResult result = new GermplasmAttributeListResponseResult();
-        	Map<String, Object> v1Attributes = brapiV1Service.germplasmAttributes(request, response, info[0], info[2], pageSize, pageSize);
+        	Map<String, Object> v1Attributes = brapiV1Service.germplasmAttributes(request, response, info[0], info[1], pageSize, pageSize);
         	Collection<Map<String, String>> dataDoc = (Collection<Map<String, String>>) ((Map<String, Object>) v1Attributes.get("result")).get("data");
         	for (Map<String, String> v1DataItem : dataDoc) {
 	        	GermplasmAttribute dataItem = new GermplasmAttribute();
