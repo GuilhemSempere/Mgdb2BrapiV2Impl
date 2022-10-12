@@ -244,7 +244,15 @@ public class GermplasmApiController implements GermplasmApi {
             for (String database : dbsToAccountFor) {
                 for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
                 	
-                	Germplasm germplasm = objectMapper.convertValue(ind.getAdditionalInfo(), Germplasm.class);                	
+                	List synonyms = (List) ind.getAdditionalInfo().get("synonyms");
+            		if (synonyms != null)
+            			for (int i=0; i<synonyms.size(); i++) {
+            				Object syn = synonyms.get(i);
+            				if (syn instanceof String)
+            					synonyms.set(i, new HashMap() {{ put("synonym", syn); }});	// hack synonym object from BrAPI v1 to BrAPI v2 format (avoids IllegalArgumentException)
+            			}
+
+                	Germplasm germplasm = objectMapper.convertValue(ind.getAdditionalInfo(), Germplasm.class);
                 	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
                 	germplasm.setGermplasmName(ind.getId());
 
