@@ -256,7 +256,7 @@ public class SamplesApiController implements SamplesApi {
 
                     nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
-                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, IExportHandler.getLoggedUserName(), null, sampleIds).values());
+                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds).values()); 
                     allBrapiSamples.addAll(brapiSamples);
                     firstIndex = 0;
                 }
@@ -297,13 +297,12 @@ public class SamplesApiController implements SamplesApi {
                 ExternalReferencesInner ref = new ExternalReferencesInner();
                 for (String key:mgdbSample.getAdditionalInfo().keySet()) {
                     String value = mgdbSample.getAdditionalInfo().get(key).toString();
-                    if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
+                    if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId))
                         ref.setReferenceID(value);
-                    } else if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource))  {
+                    else if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource))
                         ref.setReferenceSource(value);                    
-                    } else {
+                    else
                         sample.getAdditionalInfo().put(key, value);
-                    }
                 }
                 if (ref.getReferenceID() != null) {
                     ExternalReferences refs = new ExternalReferences();
