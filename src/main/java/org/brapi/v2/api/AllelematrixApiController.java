@@ -443,11 +443,18 @@ public class AllelematrixApiController implements AllelematrixApi {
         int nTotalSamplesCount = 0;
         if (sampleIDs != null && !sampleIDs.isEmpty()) {	// project necessary fields to get only the required genotypes
             runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
+            nTotalSamplesCount = sampleIDs.size();
+            if (callSetsPage * numberOfCallSetsPerPage >= sampleIDs.size()) {
+                sampleIDs = new ArrayList();
+            } else {
+                Integer endOfList = (callSetsPage + 1) * numberOfCallSetsPerPage >= sampleIDs.size() ? sampleIDs.size() : (callSetsPage + 1) * numberOfCallSetsPerPage;
+                sampleIDs = sampleIDs.subList(callSetsPage * numberOfCallSetsPerPage, endOfList);
+            }            
             for (Integer s : sampleIDs) {
                 //String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 3);
                 runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + s);
-            }
-            nTotalSamplesCount = sampleIDs.size();
+            }            
+            
         } else {	// find out which samples are involved and keep track of corresponding individuals
             Query sampleQuery;
             if (fGotVariantSetList) {
