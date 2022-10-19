@@ -61,7 +61,7 @@ public interface AllelematrixApi {
             @Parameter(in = ParameterIn.QUERY, description = "The string to use as a representation for missing data", schema = @Schema()) @Valid @RequestParam(value = "unknownString", required = false) String unknownString, 
             @Parameter(in = ParameterIn.QUERY, description = "The string to use as a separator for phased allele calls", schema = @Schema()) @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased, 
             @Parameter(in = ParameterIn.QUERY, description = "The string to use as a separator for unphased allele calls", schema = @Schema()) @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased, 
-            @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>", schema = @Schema()) @RequestHeader(value = "Authorization", required = false) String authorization);
+            @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>", schema = @Schema()) @RequestHeader(value = "Authorization", required = false) String authorization) throws InterruptedException;
     
     @Operation(summary = "Submit a search request for a Allele Matrix", description = "Use this endpoint to retrieve a two dimensional matrix of genotype data. The response structure is based on the VCF format, but the search and filter parameters give the ability to slice and merge data sets. This allows the user to return the subset of data they are interested in, without having to download the entire genotype file. <br/>Each row of data (outer array) corresponds to a variant definition, and each column (inner array) corresponds to a callSet.  <br/>Search requests allow a client to send a complex query for data. However, the server may not respond with the search results immediately. If a server needs more time to process the request, it might respond with a `searchResultsDbId`. Use the corresponding `GET /search/calls/{searchResultsDbId}` to retrieve the results of the search.  <br/>Review the <a target=\"_blank\" href=\"https://wiki.brapi.org/index.php/Search_Services#POST_Search_Entity\">Search Services documentation</a> for additional implementation details.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Allele Matrix" })
@@ -77,6 +77,6 @@ public interface AllelematrixApi {
     ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(
             @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) 
             @RequestHeader(value="Authorization", required=false) String authorization, 
-            @Parameter(in = ParameterIn.DEFAULT, description = "Study Search request", schema=@Schema()) @Valid @RequestBody AlleleMatrixSearchRequest body);
+            @Parameter(in = ParameterIn.DEFAULT, description = "Study Search request", schema=@Schema()) @Valid @RequestBody AlleleMatrixSearchRequest body) throws InterruptedException;
 
 }

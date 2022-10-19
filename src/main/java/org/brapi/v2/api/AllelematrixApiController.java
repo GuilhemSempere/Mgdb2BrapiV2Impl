@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
@@ -73,7 +74,7 @@ public class AllelematrixApiController implements AllelematrixApi {
     @Override
     public ResponseEntity<AlleleMatrixResponse> allelematrixGet(Integer dimensionVariantPage, Integer dimensionVariantPageSize, Integer dimensionCallSetPage, Integer dimensionCallSetPageSize,
             Boolean preview, String dataMatrixAbbreviations, String positionRange, String germplasmDbId, String germplasmName, String germplasmPUI, String callSetDbId,
-            String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString,String sepPhased, String sepUnphased, String authorization) {
+            String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString,String sepPhased, String sepUnphased, String authorization) throws InterruptedException {
         
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
@@ -140,7 +141,7 @@ public class AllelematrixApiController implements AllelematrixApi {
     }
 
     @Override
-    public ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body) {
+    public ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body) throws InterruptedException {
         String token = ServerinfoApiController.readToken(authorization);
         
         AlleleMatrixResponse response = new AlleleMatrixResponse();        
@@ -478,35 +479,29 @@ public class AllelematrixApiController implements AllelematrixApi {
         for (Integer spId : sampleIDs)
             callSetIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);    	
         
-        //count variants 
-        Integer nTotalMarkerCount = null;
-        MatchOperation match = Aggregation.match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-        GroupOperation group = Aggregation.group("_id", "$_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID);
-        CountOperation count = new CountOperation("countResult");
-        if (fGotVariantSetList && crits.size() == 1) {	// we need the overall variant counts in a list of VariantSets: check cache before counting
-            int n = 0;            
-        	try {
-        		for (String variantSetDbId : body.getVariantSetDbIds())
-        			n += brapiCache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount();
-        		nTotalMarkerCount = n;
-			} catch (Exception e) {}
-        }
-        if (nTotalMarkerCount == null) {
-	        Aggregation aggregation = Aggregation.newAggregation(match, group, count).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
-	        AggregationResults<Document> countVar = mongoTemplate.aggregate(aggregation, VariantRunData.class, Document.class);
-            nTotalMarkerCount = countVar.getUniqueMappedResult() == null ? 0 : countVar.getUniqueMappedResult().getInteger("countResult");
-        }
-
-        AlleleMatrixPagination variantPagination = new AlleleMatrixPagination();
-        variantPagination.setDimension(AlleleMatrixPagination.DimensionEnum.VARIANTS);
-        variantPagination.setPage(variantsPage);
-        variantPagination.setPageSize(numberOfMarkersPerPage);
-        variantPagination.setTotalCount(nTotalMarkerCount);
-        int nbOfPages =  nTotalMarkerCount / numberOfMarkersPerPage;
-        if (nTotalMarkerCount % numberOfMarkersPerPage > 0) {
-            nbOfPages++;
-        }
-        variantPagination.setTotalPages(nbOfPages);
+        //count variants
+        AtomicInteger nTotalMarkerCount = new AtomicInteger(-1);
+        final boolean finalGotVariantSetList = fGotVariantSetList;
+        Thread countThread = new Thread() {	// count asynchronously for faster response
+        	public void run() {
+                MatchOperation match = Aggregation.match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+                GroupOperation group = Aggregation.group("_id", "$_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID);
+                if (finalGotVariantSetList && crits.size() == 1) {	// we need the overall variant counts in a list of VariantSets: check cache before counting
+                    int n = 0;            
+                	try {
+                		for (String variantSetDbId : body.getVariantSetDbIds())
+                			n += brapiCache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount();
+                		nTotalMarkerCount.set(n);
+        			} catch (Exception e) {}
+                }
+                if (nTotalMarkerCount.get() == -1) {
+        	        Aggregation aggregation = Aggregation.newAggregation(match, group, new CountOperation("countResult")).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+        	        AggregationResults<Document> countVar = mongoTemplate.aggregate(aggregation, VariantRunData.class, Document.class);
+                    nTotalMarkerCount.set(countVar.getUniqueMappedResult() == null ? 0 : countVar.getUniqueMappedResult().getInteger("countResult"));
+                }
+        	}
+        };
+        countThread.start();
 
         AlleleMatrixPagination callSetPagination = new AlleleMatrixPagination();
         callSetPagination.setDimension(AlleleMatrixPagination.DimensionEnum.CALLSETS);
@@ -518,12 +513,9 @@ public class AllelematrixApiController implements AllelematrixApi {
             nbOfCallSetPages++;
         }
         callSetPagination.setTotalPages(nbOfCallSetPages);            
-
-        result.setPagination(Arrays.asList(variantPagination, callSetPagination));
         
-        if (body.isPreview()) { //don't return dataMatrices
-            return new ResponseEntity<>(response, HttpStatus.OK); 
-        }
+        if (body.isPreview())
+            return new ResponseEntity<>(response, HttpStatus.OK); //don't return dataMatrices
 
         try {            
             List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, variantsPage * numberOfMarkersPerPage, numberOfMarkersPerPage);
@@ -666,6 +658,18 @@ public class AllelematrixApiController implements AllelematrixApi {
             result.setVariantDbIds(variantIds);
             result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));            
             result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
+            
+            countThread.join();
+            AlleleMatrixPagination variantPagination = new AlleleMatrixPagination();
+            variantPagination.setDimension(AlleleMatrixPagination.DimensionEnum.VARIANTS);
+            variantPagination.setPage(variantsPage);
+            variantPagination.setPageSize(numberOfMarkersPerPage);
+            variantPagination.setTotalCount(nTotalMarkerCount.get());
+            int nbOfPages = nTotalMarkerCount.get() / numberOfMarkersPerPage;
+            if (nTotalMarkerCount.get() % numberOfMarkersPerPage > 0)
+                nbOfPages++;
+            variantPagination.setTotalPages(nbOfPages);
+            result.setPagination(Arrays.asList(variantPagination, callSetPagination));
 
             return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
         } catch (Exception e) {
