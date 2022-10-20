@@ -8,7 +8,7 @@ package org.brapi.v2.api;
 import javax.validation.Valid;
 
 import org.brapi.v2.model.CallsResponse;
-import org.brapi.v2.model.WSMIMEDataTypes;
+import org.brapi.v2.model.ContentTypes;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +39,6 @@ public interface ServerinfoApi {
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + serverinfoGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<CallsResponse> serverinfoGet(@ApiParam(value = "The data format supported by the calls.") @Valid @RequestParam(value = "dataType", required = false) WSMIMEDataTypes dataType, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<CallsResponse> serverinfoGet(@ApiParam(value = "The data format supported by the calls.") @Valid @RequestParam(value = "dataType", required = false) ContentTypes dataType, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }

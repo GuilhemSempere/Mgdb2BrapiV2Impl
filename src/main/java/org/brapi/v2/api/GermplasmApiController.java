@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -20,7 +19,6 @@ import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmListResponseResult;
-import org.brapi.v2.model.GermplasmNewRequest.BiologicalStatusOfAccessionCodeEnum;
 import org.brapi.v2.model.GermplasmSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
@@ -46,10 +44,8 @@ import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
-import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
@@ -134,8 +130,8 @@ public class GermplasmApiController implements GermplasmApi {
         	boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
         	boolean fGotExtRefs = body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty();
         	
-                HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
-                Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
+            HashMap<String, Collection<String>> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
+            Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
         	List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
         	if (!projectsByModuleFromSpecifiedStudies.isEmpty())
         		moduleSetsToIntersect.add(projectsByModuleFromSpecifiedStudies.keySet());
@@ -243,90 +239,30 @@ public class GermplasmApiController implements GermplasmApi {
                  }
             }
 
-        	String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
             for (String database : dbsToAccountFor) {
                 for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null).values()) {
-                	Germplasm germplasm = new Germplasm();
+                	
+                	List synonyms = (List) ind.getAdditionalInfo().get("synonyms");
+            		if (synonyms != null)
+            			for (int i=0; i<synonyms.size(); i++) {
+            				Object syn = synonyms.get(i);
+            				if (syn instanceof String)
+            					synonyms.set(i, new HashMap() {{ put("synonym", syn); }});	// hack synonym object from BrAPI v1 to BrAPI v2 format (avoids IllegalArgumentException)
+            			}
+
+                	Germplasm germplasm = objectMapper.convertValue(ind.getAdditionalInfo(), Germplasm.class);
                 	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
                 	germplasm.setGermplasmName(ind.getId());
 
-	                // Add the extRefId and extRefSrc to externalReferences. If extRefSrc is sample, then the externalReferences id will be the sample germplasmDbId                        
-	                if (ind.getAdditionalInfo().containsKey(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId)) {
+                	Object extRefId = ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId);
+	                if (extRefId != null) {
 	                    ExternalReferencesInner ref = new ExternalReferencesInner();
-                            ref.setReferenceID(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).toString());
-	                    if (ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource) != null)
+                        ref.setReferenceId(extRefId.toString());
+                        Object extRefSrc= ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource);
+	                    if (extRefSrc != null)
 	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
-	                    germplasm.setExternalReferences(new ExternalReferences() {{ add(ref);}});
-	                }
-
-                	for (String key : ind.getAdditionalInfo().keySet()) {
-                        String sLCkey = key.toLowerCase();
-                        Object val = ind.getAdditionalInfo().get(key);
-                        if (val == null)
-                        	continue;
-
-                        if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey)) {
-                            if (HashMap.class.isAssignableFrom(Map.class))
-                                for (String aiKey : ((Map<String, Object>) val).keySet())
-                                    germplasm.putAdditionalInfoItem(aiKey, Helper.nullToEmptyString(((Map<String, Object>) val).get(aiKey)));
-                            else
-                                germplasm.putAdditionalInfoItem(key, val.toString());
-                        } else {
-                            switch (sLCkey) {
-                                case "defaultdisplayname":
-                                    germplasm.setDefaultDisplayName(val.toString());
-                                    break;
-                                case "accessionnumber":
-                                    germplasm.setAccessionNumber(val.toString());
-                                    break;
-                                case "germplasmpui":
-                                    germplasm.setGermplasmPUI(val.toString());
-                                    break;
-                                case "pedigree":
-                                    germplasm.setPedigree(val.toString());
-                                    break;
-                                case "seedsource":
-                                    germplasm.setSeedSource(val.toString());
-                                    break;
-                                case "commoncropname":
-                                    germplasm.setCommonCropName(val.toString());
-                                    break;
-                                case "institutecode":
-                                    germplasm.setInstituteCode(val.toString());
-                                    break;
-                                case "institutename":
-                                    germplasm.setInstituteName(val.toString());
-                                    break;
-                                case "biologicalstatusofaccessioncode":
-                                    germplasm.setBiologicalStatusOfAccessionCode(BiologicalStatusOfAccessionCodeEnum.fromValue(val.toString()));
-                                    break;
-                                case "biologicalstatusofaccessiondescription":
-                                    germplasm.setBiologicalStatusOfAccessionDescription(val.toString());
-                                    break;
-                                case "countryoforigincode":
-                                    germplasm.setCountryOfOriginCode(val.toString());
-                                    break;
-                                case "genus":
-                                    germplasm.setGenus(val.toString());
-                                    break;
-                                case "species":
-                                    germplasm.setSpecies(val.toString());
-                                    break;
-                                case "speciesauthority":
-                                    germplasm.setSpeciesAuthority(val.toString());
-                                    break;
-                                case "subtaxa":
-                                    germplasm.setSubtaxa(val.toString());
-                                    break;
-                                case "subtaxaauthority":
-                                    germplasm.setSubtaxaAuthority(val.toString());
-                                    break;
-                                case "acquisitiondate":
-                                    germplasm.setAcquisitionDate(val.toString());
-                                    break;
-                            }
-                        }
-                	}                	
+	                    germplasm.setExternalReferences(new ExternalReferences() {{ add(ref); }});
+	                }           	
                 	result.addDataItem(germplasm);
                 }
             }
