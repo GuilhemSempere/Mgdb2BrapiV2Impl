@@ -1,6 +1,5 @@
 package org.brapi.v2.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -8,6 +7,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.brapi.v2.model.Call;
@@ -29,12 +30,11 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.result.UpdateResult;
-import fr.cirad.manager.IModuleManager;
 
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
@@ -43,7 +43,6 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
-import static fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData.GT_FIELD_PHASED_GT;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
@@ -51,17 +50,9 @@ import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
-import htsjdk.variant.vcf.VCFHeaderLineCount;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import htsjdk.variant.vcf.VCFHeaderVersion;
-import java.util.Date;
-import java.util.Objects;
-import java.util.Set;
-import jhi.brapi.api.Pagination;
-import org.apache.commons.lang.StringUtils;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@CrossOrigin
 @Controller
 public class CallsApiController implements CallsApi {
 

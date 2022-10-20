@@ -42,7 +42,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -61,7 +60,6 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 
-@CrossOrigin
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
 

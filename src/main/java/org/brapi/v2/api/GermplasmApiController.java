@@ -33,7 +33,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
@@ -50,7 +49,6 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@CrossOrigin
 @Controller
 public class GermplasmApiController implements GermplasmApi {
 
