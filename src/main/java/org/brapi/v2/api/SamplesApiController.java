@@ -288,7 +288,7 @@ public class SamplesApiController implements SamplesApi {
         List<Sample> brapiSamples = new ArrayList<>();
         for (GenotypingSample mgdbSample : genotypingSamples) {
             Sample sample = new Sample();
-            sample.sampleDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getIndividual(), mgdbSample.getId()));
+            sample.sampleDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getId()));
             sample.germplasmDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getIndividual()));
             sample.setSampleName(mgdbSample.getSampleName());
             sample.studyDbId(database + IGigwaService.ID_SEPARATOR + mgdbSample.getProjectId());
@@ -319,20 +319,18 @@ public class SamplesApiController implements SamplesApi {
     private HashMap<String, Collection<Long>> readSampleIDs(List<String> sampleDbIds) {
         HashMap<String, Collection<Long>> dbSampleIDs = new HashMap<>();
         for (String sId : sampleDbIds) {
-            String[] info = GigwaSearchVariantsRequest.getInfoFromId(sId, 3);
-            if (info == null) {
+            String[] info = GigwaSearchVariantsRequest.getInfoFromId(sId, 2);
+            if (info == null)
                 throw new MalformedParametersException("malformed sampleDbId: " + sId);
-            } else {
-                String db = info[0];            
-                Long id = Long.parseLong(info[2]);
-                Collection<Long> sampleIDs = dbSampleIDs.get(db);
-                if (sampleIDs == null) {
-                   sampleIDs = new ArrayList<>();
-                   dbSampleIDs.put(info[0], sampleIDs);
-                }
-                sampleIDs.add(id);
+
+            String db = info[0];            
+            Long id = Long.parseLong(info[1]);
+            Collection<Long> sampleIDs = dbSampleIDs.get(db);
+            if (sampleIDs == null) {
+               sampleIDs = new ArrayList<>();
+               dbSampleIDs.put(info[0], sampleIDs);
             }
-            
+            sampleIDs.add(id);            
         }
         return dbSampleIDs;   
     }

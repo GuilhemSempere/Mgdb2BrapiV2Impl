@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 import javax.validation.Valid;
 
 import org.apache.commons.collections.IteratorUtils;
-import org.brapi.v2.model.CallListResponse;
+import org.brapi.v2.model.CallsListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.MetadataTokenPagination;
 import org.brapi.v2.model.Status;
@@ -399,18 +399,18 @@ public class VariantsApiController implements VariantsApi {
 //	}
 
 	@Override
-	public ResponseEntity<CallListResponse> variantsVariantDbIdCallsGet(String variantDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String pageToken, Integer pageSize, String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException {
+	public ResponseEntity<CallsListResponse> variantsVariantDbIdCallsGet(String variantDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, Integer page, Integer pageSize, String authorization) throws SocketException, UnknownHostException, UnsupportedEncodingException {
 		CallsSearchRequest csr = new CallsSearchRequest();
 		csr.setExpandHomozygotes(expandHomozygotes);
 		csr.setUnknownString(unknownString);
 		csr.setSepUnphased(sepUnphased);
 		csr.setSepPhased(sepPhased);
 		csr.setPageSize(pageSize);
-		csr.setPageToken(pageToken);
+		csr.setPage(page);
 		if (variantDbId != null)
 			csr.setVariantDbIds(Arrays.asList(variantDbId));
 		
-		return callsApiController.searchCallsPost(csr, authorization);
+		return callsApiController.searchCallsPost(authorization, csr);
 	}
 
 //	@Override
