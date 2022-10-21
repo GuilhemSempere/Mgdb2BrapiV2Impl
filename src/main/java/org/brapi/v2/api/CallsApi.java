@@ -33,6 +33,7 @@ import org.brapi.v2.model.CallsSearchRequest;
 @Api(value = "calls", description = "the calls API", tags={ "Calls" })
 public interface CallsApi {
     public static final String callsGet_url = "calls";
+    public static final String callsPut_url = "calls";
     public static final String searchCallsPost_url = "search/calls";
 
     @Operation(summary = "Gets a filtered list of `Calls`", description = "Gets a filtered list of `Call` JSON objects.", security = {
@@ -42,7 +43,7 @@ public interface CallsApi {
         @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/calls",
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + callsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
     ResponseEntity<CallsListResponse> callsGet(@Parameter(in = ParameterIn.QUERY, description = "The ID which uniquely identifies a `CallSet` within the given database server" ,schema=@Schema()) @Valid @RequestParam(value = "callSetDbId", required = false) String callSetDbId, 
@@ -64,7 +65,7 @@ public interface CallsApi {
         @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/calls",
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + callsPut_url,
         produces = { "application/json" }, 
         consumes = { "application/json" }, 
         method = RequestMethod.PUT)
@@ -78,7 +79,7 @@ public interface CallsApi {
         @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
-    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/search/calls",
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchCallsPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" }, 
         method = RequestMethod.POST)
