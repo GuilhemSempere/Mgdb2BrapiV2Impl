@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.StringUtils;
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
@@ -393,38 +392,24 @@ public class AllelematrixApiController implements AllelematrixApi {
             for (String positionRange:body.getPositionRanges()) {      
                 try {                   
                 	positionRange = positionRange.replaceAll("\\s+", "");
-                    if (positionRange.contains(":") && !positionRange.endsWith(":")) { //filtering on sequence and position  
-                        String[] pr = positionRange.split(":");
-                        String chr = pr[0];
-                        String[] range = pr[1].split("-");
-                        if (pr[1].endsWith("-")) { //filtering on start
-                            int start = Integer.parseInt(range[0]);
-                            vsCrits.add(new Criteria().andOperator(
-                                Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(chr),
-                                Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).gte(start)
-                            ));
-                        } else if(pr[1].startsWith("-")){ //filtering on end
-                            int end = Integer.parseInt(range[1]);
-                            vsCrits.add(new Criteria().andOperator(
-                                    Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(chr),
-                                    Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).lte(end)
-                            ));
-                        } else { //filtering on start and end
-                            int start = Integer.parseInt(range[0]), end = Integer.parseInt(range[range.length - 1]);
-                            vsCrits.add(new Criteria().andOperator(
-                                Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(chr),
-                                Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).gte(start), 
-                                Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).lte(end)
-                            ));                        
-                        }
-                        //TODO take into account variant endsite
+                    String[] pr = positionRange.split(":");
+                    if (pr.length > 2)
+                    	throw new Exception("Only one colon is supported in positionRange strings"); // will be caught below
 
-                    } else { //filtering only on sequence
-                        if (positionRange.endsWith(":")) { 
-                            positionRange = StringUtils.chop(positionRange);
+                    Criteria posCrits = Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(pr[0]);
+                    if (pr.length == 2) {
+                    	String[] range = pr[1].split("-");
+                        if (!range[0].isEmpty() && !pr[1].startsWith("-")) {
+                        	int start = Integer.parseInt(range[0]);
+                        	posCrits.orOperator(Arrays.asList(
+                        		Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).gte(start),
+                        		Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_END_SITE).gte(start)
+                        	));
                         }
-                        vsCrits.add(Criteria.where(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_SEQUENCE).is(positionRange));
+                        if (!range[range.length - 1].isEmpty() && !pr[1].endsWith("-"))
+                        	posCrits.and(VariantRunData.FIELDNAME_REFERENCE_POSITION + "." + FIELDNAME_START_SITE).lte(Integer.parseInt(range[range.length - 1]));
                     }
+                    vsCrits.add(posCrits);
                 } catch (Exception e) {
                     Status status = new Status();
                     status.setMessage("Can't read positionRange: " + positionRange);
@@ -483,7 +468,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         Thread countThread = new Thread() {	// count asynchronously for faster response
         	public void run() {
                 MatchOperation match = Aggregation.match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-                GroupOperation group = Aggregation.group("_id", "$_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID);
+                GroupOperation group = Aggregation.group("$_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID);
                 if (finalGotVariantSetList && crits.size() == 1) {	// we need the overall variant counts in a list of VariantSets: check cache before counting
                     int n = 0;            
                 	try {
@@ -507,9 +492,8 @@ public class AllelematrixApiController implements AllelematrixApi {
         callSetPagination.setPageSize(numberOfCallSetsPerPage);
         callSetPagination.setTotalCount(nTotalSamplesCount);
         int nbOfCallSetPages =  nTotalSamplesCount / numberOfCallSetsPerPage;
-        if (nTotalSamplesCount % numberOfCallSetsPerPage > 0) {
+        if (nTotalSamplesCount % numberOfCallSetsPerPage > 0)
             nbOfCallSetPages++;
-        }
         callSetPagination.setTotalPages(nbOfCallSetPages);            
         
         if (body.isPreview())
@@ -597,7 +581,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             List<String> variantIds = new ArrayList<>();            
             Set<String> variantSetDbIds = new HashSet<>();
  
-            for (AbstractVariantData v : varList) {
+            variantLoop: for (AbstractVariantData v : varList) {
                 VariantRunData vrd = (VariantRunData) v;
                 
                 variantSetDbIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + Integer.toString(vrd.getId().getProjectId()) + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getRunName());
@@ -609,6 +593,9 @@ public class AllelematrixApiController implements AllelematrixApi {
                     dataMap.put(key, new ArrayList<>());
 
                 for (Integer spId : sampleIDs) {
+                	 if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
+                		 break variantLoop;
+
                     SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
                     if (sg != null) {
                         String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
@@ -630,11 +617,10 @@ public class AllelematrixApiController implements AllelematrixApi {
                                 } else {
                                     List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
                                     String sep = "/";
-                                    if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
+                                    if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
                                         dataMap.get(key).add(gtCode.split(sep)[0]);
-                                    } else {
+                                    else
                                         dataMap.get(key).add(gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator));
-                                    }
                                 }
                             }
                         }                        
@@ -646,14 +632,15 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
 
                 //Filling metadataMatrices with data (additionalInfo of VariantRunData will be displayed only if the key has been described in DBVCFheader)
-                for (String key:matricesMap.keySet()) {
+                for (String key:matricesMap.keySet())
                     matricesMap.get(key).getDataMatrix().add(dataMap.get(key));
-                }
             }
                 
             result.setCallSetDbIds(callSetIds);
             result.setVariantDbIds(variantIds);
-            result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));            
+            result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));
+            if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
+            	matricesMap.values().forEach(dm -> dm.dataMatrix(new ArrayList<>()));	// There is actually nothing to return
             result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
             
             countThread.join();
