@@ -470,7 +470,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         			} catch (Exception e) {}
                 }
                 if (nTotalMarkerCount.get() == -1) {
-                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5(new TreeSet<>(body.getVariantSetDbIds()).toString() + "::" + new TreeSet<>(body.getPositionRanges()).toString());
+                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5(new TreeSet<>(body.getVariantSetDbIds()).toString() + "::" + (body.getPositionRanges() == null ? "" : new TreeSet<>(body.getPositionRanges()).toString()));
                 	Long cachedCount = BrapiCachedCount.getCachedCount(mongoTemplate, queryKey, BrapiCachedCount.class);
                 	if (cachedCount != null)
                 		nTotalMarkerCount.set(cachedCount);
