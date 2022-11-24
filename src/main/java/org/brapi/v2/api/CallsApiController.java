@@ -543,7 +543,7 @@ public class CallsApiController implements CallsApi {
             numberOfSamples = sampleIndividuals.size();
         }
 
-        int page = body.getPage() == null ? 1000 : body.getPage();        
+        int page = body.getPage() == null ? 0 : body.getPage();        
         int pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
         
 	//int theoriticalPageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
@@ -557,7 +557,10 @@ public class CallsApiController implements CallsApi {
     	String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
     	String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
     	String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();
+        result.setSepPhased(phasedSeparator);
     	result.setSepUnphased(unPhasedSeparator);
+        result.setUnknownString(unknownGtCode);
+        result.setExpandHomozygotes(body.isExpandHomozygotes());        
 
         try {
             List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersPerPage, numberOfMarkersPerPage);

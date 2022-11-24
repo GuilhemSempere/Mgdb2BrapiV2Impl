@@ -61,6 +61,14 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import java.util.Comparator;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
+import static org.springframework.data.mongodb.core.aggregation.ArrayOperators.IndexOfArray.arrayOf;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
@@ -277,8 +285,8 @@ public class AllelematrixApiController implements AllelematrixApi {
             	sampleIDs.add(s.getId());
         }
     	
-        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
-            List<Integer> callSetIds = new ArrayList<>();
+        List<Integer> callSetIds = new ArrayList<>();
+        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {            
             for (String callSetDbId : body.getCallSetDbIds()) {
                 String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
                 if (module == null)
@@ -322,7 +330,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         }
 
         if (sampleIDs != null && !sampleIDs.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
-            List<GenotypingSample> samples = MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class);
+            List<GenotypingSample> samples = MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class);            
             if (samples.isEmpty()) //return empty dataMatrices
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
             else {
@@ -376,8 +384,9 @@ public class AllelematrixApiController implements AllelematrixApi {
             crits.add(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
         }
 
+        List<String> varIDs = null;
         if (fGotVariantList) {
-            List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
+            varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
             crits.add(Criteria.where("_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
         }
         
@@ -419,6 +428,11 @@ public class AllelematrixApiController implements AllelematrixApi {
     	// now deal with samples
         int nTotalSamplesCount = 0;
         if (sampleIDs != null && !sampleIDs.isEmpty()) {	// project necessary fields to get only the required genotypes
+            if (!callSetIds.isEmpty()) {
+                final List<Integer> sIds = callSetIds;
+                sampleIDs.sort(Comparator.comparing(v->sIds.indexOf(v)));  //sort samples in the same order as callSetDbIds
+            }
+            
             runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
             nTotalSamplesCount = sampleIDs.size();
             if (callSetsPage * numberOfCallSetsPerPage >= sampleIDs.size())
@@ -449,9 +463,9 @@ public class AllelematrixApiController implements AllelematrixApi {
             for (GenotypingSample gs : mongoTemplate.find(sampleQuery.skip(callSetsPage * numberOfCallSetsPerPage).limit(numberOfCallSetsPerPage), GenotypingSample.class))
             	sampleIDs.add(gs.getId());
         }
-        List<String> callSetIds = new ArrayList<>();
+        List<String> callSetDbIds = new ArrayList<>();
         for (Integer spId : sampleIDs)
-            callSetIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);    	
+            callSetDbIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);    	
         
         //count variants
         AtomicLong nTotalMarkerCount = new AtomicLong(-1);
@@ -463,23 +477,24 @@ public class AllelematrixApiController implements AllelematrixApi {
                 GroupOperation group = Aggregation.group("$_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID);
                 if (finalGotVariantSetList && crits.size() == 1) {	// we need the overall variant counts in a list of VariantSets: check cache before counting
                     int n = 0;            
-                	try {
-                		for (String variantSetDbId : body.getVariantSetDbIds())
-                			n += brapiCache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount();
-                		nTotalMarkerCount.set(n);
-        			} catch (Exception e) {}
+                    try {
+                        for (String variantSetDbId : body.getVariantSetDbIds())
+                            n += brapiCache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount();
+                        nTotalMarkerCount.set(n);
+                    } catch (Exception e) {}
                 }
                 if (nTotalMarkerCount.get() == -1) {
-                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5(new TreeSet<>(body.getVariantSetDbIds()).toString() + "::" + (body.getPositionRanges() == null ? "" : new TreeSet<>(body.getPositionRanges()).toString()));
+                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5(new TreeSet<>(body.getVariantSetDbIds()).toString() + "::" + (body.getPositionRanges() == null ? "" : new TreeSet<>(body.getPositionRanges()).toString())
+                                + "::" + (body.getVariantDbIds() == null ? "" : new TreeSet<>(body.getVariantDbIds()).toString()));
                 	Long cachedCount = BrapiCachedCount.getCachedCount(mongoTemplate, queryKey, BrapiCachedCount.class);
                 	if (cachedCount != null)
                 		nTotalMarkerCount.set(cachedCount);
-                    else {
-	        	        Aggregation aggregation = Aggregation.newAggregation(match, group, new CountOperation("countResult")).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
-	        	        AggregationResults<Document> countVar = mongoTemplate.aggregate(aggregation, VariantRunData.class, Document.class);
-	                    nTotalMarkerCount.set(countVar.getUniqueMappedResult() == null ? 0 : countVar.getUniqueMappedResult().getInteger("countResult"));
-	                    BrapiCachedCount.saveCachedCount(mongoTemplate, queryKey, Arrays.asList(nTotalMarkerCount.get()));
-                    }
+                        else {
+                            Aggregation aggregation = Aggregation.newAggregation(match, group, new CountOperation("countResult")).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+                            AggregationResults<Document> countVar = mongoTemplate.aggregate(aggregation, VariantRunData.class, Document.class);
+                            nTotalMarkerCount.set(countVar.getUniqueMappedResult() == null ? 0 : countVar.getUniqueMappedResult().getInteger("countResult"));
+                            BrapiCachedCount.saveCachedCount(mongoTemplate, queryKey, Arrays.asList(nTotalMarkerCount.get()));
+                        }
                 }
                 log.debug("alleleMatrix variant totalCount obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
         	}
@@ -499,9 +514,19 @@ public class AllelematrixApiController implements AllelematrixApi {
         if (body.isPreview())
             return new ResponseEntity<>(response, HttpStatus.OK); //don't return dataMatrices
 
-        try {            
-            List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, variantsPage * numberOfMarkersPerPage, numberOfMarkersPerPage);
-            
+        try {       
+            List<? extends AbstractVariantData> varList;
+            if (fGotVariantList) {
+                //use aggregation to keep the order of variantDbIds
+                MatchOperation match = match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+                AddFieldsOperation addFields = AddFieldsOperation.addField("_order").withValue(arrayOf(varIDs).indexOf("$_id." + VariantRunData.VariantRunDataId.FIELDNAME_VARIANT_ID)).build();
+                SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_order"));
+                Aggregation aggregation = Aggregation.newAggregation(match, addFields, sort, Aggregation.skip(variantsPage * numberOfMarkersPerPage), Aggregation.limit(numberOfMarkersPerPage)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+                AggregationResults<VariantRunData> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunData.class);
+                varList = results.getMappedResults();
+            } else {
+                varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, variantsPage * numberOfMarkersPerPage, numberOfMarkersPerPage);
+            }
             Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
             
             //try retrieving metadata information from DBVCFHeader collection
@@ -636,7 +661,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     matricesMap.get(key).getDataMatrix().add(dataMap.get(key));
             }
                 
-            result.setCallSetDbIds(callSetIds);
+            result.setCallSetDbIds(callSetDbIds);
             result.setVariantDbIds(variantIds);
             result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));
             if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
