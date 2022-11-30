@@ -62,6 +62,7 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 import java.util.Comparator;
+import java.util.Iterator;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
@@ -163,11 +164,11 @@ public class AllelematrixApiController implements AllelematrixApi {
         int numberOfMarkersPerPage = 1000;
         int variantsPage = 0;
 
-        if (body.getPagination() != null) {
+        if (body.getPagination() != null && !body.getPagination().isEmpty()) {
             for (AlleleMatrixSearchRequestPagination pagination:body.getPagination()) {
             	if (pagination.getDimension() == null)  {
                     Status status = new Status();
-                    status.setMessage("Invalid pagination dimension specified, only 'VARIANTS' and 'CALLSETS' are accepeted!");
+                    status.setMessage("Invalid pagination dimension specified, only 'VARIANTS' and 'CALLSETS' are accepted!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -500,20 +501,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         	}
         };
         countThread.start();
-
-        AlleleMatrixPagination callSetPagination = new AlleleMatrixPagination();
-        callSetPagination.setDimension(AlleleMatrixPagination.DimensionEnum.CALLSETS);
-        callSetPagination.setPage(callSetsPage);
-        callSetPagination.setPageSize(numberOfCallSetsPerPage);
-        callSetPagination.setTotalCount(nTotalSamplesCount);
-        int nbOfCallSetPages =  nTotalSamplesCount / numberOfCallSetsPerPage;
-        if (nTotalSamplesCount % numberOfCallSetsPerPage > 0)
-            nbOfCallSetPages++;
-        callSetPagination.setTotalPages(nbOfCallSetPages);            
         
-        if (body.isPreview())
-            return new ResponseEntity<>(response, HttpStatus.OK); //don't return dataMatrices
-
         try {       
             List<? extends AbstractVariantData> varList;
             if (fGotVariantList) {
@@ -545,22 +533,22 @@ public class AllelematrixApiController implements AllelematrixApi {
                 filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, new Document("$in", projectIDs)); // we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
                         
             if (body.getDataMatrixAbbreviations() != null && !body.getDataMatrixAbbreviations().isEmpty()) {
-	            MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
-	            Document fields = new Document();
-	            boolean fReturnGenotypes = false;
+                MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
+                Document fields = new Document();
+                boolean fReturnGenotypes = false;
                 for (String key:body.getDataMatrixAbbreviations()) {
                     fields.put(DBVCFHeader.FIELDNAME_FORMAT_METADATA + "." + key, 1);
                     if ("GT".equals(key))
-                    	fReturnGenotypes = true;
+                        fReturnGenotypes = true;
                 }
-	            
-	            MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).projection(fields).iterator();
-	            while (headerCursor.hasNext()) {
-	                DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
-	                Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData();
-	                if (vcfMetadata != null) {
-	                    for (String key:vcfMetadata.keySet())
-	                    	if (!"GT".equals(key)) {
+
+                MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).projection(fields).iterator();
+                while (headerCursor.hasNext()) {
+                    DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
+                    Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData();
+                    if (vcfMetadata != null) {
+                        for (String key:vcfMetadata.keySet())
+                            if (!"GT".equals(key)) {
 	//                        if (body.getDataMatrixNames() != null && !body.getDataMatrixNames().isEmpty()) {
 	//                            if (vcfMetadata.get(key).getDescription() != null) {
 	//                                if (body.getDataMatrixNames().contains(vcfMetadata.get(key).getDescription())) {
@@ -577,31 +565,31 @@ public class AllelematrixApiController implements AllelematrixApi {
 	//                                }
 	//                            }
 	//                        } else { 
-	                            AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
-	                            matrix.setDataMatrix(new ArrayList<>());
-	                            matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
-	                            matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
-	                            VCFHeaderLineType type = vcfMetadata.get(key).getType();
-	                            DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
-	                            matrix.setDataType(brapiType);
-	                            if (matricesMap.get(key) == null)
-	                                matricesMap.put(key, matrix);                                          
-	//                        }
-	                    }
-	                }
+                                AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
+                                matrix.setDataMatrix(new ArrayList<>());
+                                matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
+                                matrix.setDataMatrixName(vcfMetadata.get(key).getDescription());
+                                VCFHeaderLineType type = vcfMetadata.get(key).getType();
+                                DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
+                                matrix.setDataType(brapiType);
+                                if (matricesMap.get(key) == null)
+                                    matricesMap.put(key, matrix);                        
+            //                        }
+                            }
+                        }                           
 	            }             
-            
-	            if (fReturnGenotypes) {
-	                //add GT matrix in the case of data with no VCFheader metadata
-	                AlleleMatrixDataMatrices gtMmatrix = new AlleleMatrixDataMatrices();
-	                gtMmatrix.setDataMatrix(new ArrayList<>());
-	                gtMmatrix.setDataMatrixAbbreviation("GT");
-	                gtMmatrix.setDataMatrixName("Genotype");
-	                gtMmatrix.setDataType(DataTypeEnum.STRING);
-	                matricesMap.put("GT", gtMmatrix);
-	            }
-            }
 
+                    if (fReturnGenotypes) {
+                        //add GT matrix in the case of data with no VCFheader metadata
+                        AlleleMatrixDataMatrices gtMmatrix = new AlleleMatrixDataMatrices();
+                        gtMmatrix.setDataMatrix(new ArrayList<>());
+                        gtMmatrix.setDataMatrixAbbreviation("GT");
+                        gtMmatrix.setDataMatrixName("Genotype");
+                        gtMmatrix.setDataType(DataTypeEnum.STRING);
+                        matricesMap.put("GT", gtMmatrix);
+                    }
+                }
+            
             HashMap<Integer, String> previousPhasingIds = new HashMap<>();
             List<String> variantIds = new ArrayList<>();            
             Set<String> variantSetDbIds = new HashSet<>();
@@ -612,63 +600,68 @@ public class AllelematrixApiController implements AllelematrixApi {
                 variantSetDbIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + Integer.toString(vrd.getId().getProjectId()) + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getRunName());
                 variantIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getVariantId());
 
-                Map<String, List<String>> dataMap= new HashMap<>(); //key="GT", value=List<GT> list of genotypes of these variant
-                                                                    //key="DP", value=List<DP> list of DP of these variant
-                for (String key:matricesMap.keySet())
-                    dataMap.put(key, new ArrayList<>());
+                if (!body.isPreview()) {  //we don't fill dataMatrices if preview=true
+                    Map<String, List<String>> dataMap= new HashMap<>(); //key="GT", value=List<GT> list of genotypes of these variant
+                                                                        //key="DP", value=List<DP> list of DP of these variant
+                    for (String key:matricesMap.keySet())
+                        dataMap.put(key, new ArrayList<>());
 
-                for (Integer spId : sampleIDs) {
-                	 if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
-                		 break variantLoop;
+                    for (Integer spId : sampleIDs) {
+                             if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
+                                     break variantLoop;
 
-                    SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
-                    if (sg != null) {
-                        String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
-                        boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-                        previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/                        
+                        SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
+                        if (sg != null) {
+                            String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
+                            boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
+                            previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);	/*FIXME: check that phasing data is correctly exported*/                        
 
-                        Map<String, Object> ai = sg.getAdditionalInfo();
-                        for (String key:matricesMap.keySet()) {
-                            if (!key.equals("GT")) {  //adding additionalInfo
-                                if (ai.get(key) != null) {
-                                    dataMap.get(key).add(ai.get(key).toString());
-                                } else {
-                                    dataMap.get(key).add(unknownGtCode);
+                            Map<String, Object> ai = sg.getAdditionalInfo();
+                            for (String key:matricesMap.keySet()) {
+                                if (!key.equals("GT")) {  //adding additionalInfo
+                                    if (ai.get(key) != null) {
+                                        dataMap.get(key).add(ai.get(key).toString());
+                                    } else {
+                                        dataMap.get(key).add(unknownGtCode);
+                                    }
+                                } else {  //adding genotypes
+                                    String gtCode = sg.getCode();
+                                    if (gtCode == null || gtCode.length() == 0) {
+                                        dataMap.get(key).add(unknownGtCode);
+                                    } else {
+                                        List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
+                                        String sep = "/";
+                                        if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
+                                            dataMap.get(key).add(gtCode.split(sep)[0]);
+                                        else
+                                            dataMap.get(key).add(gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator));
+                                    }
                                 }
-                            } else {  //adding genotypes
-                                String gtCode = sg.getCode();
-                                if (gtCode == null || gtCode.length() == 0) {
-                                    dataMap.get(key).add(unknownGtCode);
-                                } else {
-                                    List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-                                    String sep = "/";
-                                    if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
-                                        dataMap.get(key).add(gtCode.split(sep)[0]);
-                                    else
-                                        dataMap.get(key).add(gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator));
-                                }
+                            }                        
+                        } else {
+                            for (String key:matricesMap.keySet()) {
+                                dataMap.get(key).add(unknownGtCode);
                             }
-                        }                        
-                    } else {
-                        for (String key:matricesMap.keySet()) {
-                            dataMap.get(key).add(unknownGtCode);
                         }
                     }
-                }
 
-                //Filling metadataMatrices with data (additionalInfo of VariantRunData will be displayed only if the key has been described in DBVCFheader)
-                for (String key:matricesMap.keySet())
-                    matricesMap.get(key).getDataMatrix().add(dataMap.get(key));
-            }
-                
-            result.setCallSetDbIds(callSetDbIds);
-            result.setVariantDbIds(variantIds);
-            result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));
-            if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
-            	matricesMap.values().forEach(dm -> dm.dataMatrix(new ArrayList<>()));	// There is actually nothing to return
-            result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
+                    //Filling metadataMatrices with data (additionalInfo of VariantRunData will be displayed only if the key has been described in DBVCFheader)
+                    for (String key:matricesMap.keySet())
+                        matricesMap.get(key).getDataMatrix().add(dataMap.get(key));
+                }
+            }  
             
-            countThread.join();
+                    
+            //Set pagination
+            AlleleMatrixPagination callSetPagination = new AlleleMatrixPagination();
+            callSetPagination.setDimension(AlleleMatrixPagination.DimensionEnum.CALLSETS);
+            callSetPagination.setPage(callSetsPage);
+            callSetPagination.setPageSize(numberOfCallSetsPerPage);
+            callSetPagination.setTotalCount(nTotalSamplesCount);
+            int nbOfCallSetPages =  nTotalSamplesCount / numberOfCallSetsPerPage;
+            if (nTotalSamplesCount % numberOfCallSetsPerPage > 0)
+                nbOfCallSetPages++;
+            callSetPagination.setTotalPages(nbOfCallSetPages);  
             AlleleMatrixPagination variantPagination = new AlleleMatrixPagination();
             variantPagination.setDimension(AlleleMatrixPagination.DimensionEnum.VARIANTS);
             variantPagination.setPage(variantsPage);
@@ -679,6 +672,21 @@ public class AllelematrixApiController implements AllelematrixApi {
                 nbOfPages++;
             variantPagination.setTotalPages(nbOfPages);
             result.setPagination(Arrays.asList(variantPagination, callSetPagination));
+
+            result.setCallSetDbIds(callSetDbIds);
+            result.setVariantDbIds(variantIds);
+            result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));
+            //When preview = true, return only pagination
+            if (body.isPreview()) {
+                return new ResponseEntity<>(response, HttpStatus.OK); //don't return dataMatrices
+            }  
+            
+            
+            if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
+            	matricesMap.values().forEach(dm -> dm.dataMatrix(new ArrayList<>()));	// There is actually nothing to return
+            result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
+            
+            countThread.join();            
 
             return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -708,5 +716,5 @@ public class AllelematrixApiController implements AllelematrixApi {
         response.getResult().setVariantSetDbIds(new ArrayList<>());
         return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
     }
-
-}
+    
+            }
