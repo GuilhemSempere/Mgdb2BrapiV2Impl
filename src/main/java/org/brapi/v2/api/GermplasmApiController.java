@@ -254,13 +254,13 @@ public class GermplasmApiController implements GermplasmApi {
                 	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
                 	germplasm.setGermplasmName(ind.getId());
 
-                	Object extRefId = ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId);
+                	Object extRefId = ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceId);
 	                if (extRefId != null) {
 	                    ExternalReferencesInner ref = new ExternalReferencesInner();
                         ref.setReferenceId(extRefId.toString());
-                        Object extRefSrc= ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource);
+                        Object extRefSrc= ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceSource);
 	                    if (extRefSrc != null)
-	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
+	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceSource).toString());
 	                    germplasm.setExternalReferences(new ExternalReferences() {{ add(ref); }});
 	                }           	
                 	result.addDataItem(germplasm);
