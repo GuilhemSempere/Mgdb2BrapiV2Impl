@@ -1,5 +1,7 @@
 package org.brapi.v2.api;
 
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -11,6 +13,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.brapi.v2.api.cache.MongoBrapiCache;
+import org.brapi.v2.model.AlleleMatrix;
+import org.brapi.v2.model.AlleleMatrixDataMatrices;
+import org.brapi.v2.model.AlleleMatrixPagination;
+import org.brapi.v2.model.AlleleMatrixResponse;
+import org.brapi.v2.model.AlleleMatrixSearchRequest;
+import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
 import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallGenotypeMetadata;
 import org.brapi.v2.model.CallsListResponse;
@@ -19,6 +28,7 @@ import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
+import org.brapi.v2.model.VariantSetMetadataFields;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,28 +52,13 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
-import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.logging.Level;
-import jhi.brapi.api.Pagination;
-import org.brapi.v2.api.cache.MongoBrapiCache;
-import org.brapi.v2.model.AlleleMatrix;
-import org.brapi.v2.model.AlleleMatrixDataMatrices;
-import org.brapi.v2.model.AlleleMatrixPagination;
-import org.brapi.v2.model.AlleleMatrixResponse;
-import org.brapi.v2.model.AlleleMatrixSearchRequest;
-import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
-import org.brapi.v2.model.VariantSetMetadataFields;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -427,14 +422,6 @@ public class CallsApiController implements CallsApi {
     public ResponseEntity<CallsListResponse> searchCallsPost(String authorization, CallsSearchRequest body) {
         
         CallsListResponse clr = new CallsListResponse();
-    	CallsListResponseResult res = new CallsListResponseResult();
-    	Metadata metadata = new Metadata();
-        metadata.setPagination(new IndexPagination());
-    	clr.setMetadata(metadata);
-        int page = body.getPage() == null ? 0 : body.getPage();
-        int pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
-        metadata.getPagination().setPageSize(pageSize);
-        metadata.getPagination().setCurrentPage(page);
         
         AlleleMatrixSearchRequest amsr = new AlleleMatrixSearchRequest();
         amsr.setCallSetDbIds(body.getCallSetDbIds());
@@ -483,14 +470,31 @@ public class CallsApiController implements CallsApi {
                     }
                 }         
             } else {
-                return new ResponseEntity<CallsListResponse>(resp0.getStatusCode());
+            	clr.setMetadata(resp0.getBody().getMetadata());
+                return new ResponseEntity<>(clr, resp0.getStatusCode());
             }
         } catch (InterruptedException | SocketException | UnknownHostException ex) {
-            java.util.logging.Logger.getLogger(CallsApiController.class.getName()).log(Level.SEVERE, null, ex);
-            return new ResponseEntity<CallsListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
-        } 
-        
-        int totalCount = variantsNb * callSetsNb;        
+            log.error(null, ex);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+    	Metadata metadata = new Metadata();
+    	clr.setMetadata(metadata);
+
+    	int page = body.getPage() == null ? 0 : body.getPage(), pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
+        int totalCount = variantsNb * callSetsNb, totalPages = (int) Math.ceil((float) totalCount / pageSize);
+        if (page >= totalPages) {
+            Status status = new Status();
+            status.setMessage("Requested page number may not exceed " + (totalPages - 1));
+            metadata.addStatusItem(status);
+            return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
+        }
+
+    	CallsListResponseResult res = new CallsListResponseResult();
+        metadata.setPagination(new IndexPagination());
+        metadata.getPagination().setPageSize(pageSize);
+        metadata.getPagination().setCurrentPage(page);
+
         int vNo = 0;
         int sNo = 0;
         if (pageSize < totalCount) {
@@ -504,14 +508,14 @@ public class CallsApiController implements CallsApi {
         amsr.addPaginationItem(pagination);
         
         abbreviations.add("GT"); // in order to get GT even if there is no VCFheader
-        amsr.setDataMatrixAbbreviations(new ArrayList(abbreviations));
+        amsr.setDataMatrixAbbreviations(new ArrayList<>(abbreviations));
         
         try {
             amsr.setPreview(Boolean.FALSE);
             ResponseEntity<AlleleMatrixResponse> resp = api.searchAllelematrixPost(authorization, amsr);
             if (resp.getStatusCode().equals(HttpStatus.OK)) {
                 AlleleMatrix result = resp.getBody().getResult();
-                Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap();
+                Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
                         
                 for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
                     matricesMap.put(matrix.getDataMatrixAbbreviation(), matrix);
@@ -553,15 +557,15 @@ public class CallsApiController implements CallsApi {
                 }
                 
                 metadata.getPagination().setTotalCount(totalCount);
-                metadata.getPagination().setTotalPages((int) Math.ceil((float) totalCount / pageSize));
+                metadata.getPagination().setTotalPages(totalPages);
                 clr.setResult(res);
-                return new ResponseEntity<CallsListResponse>(clr, HttpStatus.OK);
+                return new ResponseEntity<>(clr, HttpStatus.OK);
                
             } else {
-                return new ResponseEntity<CallsListResponse>(resp.getStatusCode());
+                return new ResponseEntity<>(resp.getStatusCode());
             }
         } catch (InterruptedException ex) {
-            return new ResponseEntity<CallsListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
