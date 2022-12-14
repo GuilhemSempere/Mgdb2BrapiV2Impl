@@ -117,7 +117,7 @@ public class GermplasmApiController implements GermplasmApi {
 	                    Status status = new Status();
 	                    status.setMessage("You don't have access to this study: " + studyId);
 	                    glr.getMetadata().addStatusItem(status);
-	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+	                    return new ResponseEntity<>(glr, HttpStatus.UNAUTHORIZED);
 	                }
 					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(info[0]);
 					if (moduleProjects == null) {
@@ -154,7 +154,7 @@ public class GermplasmApiController implements GermplasmApi {
                             Status status = new Status();
                             status.setMessage("You don't have access to this program / trial: " + db);
                             glr.getMetadata().addStatusItem(status);
-                            return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+                            return new ResponseEntity<>(glr, HttpStatus.UNAUTHORIZED);
                         }
                 String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 

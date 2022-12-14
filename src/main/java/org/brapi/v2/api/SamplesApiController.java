@@ -107,7 +107,7 @@ public class SamplesApiController implements SamplesApi {
                         Status status = new Status();
                         status.setMessage("You don't have access to this study: " + studyId);
                         slr.getMetadata().addStatusItem(status);
-                        return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+                        return new ResponseEntity<>(slr, HttpStatus.UNAUTHORIZED);
                     }
                     HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(module);
                     if (moduleProjects == null) {
@@ -158,7 +158,7 @@ public class SamplesApiController implements SamplesApi {
                     Status status = new Status();
                     status.setMessage("You don't have access to this program / trial: " + db);
                     slr.getMetadata().addStatusItem(status);
-                    return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+                    return new ResponseEntity<>(slr, HttpStatus.UNAUTHORIZED);
                 }
                 
                 List<Criteria> andCrits = new ArrayList<>();
