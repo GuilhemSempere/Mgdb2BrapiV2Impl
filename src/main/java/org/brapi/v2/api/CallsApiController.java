@@ -72,6 +72,8 @@ public class CallsApiController implements CallsApi {
     @Autowired MongoTemplateManager mongoTemplateManager;
     
     @Autowired private MongoBrapiCache brapiCache;
+    
+    @Autowired AllelematrixApiController allelematrixApiController;
 
     @Override
     public ResponseEntity<CallsListResponse> callsGet(
@@ -434,15 +436,13 @@ public class CallsApiController implements CallsApi {
         AlleleMatrixSearchRequestPagination variantPagination = new AlleleMatrixSearchRequestPagination();
         variantPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         amsr.addPaginationItem(variantPagination);
-        
-        AllelematrixApiController api = new AllelematrixApiController();
-        api.tokenManager = this.tokenManager;
+
         int variantsNb = 0;
         int callSetsNb = 0;
         Set<String> abbreviations = new HashSet<>();
         try { //get Pagination information
             amsr.setPreview(Boolean.TRUE);
-            ResponseEntity<AlleleMatrixResponse> resp0 = api.searchAllelematrixPost(authorization, amsr);
+            ResponseEntity<AlleleMatrixResponse> resp0 = allelematrixApiController.searchAllelematrixPost(authorization, amsr);
             if (resp0.getStatusCode().equals(HttpStatus.OK)) {
                 List<AlleleMatrixPagination> pagination = resp0.getBody().getResult().getPagination();
                 
@@ -496,7 +496,6 @@ public class CallsApiController implements CallsApi {
         metadata.getPagination().setPageSize(pageSize);
         metadata.getPagination().setCurrentPage(page);
 
-
         int sNo = 0;
         int vNo = 0;        
         if (pageSize < totalCount) {
@@ -521,7 +520,7 @@ public class CallsApiController implements CallsApi {
         
         try {
             amsr.setPreview(Boolean.FALSE);
-            ResponseEntity<AlleleMatrixResponse> resp = api.searchAllelematrixPost(authorization, amsr);
+            ResponseEntity<AlleleMatrixResponse> resp = allelematrixApiController.searchAllelematrixPost(authorization, amsr);
             if (resp.getStatusCode().equals(HttpStatus.OK)) {
                 AlleleMatrix result = resp.getBody().getResult();
                 Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
