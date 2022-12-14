@@ -90,13 +90,15 @@ public class MongoBrapiCache {
                             Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData();
                             if (vcfMetadata != null) {
                                 for (String key:vcfMetadata.keySet()) {
-                                    VariantSetMetadataFields field = new VariantSetMetadataFields();
-                                    VCFHeaderLineType type = vcfMetadata.get(key).getType();
-                                    DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
-                                    field.setDataType(brapiType);
-                                    field.setFieldAbbreviation(key);
-                                    field.setFieldName(vcfMetadata.get(key).getDescription());
-                                    variantSet.addMetadataFieldsItem(field);                        
+                                    if (!key.equals("GT")) {
+                                        VariantSetMetadataFields field = new VariantSetMetadataFields();
+                                        VCFHeaderLineType type = vcfMetadata.get(key).getType();
+                                        DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
+                                        field.setDataType(brapiType);
+                                        field.setFieldAbbreviation(key);
+                                        field.setFieldName(vcfMetadata.get(key).getDescription());
+                                        variantSet.addMetadataFieldsItem(field);
+                                    }
                                 }
                             }     
                         }
