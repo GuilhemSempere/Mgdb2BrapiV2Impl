@@ -59,6 +59,7 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import java.math.BigInteger;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -495,17 +496,25 @@ public class CallsApiController implements CallsApi {
         metadata.getPagination().setPageSize(pageSize);
         metadata.getPagination().setCurrentPage(page);
 
-        int vNo = 0;
+
         int sNo = 0;
+        int vNo = 0;        
         if (pageSize < totalCount) {
-            vNo = page * pageSize / callSetsNb;
+            //Calculate the Greatest Common Divisor
+            int gcd = BigInteger.valueOf(callSetsNb).gcd(BigInteger.valueOf(pageSize)).intValue();
+            int vPageSize = pageSize / gcd;
+            int vPage = page * gcd / callSetsNb;
+
+            vNo = page * pageSize / callSetsNb - vPage * vPageSize;
             sNo = page * pageSize % callSetsNb;
+
+            AlleleMatrixSearchRequestPagination pagination = new AlleleMatrixSearchRequestPagination();
+            pagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
+            pagination.setPage(vPage);
+            pagination.setPageSize(vPageSize);
+            amsr.setPagination(new ArrayList());
+            amsr.addPaginationItem(pagination);
         }
-        AlleleMatrixSearchRequestPagination pagination = new AlleleMatrixSearchRequestPagination();
-        pagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
-        pagination.setPage(vNo);
-        pagination.setPageSize(pageSize);
-        amsr.addPaginationItem(pagination);
         
         abbreviations.add("GT"); // in order to get GT even if there is no VCFheader
         amsr.setDataMatrixAbbreviations(new ArrayList<>(abbreviations));
@@ -522,7 +531,7 @@ public class CallsApiController implements CallsApi {
                 }
                 
                 outerloop:
-                for (int v = 0; v < result.getDataMatrices().size(); v++) {
+                for (int v = vNo; v < result.getVariantDbIds().size(); v++) {
                     for (int s = 0; s < result.getCallSetDbIds().size(); s++) {
                         
                         if (s >= sNo) {
