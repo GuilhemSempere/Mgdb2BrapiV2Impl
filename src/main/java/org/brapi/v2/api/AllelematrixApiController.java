@@ -485,7 +485,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     } catch (Exception e) {}
                 }
                 if (nTotalMarkerCount.get() == -1) {
-                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5(new TreeSet<>(body.getVariantSetDbIds()).toString() + "::" + (body.getPositionRanges() == null ? "" : new TreeSet<>(body.getPositionRanges()).toString())
+                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5((body.getVariantSetDbIds() == null ? "" : new TreeSet<>(body.getVariantSetDbIds()).toString()) + "::" + (body.getPositionRanges() == null ? "" : new TreeSet<>(body.getPositionRanges()).toString())
                                 + "::" + (body.getVariantDbIds() == null ? "" : new TreeSet<>(body.getVariantDbIds()).toString()));
                 	Long cachedCount = BrapiCachedCount.getCachedCount(mongoTemplate, queryKey, BrapiCachedCount.class);
                 	if (cachedCount != null)
@@ -651,6 +651,11 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
             }  
             
+            if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
+            	matricesMap.values().forEach(dm -> dm.dataMatrix(new ArrayList<>()));	// There is actually nothing to return
+            result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
+            
+            countThread.join();            
                     
             //Set pagination
             AlleleMatrixPagination callSetPagination = new AlleleMatrixPagination();
@@ -682,11 +687,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             }  
             
             
-            if (nTotalMarkerCount.get() == 0)	// Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
-            	matricesMap.values().forEach(dm -> dm.dataMatrix(new ArrayList<>()));	// There is actually nothing to return
-            result.setDataMatrices(new ArrayList<>(matricesMap.values())); //convert Map to List
-            
-            countThread.join();            
+                       
 
             return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
         } catch (Exception e) {
