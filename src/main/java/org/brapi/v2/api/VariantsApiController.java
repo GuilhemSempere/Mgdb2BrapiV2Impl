@@ -113,10 +113,9 @@ public class VariantsApiController implements VariantsApi {
         	body.setPageSize(VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE);
         int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
 
-		Collection<String> variantIDs = null;
+		Collection<String> variantIDs = new HashSet<>();
 		try {
 			if (fGotVariants) {
-				variantIDs = new HashSet<>();
 				for (String variantDbId : body.getVariantDbIds()) {
 					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
 					if (module != null && !module.equals(info[0])) {

@@ -261,7 +261,7 @@ public class CallsApiController implements CallsApi {
             
             //update DBVCFHeader if not in DB yet
             int hash = Objects.hash(Integer.toString(projectId), runName);
-            if (!c.getGenotypeMetadata().isEmpty()) {
+            if (c.getGenotypeMetadata() != null && !c.getGenotypeMetadata().isEmpty()) {
                 boolean newVCFHeader = false;
                 Map<String, VCFFormatHeaderLine> newVcfFormatHLines = new HashMap<>();
                 for (CallGenotypeMetadata cgm:c.getGenotypeMetadata()) {                    
