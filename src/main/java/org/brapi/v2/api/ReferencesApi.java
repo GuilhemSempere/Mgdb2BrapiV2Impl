@@ -28,7 +28,7 @@ import io.swagger.annotations.Authorization;
 @Api(value = "references", description = "the references API", tags={ "References" })
 public interface ReferencesApi {
 
-  public static final String searchReferencesPost_url = "search/references";
+	public static final String searchReferencesPost_url = "search/references";
 	public static final String referencesGet_url = "references";
 	
     @ApiOperation(value = "Gets a filtered list of `Reference` objects.", nickname = "referencesGet", notes = "`GET /references` will return a filtered list of `Reference` JSON objects.", response = ReferenceListResponse.class, authorizations = {
@@ -43,7 +43,7 @@ public interface ReferencesApi {
         method = RequestMethod.GET)
     ResponseEntity<ReferenceListResponse> referencesGet(@ApiParam(value = "The ID of the `Reference` to be retrieved.") @Valid @RequestParam(value = "referenceDbId", required = false) String referenceDbId,@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If specified, return the references for which the `md5checksum` matches this string (case-sensitive, exact match). See `Reference::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "If the reference is derived from a source sequence") @Valid @RequestParam(value = "isDerived", required = false) Boolean isDerived,@ApiParam(value = "The minimum length of the reference sequences to be retrieved.") @Valid @RequestParam(value = "minLength", required = false) Integer minLength,@ApiParam(value = "The maximum length of the reference sequences to be retrieved.") @Valid @RequestParam(value = "maxLength", required = false) Integer maxLength,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
-    @ApiOperation(value = "Gets a list of `Reference` matching the search criteria.", nickname = "searchReferencesPost", notes = "`POST /references/search` must accept a JSON version of `SearchReferencesRequest` as the post body and will return a JSON version of `SearchReferencesResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Gets a list of `Reference` matching the search criteria.", nickname = "searchReferencesPost", notes = "`POST /references/search` must accept a JSON version of `ReferencesSearchRequest` as the post body and will return a JSON version of `ReferenceListResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
             @Authorization(value = "AuthorizationToken")    }, tags={ "References" })
         @ApiResponses(value = { 
             @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
