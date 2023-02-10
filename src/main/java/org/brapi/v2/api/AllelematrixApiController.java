@@ -79,6 +79,12 @@ public class AllelematrixApiController implements AllelematrixApi {
     @Autowired AbstractTokenManager tokenManager;
     
     @Autowired private MongoBrapiCache brapiCache;
+    
+    private List<String> variantIds;
+
+    public List<String> getVariantIds() {
+        return variantIds;
+    }    
 
     @Override
     public ResponseEntity<AlleleMatrixResponse> allelematrixGet(Integer dimensionVariantPage, Integer dimensionVariantPageSize, Integer dimensionCallSetPage, Integer dimensionCallSetPageSize,
@@ -151,6 +157,10 @@ public class AllelematrixApiController implements AllelematrixApi {
 
     @Override
     public ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body) throws InterruptedException {
+	return searchAllelematrixPost(authorization, body, true);
+    }    
+    
+    protected ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body, boolean fVcfStyleGenotypes) throws InterruptedException {
         String token = ServerinfoApiController.readToken(authorization);
         
         AlleleMatrixResponse response = new AlleleMatrixResponse();        
@@ -628,13 +638,13 @@ public class AllelematrixApiController implements AllelematrixApi {
                                     String gtCode = sg.getCode();
                                     if (gtCode == null || gtCode.length() == 0) {
                                         dataMap.get(key).add(unknownGtCode);
-                                    } else {
-                                        List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-                                        String sep = "/";
+                                    } else {              
+                                        List<String> alleles = fVcfStyleGenotypes ? Helper.split(gtCode, "/") : vrd.getAllelesFromGenotypeCode(gtCode);
+                                        
                                         if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
-                                            dataMap.get(key).add(gtCode.split(sep)[0]);
+                                            dataMap.get(key).add(alleles.get(0));
                                         else
-                                            dataMap.get(key).add(gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator));
+                                            dataMap.get(key).add(String.join(fPhased ? phasedSeparator : unPhasedSeparator, alleles));
                                     }
                                 }
                             }                        

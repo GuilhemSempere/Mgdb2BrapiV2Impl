@@ -433,6 +433,7 @@ public class CallsApiController implements CallsApi {
         amsr.sepPhased(body.getSepPhased());
         amsr.setSepUnphased(body.getSepUnphased());
         amsr.setUnknownString(body.getUnknownString());
+        amsr.setExpandHomozygotes(body.isExpandHomozygotes());
         AlleleMatrixSearchRequestPagination variantPagination = new AlleleMatrixSearchRequestPagination();
         variantPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         amsr.addPaginationItem(variantPagination);
@@ -442,7 +443,7 @@ public class CallsApiController implements CallsApi {
         Set<String> abbreviations = new HashSet<>();
         try { //get Pagination information
             amsr.setPreview(Boolean.TRUE);
-            ResponseEntity<AlleleMatrixResponse> resp0 = allelematrixApiController.searchAllelematrixPost(authorization, amsr);
+            ResponseEntity<AlleleMatrixResponse> resp0 = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
             if (resp0.getStatusCode().equals(HttpStatus.OK)) {
                 List<AlleleMatrixPagination> pagination = resp0.getBody().getResult().getPagination();
                 
@@ -471,7 +472,9 @@ public class CallsApiController implements CallsApi {
                     }
                 }         
             } else {
-            	clr.setMetadata(resp0.getBody().getMetadata());
+                if (resp0.getBody() != null) {
+                    clr.setMetadata(resp0.getBody().getMetadata());
+                }
                 return new ResponseEntity<>(clr, resp0.getStatusCode());
             }
         } catch (InterruptedException | SocketException | UnknownHostException ex) {
@@ -520,11 +523,25 @@ public class CallsApiController implements CallsApi {
         
         try {
             amsr.setPreview(Boolean.FALSE);
-            ResponseEntity<AlleleMatrixResponse> resp = allelematrixApiController.searchAllelematrixPost(authorization, amsr);
+            ResponseEntity<AlleleMatrixResponse> resp = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
             if (resp.getStatusCode().equals(HttpStatus.OK)) {
                 AlleleMatrix result = resp.getBody().getResult();
                 Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
-                        
+                
+                //Get variants alt and ref alleles
+                String module = null;
+                List<String> variantIds = new ArrayList();
+                for (String v:result.getVariantDbIds()) {
+                    if (module == null) {
+                        module = GigwaSearchVariantsRequest.getInfoFromId(v, 2)[0];
+                    }
+                    variantIds.add(GigwaSearchVariantsRequest.getInfoFromId(v, 2)[1]);
+                }
+                   
+                Query q = new Query(Criteria.where("_id").in(variantIds));
+                List<VariantData> variants = MongoTemplateManager.get(module).find(q, VariantData.class);
+                Map variantMap = variants.stream().collect(Collectors.toMap(VariantData::getId, item -> item.getKnownAlleles()));
+                     
                 for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
                     matricesMap.put(matrix.getDataMatrixAbbreviation(), matrix);
                 }
