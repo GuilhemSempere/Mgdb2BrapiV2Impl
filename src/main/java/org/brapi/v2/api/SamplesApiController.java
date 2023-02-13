@@ -107,7 +107,7 @@ public class SamplesApiController implements SamplesApi {
                         Status status = new Status();
                         status.setMessage("You don't have access to this study: " + studyId);
                         slr.getMetadata().addStatusItem(status);
-                        return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+                        return new ResponseEntity<>(slr, HttpStatus.UNAUTHORIZED);
                     }
                     HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(module);
                     if (moduleProjects == null) {
@@ -158,7 +158,7 @@ public class SamplesApiController implements SamplesApi {
                     Status status = new Status();
                     status.setMessage("You don't have access to this program / trial: " + db);
                     slr.getMetadata().addStatusItem(status);
-                    return new ResponseEntity<>(slr, HttpStatus.BAD_REQUEST);
+                    return new ResponseEntity<>(slr, HttpStatus.UNAUTHORIZED);
                 }
                 
                 List<Criteria> andCrits = new ArrayList<>();
@@ -185,11 +185,11 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceId).in(body.getExternalReferenceIds()));
+                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferenceId).in(body.getExternalReferenceIds()));
                 }
 
                 if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).in(body.getExternalReferenceSources()));
+                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferenceSource).in(body.getExternalReferenceSources()));
                 }
 
                 // make sure we don't return individuals that are in projects this user doesn't have access to
@@ -295,9 +295,9 @@ public class SamplesApiController implements SamplesApi {
                 ExternalReferencesInner ref = new ExternalReferencesInner();
                 for (String key:mgdbSample.getAdditionalInfo().keySet()) {
                     String value = mgdbSample.getAdditionalInfo().get(key).toString();
-                    if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId))
+                    if (key.equals(BrapiService.BRAPI_FIELD_externalReferenceId))
                         ref.setReferenceID(value);
-                    else if (key.equals(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource))
+                    else if (key.equals(BrapiService.BRAPI_FIELD_externalReferenceSource))
                         ref.setReferenceSource(value);                    
                     else
                         sample.getAdditionalInfo().put(key, value);

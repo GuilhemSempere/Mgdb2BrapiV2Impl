@@ -117,7 +117,7 @@ public class GermplasmApiController implements GermplasmApi {
 	                    Status status = new Status();
 	                    status.setMessage("You don't have access to this study: " + studyId);
 	                    glr.getMetadata().addStatusItem(status);
-	                    return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+	                    return new ResponseEntity<>(glr, HttpStatus.UNAUTHORIZED);
 	                }
 					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(info[0]);
 					if (moduleProjects == null) {
@@ -154,7 +154,7 @@ public class GermplasmApiController implements GermplasmApi {
                             Status status = new Status();
                             status.setMessage("You don't have access to this program / trial: " + db);
                             glr.getMetadata().addStatusItem(status);
-                            return new ResponseEntity<>(glr, HttpStatus.BAD_REQUEST);
+                            return new ResponseEntity<>(glr, HttpStatus.UNAUTHORIZED);
                         }
                 String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 
@@ -254,13 +254,13 @@ public class GermplasmApiController implements GermplasmApi {
                 	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
                 	germplasm.setGermplasmName(ind.getId());
 
-                	Object extRefId = ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceId);
+                	Object extRefId = ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceId);
 	                if (extRefId != null) {
 	                    ExternalReferencesInner ref = new ExternalReferencesInner();
                         ref.setReferenceId(extRefId.toString());
-                        Object extRefSrc= ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource);
+                        Object extRefSrc= ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceSource);
 	                    if (extRefSrc != null)
-	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_germplasmExternalReferenceSource).toString());
+	                        ref.setReferenceSource(ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceSource).toString());
 	                    germplasm.setExternalReferences(new ExternalReferences() {{ add(ref); }});
 	                }           	
                 	result.addDataItem(germplasm);
