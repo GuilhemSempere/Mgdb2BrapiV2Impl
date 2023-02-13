@@ -1,5 +1,7 @@
 package org.brapi.v2.api;
 
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -11,6 +13,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.brapi.v2.api.cache.MongoBrapiCache;
+import org.brapi.v2.model.AlleleMatrix;
+import org.brapi.v2.model.AlleleMatrixDataMatrices;
+import org.brapi.v2.model.AlleleMatrixPagination;
+import org.brapi.v2.model.AlleleMatrixResponse;
+import org.brapi.v2.model.AlleleMatrixSearchRequest;
+import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
 import org.brapi.v2.model.Call;
 import org.brapi.v2.model.CallGenotypeMetadata;
 import org.brapi.v2.model.CallsListResponse;
@@ -19,6 +28,7 @@ import org.brapi.v2.model.CallsSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
+import org.brapi.v2.model.VariantSetMetadataFields;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,15 +52,14 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
-import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import java.math.BigInteger;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -61,6 +70,10 @@ public class CallsApiController implements CallsApi {
     @Autowired AbstractTokenManager tokenManager;
     
     @Autowired MongoTemplateManager mongoTemplateManager;
+    
+    @Autowired private MongoBrapiCache brapiCache;
+    
+    @Autowired AllelematrixApiController allelematrixApiController;
 
     @Override
     public ResponseEntity<CallsListResponse> callsGet(
@@ -87,6 +100,7 @@ public class CallsApiController implements CallsApi {
         csr.setSepUnphased(sepUnphased);
         csr.setSepPhased(sepPhased);
         csr.setPageSize(pageSize);
+        csr.setPage(page);
         
         if (callSetDbId != null)
                 csr.setCallSetDbIds(Arrays.asList(callSetDbId));
@@ -247,7 +261,7 @@ public class CallsApiController implements CallsApi {
             
             //update DBVCFHeader if not in DB yet
             int hash = Objects.hash(Integer.toString(projectId), runName);
-            if (!c.getGenotypeMetadata().isEmpty()) {
+            if (c.getGenotypeMetadata() != null && !c.getGenotypeMetadata().isEmpty()) {
                 boolean newVCFHeader = false;
                 Map<String, VCFFormatHeaderLine> newVcfFormatHLines = new HashMap<>();
                 for (CallGenotypeMetadata cgm:c.getGenotypeMetadata()) {                    
@@ -409,254 +423,174 @@ public class CallsApiController implements CallsApi {
 
     @Override
     public ResponseEntity<CallsListResponse> searchCallsPost(String authorization, CallsSearchRequest body) {
-        if (body.isExpandHomozygotes() == null) {
-            body.setExpandHomozygotes(Boolean.FALSE);
-        }
-        String token = ServerinfoApiController.readToken(authorization);
+        
+        CallsListResponse clr = new CallsListResponse();
+        
+        AlleleMatrixSearchRequest amsr = new AlleleMatrixSearchRequest();
+        amsr.setCallSetDbIds(body.getCallSetDbIds());
+        amsr.setVariantDbIds(body.getVariantDbIds());
+        amsr.setVariantSetDbIds(body.getVariantSetDbIds());
+        amsr.sepPhased(body.getSepPhased());
+        amsr.setSepUnphased(body.getSepUnphased());
+        amsr.setUnknownString(body.getUnknownString());
+        amsr.setExpandHomozygotes(body.isExpandHomozygotes());
+        AlleleMatrixSearchRequestPagination variantPagination = new AlleleMatrixSearchRequestPagination();
+        variantPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
+        amsr.addPaginationItem(variantPagination);
 
-    	CallsListResponse clr = new CallsListResponse();
-    	CallsListResponseResult result = new CallsListResponseResult();
+        int variantsNb = 0;
+        int callSetsNb = 0;
+        Set<String> abbreviations = new HashSet<>();
+        try { //get Pagination information
+            amsr.setPreview(Boolean.TRUE);
+            ResponseEntity<AlleleMatrixResponse> resp0 = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
+            if (resp0.getStatusCode().equals(HttpStatus.OK)) {
+                List<AlleleMatrixPagination> pagination = resp0.getBody().getResult().getPagination();
+                
+                if (pagination.get(0).getDimension().equals(AlleleMatrixPagination.DimensionEnum.CALLSETS)) {
+                    callSetsNb = pagination.get(0).getTotalCount();
+                    variantsNb = pagination.get(1).getTotalCount();
+                } else {
+                    callSetsNb = pagination.get(1).getTotalCount();
+                    variantsNb = pagination.get(0).getTotalCount();
+                }
+
+                //Get abbreviations
+                List<String> variantSetDbIds = resp0.getBody().getResult().getVariantSetDbIds();
+                String module = null;
+                for (String variantSetDbId : variantSetDbIds) {
+                    if (module == null)  {
+                        module = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3)[0];
+                        MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+                        List<VariantSetMetadataFields> fields = brapiCache.getVariantSet(mongoTemplate, variantSetDbId).getMetadataFields();
+                        if (fields != null) {
+                            List<String> abbr = fields.stream().map(VariantSetMetadataFields::getFieldAbbreviation).collect(Collectors.toList());
+                            abbreviations.addAll(abbr);
+                        }                        
+                    } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3)[0])) {
+
+                    }
+                }         
+            } else {
+                if (resp0.getBody() != null) {
+                    clr.setMetadata(resp0.getBody().getMetadata());
+                }
+                return new ResponseEntity<>(clr, resp0.getStatusCode());
+            }
+        } catch (InterruptedException | SocketException | UnknownHostException ex) {
+            log.error(null, ex);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
     	Metadata metadata = new Metadata();
     	clr.setMetadata(metadata);
 
-        boolean fGotVariantSetList = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
-        boolean fGotVariantList = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
-        boolean fGotCallSetList = body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty();
-        if (!fGotVariantSetList && !fGotVariantList && !fGotCallSetList) {
+    	int page = body.getPage() == null ? 0 : body.getPage(), pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
+        int totalCount = variantsNb * callSetsNb, totalPages = (int) Math.ceil((float) totalCount / pageSize);
+        if (page >= totalPages) {
             Status status = new Status();
-            status.setMessage("You must specify at least one of callSetDbId, variantDbId, or variantSetDbId!");
+            status.setMessage("Requested page number may not exceed " + (totalPages - 1));
             metadata.addStatusItem(status);
             return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
         }
 
+    	CallsListResponseResult res = new CallsListResponseResult();
+        metadata.setPagination(new IndexPagination());
+        metadata.getPagination().setPageSize(pageSize);
+        metadata.getPagination().setCurrentPage(page);
 
-        String module = null;
-        if (fGotVariantSetList) {
-            for (String variantDbId : body.getVariantSetDbIds()) {
-                if (module == null) {
-                    module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0];
-                } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 3)[0])) {
-                    Status status = new Status();
-                    status.setMessage("You must specify VariantSets belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
+        int sNo = 0;
+        int vNo = 0;        
+        if (pageSize < totalCount) {
+            //Calculate the Greatest Common Divisor
+            int gcd = BigInteger.valueOf(callSetsNb).gcd(BigInteger.valueOf(pageSize)).intValue();
+            int vPageSize = pageSize / gcd;
+            int vPage = page * gcd / callSetsNb;
 
-		}
-            }
-        }
+            vNo = page * pageSize / callSetsNb - vPage * vPageSize;
+            sNo = page * pageSize % callSetsNb;
 
-        if (fGotVariantList) {
-            for (String variantDbId : body.getVariantDbIds()) {
-                if (module == null) {
-                    module = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0];
-                } else if (!module.equals(GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2)[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
-                }
-            }
-        }
-
-    	HashMap<Integer, String> sampleIndividuals = new HashMap<>();	// we are going to need the individual each sample is related to, in order to build callSetDbIds
-
-        if (fGotCallSetList) {
-            for (String callSetDbId : body.getCallSetDbIds()) {
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
-                if (module == null) {
-                    module = info[0];
-                } else if (!module.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
-                }
-                sampleIndividuals.put(Integer.parseInt(info[1]), info[1]);
-            }
-
-            // identify the runs those samples are involved in
-            body.setVariantSetDbIds(new ArrayList<>());
-            for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIndividuals.keySet())), GenotypingSample.class)) {
-                String variantSetDbId = module + IGigwaService.ID_SEPARATOR + sp.getProjectId() + IGigwaService.ID_SEPARATOR + sp.getRun();
-                if (!body.getVariantSetDbIds().contains(variantSetDbId)) {
-                    body.getVariantSetDbIds().add(variantSetDbId);
-                    fGotVariantSetList = true;
-                }
-            }
-        }
-
-        MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-
-    	// check permissions
-    	Collection<Integer> projectIDs = fGotVariantSetList ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(GigwaSearchVariantsRequest.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet()) :
-        mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
-    	List<Integer> forbiddenProjectIDs = new ArrayList<>();
-        for (int pj : projectIDs) {
-            if (!tokenManager.canUserReadProject(token, module, pj))
-                forbiddenProjectIDs.add(pj);
-        }
-        projectIDs.removeAll(forbiddenProjectIDs);
-        if (projectIDs.isEmpty() && !forbiddenProjectIDs.isEmpty())
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-
-        List<Criteria> crits = new ArrayList<>();
-        if (fGotVariantSetList) {
-            List<Criteria> vsCrits = new ArrayList<>();
-            for (String vsId : body.getVariantSetDbIds()) {
-                String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
-                vsCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
-            }
-            crits.add(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
-        }
-		
-        if (fGotVariantList) {
-            List<String> varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(IGigwaService.ID_SEPARATOR))).collect(Collectors.toList());
-            crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
-        }
-
-        Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-
-    	// now deal with samples
-        int numberOfSamples = 0;
-        if (fGotCallSetList) {	// project necessary fields to get only the required genotypes
-            runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
-            numberOfSamples = body.getCallSetDbIds().size();
-            for (String callSetDbId : body.getCallSetDbIds()) {
-                String[] splitCallSetDbId = GigwaSearchVariantsRequest.getInfoFromId(callSetDbId, 2);
-                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
-            }
-        } else { // find out which samples are involved and keep track of corresponding individuals
-            Query sampleQuery;
-                if (fGotVariantSetList) {
-                    List<Criteria> vsCrits = new ArrayList<>();
-                    for (String vsId : body.getVariantSetDbIds()) {
-                        String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
-                        vsCrits.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
-                    }
-                    sampleQuery = new Query(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
-                } else {
-                    sampleQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectIDs));	// we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
-                }
-            for (GenotypingSample gs : mongoTemplate.find(sampleQuery, GenotypingSample.class)) {
-                sampleIndividuals.put(gs.getId(), gs.getIndividual());
-            }
-            numberOfSamples = sampleIndividuals.size();
-        }
-
-        int page = body.getPage() == null ? 1000 : body.getPage();        
-        int pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
-        
-	//int theoriticalPageSize = body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_CALL_MATRIX_SIZE ? VariantsApi.MAX_CALL_MATRIX_SIZE : body.getPageSize();
-        int numberOfMarkersPerPage = (int) Math.ceil(1f * pageSize / numberOfSamples);
-        Integer nTotalMarkerCount = fGotVariantList ? body.getVariantDbIds().size() : null;
-        if (nTotalMarkerCount == null) {	// we don't have a definite variant list: see if we can guess it (only possible for single-run projects since there is no run index on VariantRunData)
-            if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where("_id").in(projectIDs), Criteria.where(GenotypingProject.FIELDNAME_RUNS + ".1").exists(false))), GenotypingProject.class) == projectIDs.size())
-                nTotalMarkerCount = (int) mongoTemplate.count(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).in(projectIDs)), VariantRunData.class);
+            AlleleMatrixSearchRequestPagination pagination = new AlleleMatrixSearchRequestPagination();
+            pagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
+            pagination.setPage(vPage);
+            pagination.setPageSize(vPageSize);
+            amsr.setPagination(new ArrayList());
+            amsr.addPaginationItem(pagination);
         }
         
-    	String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
-    	String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
-    	String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();
-    	result.setSepUnphased(unPhasedSeparator);
-
+        abbreviations.add("GT"); // in order to get GT even if there is no VCFheader
+        amsr.setDataMatrixAbbreviations(new ArrayList<>(abbreviations));
+        
         try {
-            List<AbstractVariantData> varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, page * numberOfMarkersPerPage, numberOfMarkersPerPage);
-            HashMap<Integer, String> previousPhasingIds = new HashMap<>();
-            
-            //try retrieving metadata information from DBVCFHeader collection
-            Document filter = new Document();
-            if (fGotVariantSetList) {
-                List<Document> filtersList = new ArrayList<>();
-                for (String vsId : body.getVariantSetDbIds()) {
-                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(vsId, 3);
-                    Document ifilter = new Document("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, Integer.parseInt(info[1]));
-                    ifilter.append("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_RUN, info[2]);
-                    filtersList.add(ifilter);
-                }
-                filter.put("$or", filtersList);
+            amsr.setPreview(Boolean.FALSE);
+            ResponseEntity<AlleleMatrixResponse> resp = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
+            if (resp.getStatusCode().equals(HttpStatus.OK)) {
+                AlleleMatrix result = resp.getBody().getResult();
+                Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
                 
-            } else {
-                filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, new Document("$in", projectIDs)); // we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
-            }
-                        
-            MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));         
-            
-            MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).iterator();
-            Map<String, VCFFormatHeaderLine> metadataMap = new HashMap<>();
-            while (headerCursor.hasNext()) {
-                DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
-                Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData(); 
-                if (vcfMetadata != null) {
-                    metadataMap.putAll(vcfMetadata);
-                }
-            }            
-            
-
-            HashSet<String> distinctVariantIDs = new HashSet<>();
-            for (AbstractVariantData v : varList) {
-                VariantRunData vrd = (VariantRunData) v;
-                distinctVariantIDs.add(v.getVariantId());
-                for (Integer spId : vrd.getSampleGenotypes().keySet()) {
-                    SampleGenotype sg = vrd.getSampleGenotypes().get(spId);                    
-                    String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
-                    previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);
-                    boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-                    	
-                    String gtCode = sg.getCode();
-                    String genotype;
-                    if (gtCode == null || gtCode.length() == 0) {
-                        genotype = unknownGtCode;                    
-                    } else {
-                        List<String> alleles = vrd.getAllelesFromGenotypeCode(gtCode);
-                        String sep = "/";
-                        if (!body.isExpandHomozygotes() && new HashSet<String>(alleles).size() == 1) {
-                            //genotype = alleles.get(0);                            
-                            genotype = gtCode.split(sep)[0];
-                        } else {
-                            //genotype = StringUtils.join(alleles, fPhased ? phasedSeparator : unPhasedSeparator);
-                            genotype = gtCode.replace(sep, fPhased ? phasedSeparator : unPhasedSeparator);
-                        }
+                //Get variants alt and ref alleles
+                String module = null;
+                List<String> variantIds = new ArrayList();
+                for (String v:result.getVariantDbIds()) {
+                    if (module == null) {
+                        module = GigwaSearchVariantsRequest.getInfoFromId(v, 2)[0];
                     }
-                    Call call = new Call();
-                    call.setGenotypeValue(genotype);
-                    call.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
-                    call.setVariantName(call.getVariantDbId());
-                    call.setCallSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
-                    //call.setCallSetName(call.getCallSetDbId());
-                    call.setVariantSetDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getRunName());
-                    for (String key : sg.getAdditionalInfo().keySet()) {
-                        if (!key.equals(VariantData.GT_FIELD_PHASED_ID) && !key.equals(VariantData.GT_FIELD_PHASED_GT)) {
-                            CallGenotypeMetadata gm = new CallGenotypeMetadata();
-                            gm.setFieldAbbreviation(key);
-                            if (metadataMap.get(key) != null) {
-                                try {
-                                    gm.setDataType(CallGenotypeMetadata.DataTypeEnum.fromValue(metadataMap.get(key).getType().toString().toLowerCase()));
-                                    gm.setFieldName(metadataMap.get(key).getDescription());
-                                } catch (Exception e) {                                
+                    variantIds.add(GigwaSearchVariantsRequest.getInfoFromId(v, 2)[1]);
+                }
+                   
+                Query q = new Query(Criteria.where("_id").in(variantIds));
+                List<VariantData> variants = MongoTemplateManager.get(module).find(q, VariantData.class);
+                Map variantMap = variants.stream().collect(Collectors.toMap(VariantData::getId, item -> item.getKnownAlleles()));
+                     
+                for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
+                    matricesMap.put(matrix.getDataMatrixAbbreviation(), matrix);
+                }
+                
+                outerloop:
+                for (int v = vNo; v < result.getVariantDbIds().size(); v++) {
+                    for (int s = 0; s < result.getCallSetDbIds().size(); s++) {
+                        
+                        if (s >= sNo) {
+                            Call call = new Call();
+                            List<CallGenotypeMetadata> metadataList = new ArrayList<>();
+                            for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
+                                if (matrix.getDataMatrixAbbreviation().equals("GT")) {
+                                    call.setGenotypeValue(matrix.getDataMatrix().get(v).get(s));
+                                } else {
+                                    CallGenotypeMetadata gtMetadata = new CallGenotypeMetadata();
+                                    gtMetadata.setDataType(CallGenotypeMetadata.DataTypeEnum.FLOAT);
+                                    gtMetadata.setFieldAbbreviation(matrix.getDataMatrixAbbreviation());
+                                    gtMetadata.setFieldName(matrix.getDataMatrixName());
+                                    gtMetadata.setFieldValue(matrix.getDataMatrix().get(v).get(s));
+                                    metadataList.add(gtMetadata);
                                 }
                             }
-                            gm.setFieldValue(sg.getAdditionalInfo().get(key).toString());
-                            call.addGenotypeMetadataItem(gm);
+                            call.setGenotypeMetadata(metadataList);
+                            call.setVariantDbId(result.getVariantDbIds().get(v));
+                            call.setVariantName(result.getVariantDbIds().get(v));
+                            call.setCallSetDbId(result.getCallSetDbIds().get(s));
+                            call.setVariantSetDbId(result.getVariantSetDbIds().get(0));
+                            res.addDataItem(call);
                         }
-                    }
-                    result.addDataItem(call);
-                }
-            }
+                        
+                        if (res.getData().size() == pageSize) {
+                            break outerloop;
+                        }
 
-            IndexPagination pagination = new IndexPagination();
-            pagination.setCurrentPage(page);
-            pagination.setPageSize(pageSize);
-            if (nTotalMarkerCount != null) {
-                pagination.setTotalCount(nTotalMarkerCount*numberOfSamples);
-                pagination.setTotalPages(varList.isEmpty() ? 0 : (int) Math.ceil((float) pagination.getTotalCount() / pagination.getPageSize()));
-            }            
-            metadata.setPagination(pagination);
-            clr.setResult(result);
-            return new ResponseEntity<CallsListResponse>(clr, HttpStatus.OK);
-            
-        } catch (Exception e) {
-            log.error("Couldn't serialize response for content type application/json", e);
-            return new ResponseEntity<CallsListResponse>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
+                    sNo = 0;
+                }
+                
+                metadata.getPagination().setTotalCount(totalCount);
+                metadata.getPagination().setTotalPages(totalPages);
+                clr.setResult(res);
+                return new ResponseEntity<>(clr, HttpStatus.OK);
+               
+            } else {
+                return new ResponseEntity<>(resp.getStatusCode());
+            }
+        } catch (InterruptedException ex) {
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
