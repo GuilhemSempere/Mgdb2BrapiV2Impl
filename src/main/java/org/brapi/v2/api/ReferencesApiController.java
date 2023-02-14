@@ -3,6 +3,7 @@ package org.brapi.v2.api;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 
 import org.brapi.v2.model.IndexPagination;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Controller;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.AlphaNumericComparator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 
@@ -70,7 +72,7 @@ public class ReferencesApiController implements ReferencesApi {
 	    	boolean fGotReferenceSetIDs = body != null && body.getReferenceSetDbIds() != null && !body.getReferenceSetDbIds().isEmpty();
 	    	boolean fGotReferenceIDs = body != null && body.getReferenceDbIds() != null && !body.getReferenceDbIds().isEmpty();
 	    	boolean fGotStudyIDs = body != null && body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty();
-	    	
+
 	    	if (!fGotStudyIDs && !fGotReferenceSetIDs && !fGotReferenceIDs)
         		sErrorMsg += "You must provide at least one of studyDbIds, referenceSetDbIds, referenceDbIds!";
 
@@ -161,6 +163,7 @@ public class ReferencesApiController implements ReferencesApi {
 	   				}
 	   			}
 
+   			Collections.sort(result.getData(), new AlphaNumericComparator());
  			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);

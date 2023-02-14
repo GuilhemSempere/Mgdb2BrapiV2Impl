@@ -1,6 +1,5 @@
 package org.brapi.v2.api;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -9,10 +8,10 @@ import javax.validation.Valid;
 
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.ReferenceSet;
 import org.brapi.v2.model.ReferenceSetListResponse;
 import org.brapi.v2.model.ReferenceSetListResponseResult;
 import org.brapi.v2.model.ReferenceSetsSearchRequest;
-import org.brapi.v2.model.ReferenceSet;
 import org.brapi.v2.model.Study;
 import org.brapi.v2.model.StudySearchRequest;
 import org.slf4j.Logger;
@@ -25,12 +24,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import antlr.collections.List;
+import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import io.swagger.annotations.ApiParam;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
@@ -73,8 +71,10 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         	ReferenceSetListResponseResult result = new ReferenceSetListResponseResult();
         	boolean fGotStudyIdList = body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty();
         	boolean fGotRefSetIdList = body.getReferenceSetDbIds() != null && !body.getReferenceSetDbIds().isEmpty();
-        	
+
         	StudySearchRequest ssr = new StudySearchRequest();
+        	ssr.setProgramDbIds(body.getProgramDbIds());
+        	ssr.setTrialDbIds(body.getTrialDbIds());
         	if (fGotRefSetIdList) {
         		ssr.setStudyDbIds(body.getReferenceSetDbIds().stream().map(refSetId -> {
         			String[] info = GigwaSearchVariantsRequest.getInfoFromId(refSetId, 3);
@@ -100,7 +100,7 @@ public class ReferencesetsApiController implements ReferencesetsApi {
     				if (!fGotRefSetIdList || body.getReferenceSetDbIds().contains(refSetId))
     					result.addDataItem(new ReferenceSet() {{
     		        		setReferenceSetDbId(refSetId);
-			    			setReferenceSetName(study.getStudyName());
+			    			setReferenceSetName(study.getStudyName() + " on " + (asm.getName() != null ? asm.getName() : "unnamed assembly"));
 			    			setAssemblyPUI(asm.getName());
 		    			}});
     			}
