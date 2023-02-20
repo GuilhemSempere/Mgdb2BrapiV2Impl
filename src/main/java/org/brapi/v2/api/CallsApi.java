@@ -36,7 +36,7 @@ public interface CallsApi {
     public static final String callsPut_url = "calls";
     public static final String searchCallsPost_url = "search/calls";
 
-    @Operation(summary = "Gets a filtered list of `Calls`", description = "Gets a filtered list of `Call` JSON objects.", security = {
+    @Operation(summary = "Gets a filtered list of `Calls`", description = "Gets a filtered list of `Call` JSON objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
         @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),        
@@ -72,7 +72,7 @@ public interface CallsApi {
     ResponseEntity<CallsListResponse> callsPut(@Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) @RequestHeader(value="Authorization", required=false) String authorization, 
             @Parameter(in = ParameterIn.DEFAULT, description = "", schema=@Schema()) @Valid @RequestBody CallsListResponseResult body);
 
-    @Operation(summary = "Submit a search request for `Calls`", description = "Submit a search request for `Calls`<br/> Search requests allow a client to send a complex query for data. However, the server may not respond with the search results immediately.  If a server needs more time to process the request, it might respond with a `searchResultsDbId`.  Use the corresponding `GET /search/calls/{searchResultsDbId}` to retrieve the results of the search. <br/>  Review the <a target=\"_blank\" href=\"https://wiki.brapi.org/index.php/Search_Services#POST_Search_Entity\">Search Services documentation</a> for additional implementation details.  <br/> <br/> <strong>NOTE:</strong> This endpoint uses Token based pagination. Please Review the  <a target=\"_blank\" href=\"https://wiki.brapi.org/index.php/Pagination\">Pagination documentation</a> for additional implementation details.", security = {
+    @Operation(summary = "Submit a search request for `Calls`", description = "Submit a search request for `Calls`. At least one callSetDbId, variantDbId or variantSetDbId must be specified.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
         @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),              
