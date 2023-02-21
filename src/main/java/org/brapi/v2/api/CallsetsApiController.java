@@ -150,17 +150,31 @@ public class CallsetsApiController implements CallsetsApi {
 	        	}
 
 	        	if (fFilterOnGermplasm) {
+                                HashMap<String /*module*/, ArrayList<Criteria>> germplasmCritByModule = new HashMap<>();
 	        		HashMap<String, Collection<String>> dbIndividuals = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
                                 for (String db : dbIndividuals.keySet()) {	// make sure at least one germplasm exists in each db before returning it
+                                    if ((fFilterOnCallSets && sampleCritByModule.containsKey(db))) { //germplasm base matches with callSets base, no need to check user access 
+                                        ArrayList<Criteria> samplesCrit = new ArrayList<>();
+                                        samplesCrit.addAll(sampleCritByModule.get(db));  
+                                        samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividuals.get(db))); 
+                                        Criteria crit = new Criteria().andOperator(samplesCrit.toArray(new Criteria[samplesCrit.size()]));
+
+                                        if (germplasmCritByModule.get(db) == null) {
+                                            germplasmCritByModule.put(db, new ArrayList<>());
+                                        }
+                                        germplasmCritByModule.get(db).add(crit);
+                                    } else if (!fFilterOnCallSets) {
                                         if (tokenManager.canUserReadDB(token, db)) {
-                                                ArrayList<Criteria> moduleCrit = sampleCritByModule.get(db);
+                                                ArrayList<Criteria> moduleCrit = germplasmCritByModule.get(db);
                                                 if (moduleCrit == null) {
                                                         moduleCrit = new ArrayList<>();
-                                                        sampleCritByModule.put(db, moduleCrit);
+                                                        germplasmCritByModule.put(db, moduleCrit);
                                                 }
                                                 moduleCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividuals.get(db)));
                                         }
+                                    }
                                 }
+                                sampleCritByModule = germplasmCritByModule;
 	        	}
 
 		        if (fFilterOnVariantSets) {
@@ -170,12 +184,12 @@ public class CallsetsApiController implements CallsetsApi {
                                         String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
                                         int projId = Integer.parseInt(info[1]); 
                                         
-                                        if ((fFilterOnCallSets && sampleCritByModule.containsKey(info[0]))) { //variantSet base matches with callSets base 
+                                        if ((fFilterOnCallSets || fFilterOnGermplasm) && sampleCritByModule.containsKey(info[0])) { //variantSet base matches with callSets or germplasm base 
                                             ArrayList<Criteria> samplesCrit = new ArrayList<>();
                                             samplesCrit.addAll(sampleCritByModule.get(info[0]));  
                                             samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId)); 
                                             samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]));
-                                            Criteria crit = new Criteria().andOperator(samplesCrit.toArray(new Criteria[sampleCritByModule.get(info[0]).size()]));
+                                            Criteria crit = new Criteria().andOperator(samplesCrit.toArray(new Criteria[samplesCrit.size()]));
                                             
                                             if (vsCritByModule.get(info[0]) == null) {
                                                 vsCritByModule.put(info[0], new ArrayList<>());
@@ -183,8 +197,7 @@ public class CallsetsApiController implements CallsetsApi {
                                             vsCritByModule.get(info[0]).add(crit);
                                             matchingVariantSetBase = true;
                                             
-                                        } else if (!fFilterOnCallSets) { //no callSet filter
-                                                                                
+                                        } else if (!fFilterOnCallSets && !fFilterOnGermplasm) { // get all samples for each accessible variantSets                                                                                 
                                             if (tokenManager.canUserReadProject(token, info[0], projId)) {
                                                     ArrayList<Criteria> moduleCrit = vsCritByModule.get(info[0]);
                                                     if (moduleCrit == null) {
@@ -198,7 +211,7 @@ public class CallsetsApiController implements CallsetsApi {
                                         }
                                 }
                                 
-                                if (!matchingVariantSetBase && fFilterOnCallSets) {
+                                if (!matchingVariantSetBase && (fFilterOnCallSets || fFilterOnGermplasm)) { //there is no variantSet matching with callsets
                                     //return empty result
                                     cslr.getMetadata().getPagination().setTotalCount(0);
                                     cslr.getMetadata().getPagination().setTotalPages(0);

@@ -29,7 +29,7 @@ public interface CallsetsApi {
 
     public static final String searchCallsetsPost_url = "search/callsets";
     
-    @ApiOperation(value = "Returns a filtered list of `Callset` objects", nickname = "searchCallsetsPost", notes = "Returns a filtered list of `CallSet` objects. At least one callSetDbId or variantSetDbId must be specified", response = SuccessfulSearchResponse.class, authorizations = {
+    @ApiOperation(value = "Returns a filtered list of `Callset` objects", nickname = "searchCallsetsPost", notes = "Returns a filtered list of `CallSet` objects. At least one callSetDbId or variantSetDbId must be specified. Pagination is not implemented, all callsets will be returned in one page", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Call Sets" })
     @ApiResponses(value = { 
         @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
