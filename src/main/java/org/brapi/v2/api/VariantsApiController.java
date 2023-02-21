@@ -64,6 +64,14 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.utils.Constants;
 import htsjdk.variant.variantcontext.VariantContext.Type;
 import io.swagger.annotations.ApiParam;
+import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import static org.springframework.data.mongodb.core.aggregation.ArrayOperators.IndexOfArray.arrayOf;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -127,7 +135,7 @@ public class VariantsApiController implements VariantsApi {
 					module = info[0];
 					variantIDs.add(info[1]);
 				}
-				varQuery = new Query(Criteria.where("_id").in(variantIDs));
+				//varQuery = new Query(Criteria.where("_id").in(variantIDs));
 			}
 	    	else if (fGotRefDbIds || fGotRefSetDbIds) {
 		    	if (!fGotRefDbIds) { // select all references in this referenceSet 
@@ -232,22 +240,32 @@ public class VariantsApiController implements VariantsApi {
 			}
 			
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-			List<AbstractVariantData> varList;
 			AtomicLong totalCount = new AtomicLong();
 			Thread countThread = null;
-			if (varQuery != null) {
-				Document finalVarQuery = varQuery.getQueryObject();
+			List<? extends AbstractVariantData> varList;
+			if (varQuery != null || (variantIDs != null && !variantIDs.isEmpty())) {
+				Document finalVarQuery = varQuery == null ? new Document("_id", new Document("$in", variantIDs)) :  varQuery.getQueryObject();
 				countThread = new Thread() {
 					public void run() {
 						totalCount.set(mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).countDocuments(finalVarQuery));
 					}
 				};
 				countThread.start();
-				varQuery.limit(body.getPageSize());
-				if (page > 0)
-					varQuery.skip(page * body.getPageSize());
-				varList = IteratorUtils.toList(mongoTemplate.find(varQuery, VariantData.class).iterator());
 				
+                if (fGotVariants) {
+                    //use aggregation to keep the order of variantDbIds
+                    MatchOperation match = match(Criteria.where("_id").in(variantIDs));
+                    AddFieldsOperation addFields = AddFieldsOperation.addField("_order").withValue(arrayOf(variantIDs).indexOf("$_id")).build();
+                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_order"));
+                    Aggregation aggregation = Aggregation.newAggregation(match, addFields, sort, Aggregation.skip(page * body.getPageSize()), Aggregation.limit(body.getPageSize())).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+                    AggregationResults<VariantData> results = mongoTemplate.aggregate(aggregation, VariantData.class, VariantData.class);
+                    varList = results.getMappedResults();
+                } else {
+					varQuery.limit(body.getPageSize());
+					if (page > 0)
+						varQuery.skip(page * body.getPageSize());
+					varList = IteratorUtils.toList(mongoTemplate.find(varQuery, VariantData.class).iterator());
+				}
 				// we may need to grab functional annotations from VRD records (FIXME: these should really be duplicated into VariantData)
             	if (!fGotVariants)
             		variantIDs = varList.stream().map(avd -> avd.getVariantId()).collect(Collectors.toList());

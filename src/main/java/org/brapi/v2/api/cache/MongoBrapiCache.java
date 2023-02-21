@@ -1,5 +1,8 @@
 package org.brapi.v2.api.cache;
 
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -25,7 +28,14 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.tools.AppConfig;
+import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.web.controller.BackOfficeController;
+import htsjdk.variant.vcf.VCFFormatHeaderLine;
+import htsjdk.variant.vcf.VCFHeaderLineType;
+import java.util.Map;
+import org.brapi.v2.model.VariantSetMetadataFields;
+import org.brapi.v2.model.VariantSetMetadataFields.DataTypeEnum;
+import org.bson.Document;
 
 @Component
 public class MongoBrapiCache {
@@ -66,6 +76,33 @@ public class MongoBrapiCache {
 
 			if (variantSet.getCallSetCount() == 0 && variantSet.getVariantCount() == 0)
 				return null;	// this run probably doesn't exist
+                        
+                        //try retrieving metadata information from DBVCFHeader collection                        
+                        Document filter = new Document();
+                        filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_PROJECT, projId); 
+                        filter.put("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_RUN, splitId[2]);                        
+            
+                        MongoCollection<Document> vcfHeadersColl = mongoTemplate.getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));           
+                        MongoCursor<Document> headerCursor = vcfHeadersColl.find(filter).iterator();
+
+                        while (headerCursor.hasNext()) {
+                            DBVCFHeader dbVcfHeader = DBVCFHeader.fromDocument(headerCursor.next());
+                            Map<String, VCFFormatHeaderLine> vcfMetadata = dbVcfHeader.getmFormatMetaData();
+                            if (vcfMetadata != null) {
+                                for (String key:vcfMetadata.keySet()) {
+                                    if (!key.equals("GT")) {
+                                        VariantSetMetadataFields field = new VariantSetMetadataFields();
+                                        VCFHeaderLineType type = vcfMetadata.get(key).getType();
+                                        DataTypeEnum brapiType = DataTypeEnum.fromValue(type.toString().toLowerCase());
+                                        field.setDataType(brapiType);
+                                        field.setFieldAbbreviation(key);
+                                        field.setFieldName(vcfMetadata.get(key).getDescription());
+                                        variantSet.addMetadataFieldsItem(field);
+                                    }
+                                }
+                            }     
+                        }
+                        
 			mongoTemplate.save(variantSet, BRAPI_CACHE_COLL_VARIANTSET);
 			Log.debug("VariantSet cache generated for " + variantSetDbId + " in " + (System.currentTimeMillis() - before) / 1000 + "s");
     	}
