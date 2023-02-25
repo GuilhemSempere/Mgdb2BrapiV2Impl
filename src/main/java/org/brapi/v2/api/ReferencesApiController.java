@@ -115,7 +115,7 @@ public class ReferencesApiController implements ReferencesApi {
 		    				projectAssemblies = new ArrayList<>();
 		    				assembliesByProject.put(projId, projectAssemblies);
 		    			}
-		    			projectAssemblies.add(Integer.parseInt(info[2]));
+		    			projectAssemblies.add(info[2].isEmpty() ? null : Integer.parseInt(info[2]));
 		    		}
 		    	}
         	}
@@ -126,7 +126,7 @@ public class ReferencesApiController implements ReferencesApi {
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
 						sErrorMsg += "You may only request reference records from one program at a time!";
-	    			assembliesByProject.put(Integer.parseInt(info[1]), null /* means all assemblies wanted*/);
+	    			assembliesByProject.put(Integer.parseInt(info[1]), null /* means all assemblies wanted */);
 	    		}
 	    	}
 	    		    	
@@ -141,11 +141,11 @@ public class ReferencesApiController implements ReferencesApi {
 	   			for (GenotypingProject project : MongoTemplateManager.get(programDbId).find(!assembliesByProject.isEmpty() ? new Query(Criteria.where("_id").in(assembliesByProject.keySet())) : new Query(), GenotypingProject.class)) {
 	   				Collection<Integer> assembliesToAccountFor = assembliesByProject.get(project.getId());
 	   				if (assembliesToAccountFor == null)	// if no assemblies specified in the request, grab all available
-	   					assembliesToAccountFor = project.getContigs().isEmpty() ? Arrays.asList(0) : project.getContigs().keySet();
+	   					assembliesToAccountFor = project.getContigs().isEmpty() ? Arrays.asList(null) : project.getContigs().keySet();
 	
-	   				for (int assemblyId : assembliesToAccountFor) {
+	   				for (Integer assemblyId : assembliesToAccountFor) {
 	   					ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
-			   			for (String seq : project.getContigs(assemblyId == 0 ? null : assemblyId))
+			   			for (String seq : project.getContigs(assemblyId))
 			   				if (projectsSequencesByAssembly.isEmpty() || (assemblySequences != null && assemblySequences.contains(project.getId() + IGigwaService.ID_SEPARATOR + seq))) {
 			   					Reference ref = new Reference();
 			   					String speciesName = MongoTemplateManager.getSpecies(programDbId);
@@ -155,7 +155,7 @@ public class ReferencesApiController implements ReferencesApi {
 				   					speciesOT.setTerm(speciesName);
 						        	ref.setSpecies(speciesOT);
 			   					}
-						    	ref.setReferenceSetDbId(programDbId + IGigwaService.ID_SEPARATOR + project.getId() + IGigwaService.ID_SEPARATOR + assemblyId);
+						    	ref.setReferenceSetDbId(programDbId + IGigwaService.ID_SEPARATOR + project.getId() + IGigwaService.ID_SEPARATOR + (assemblyId == null ? "" : assemblyId));
 						    	ref.setReferenceDbId(ref.getReferenceSetDbId() + IGigwaService.ID_SEPARATOR + seq);
 						    	ref.setReferenceName(seq);
 						    	result.addDataItem(ref);

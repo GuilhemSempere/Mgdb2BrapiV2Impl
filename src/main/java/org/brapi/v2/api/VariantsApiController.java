@@ -57,6 +57,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
+import fr.cirad.mgdb.service.IGigwaService;
 import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
@@ -106,8 +107,8 @@ public class VariantsApiController implements VariantsApi {
 		String token = ServerinfoApiController.readToken(authorization);
 
 		String module = null;
-		int projId;
-		Integer assemblyIdForReturnedPositions = null;	// if remains so, returned positions will be based on the default assembly
+		Integer projId = null;
+		Integer assemblyIdForReturnedPositions = null;
 		Query varQuery = null, runQuery = null;
 
 		VariantListResponseResult result = new VariantListResponseResult();
@@ -135,7 +136,6 @@ public class VariantsApiController implements VariantsApi {
 					module = info[0];
 					variantIDs.add(info[1]);
 				}
-				//varQuery = new Query(Criteria.where("_id").in(variantIDs));
 			}
 	    	else if (fGotRefDbIds || fGotRefSetDbIds) {
 		    	if (!fGotRefDbIds) { // select all references in this referenceSet 
@@ -168,6 +168,7 @@ public class VariantsApiController implements VariantsApi {
 						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
 					}
 		        	module = info[0];
+		        	projId = Integer.parseInt(info[1]);
 		        	int assemblyId = Integer.parseInt(info[2]);
 		        	if (assemblyIdForReturnedPositions == null)
 		        		 assemblyIdForReturnedPositions = assemblyId;	// if there are several then the first encountered will be used
@@ -240,9 +241,16 @@ public class VariantsApiController implements VariantsApi {
 			}
 			
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+			if (assemblyIdForReturnedPositions == null) {
+				List<Assembly> assemblies = mongoTemplate.findAll(Assembly.class);
+				if (!assemblies.isEmpty())
+					assemblyIdForReturnedPositions = assemblies.get(0).getId();
+			}
+
 			AtomicLong totalCount = new AtomicLong();
 			Thread countThread = null;
 			List<? extends AbstractVariantData> varList;
+			HashMap<String, Integer> projectByVariant = projId == null ? new HashMap<>() : null;	// if searching by variantDbIds we have no info what projectId to set in referenceDbId and referenceSetDbId: find this out 
 			if (varQuery != null || (variantIDs != null && !variantIDs.isEmpty())) {
 				Document finalVarQuery = varQuery == null ? new Document("_id", new Document("$in", variantIDs)) :  varQuery.getQueryObject();
 				countThread = new Thread() {
@@ -276,8 +284,12 @@ public class VariantsApiController implements VariantsApi {
             	
             	Query q = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantIDs));
             	q.fields().include(AbstractVariantData.SECTION_ADDITIONAL_INFO);
-            	for (VariantRunData vrd : mongoTemplate.find(q, VariantRunData.class))
-            		variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());	// FIXME: this is sub-optimal as it may be called several times for the same variant
+            	
+            	mongoTemplate.find(q, VariantRunData.class).forEach(vrd -> {
+        			variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());	// FIXME: this is sub-optimal as it may be called several times for the same variant
+            		if (projectByVariant != null && !projectByVariant.containsKey(vrd.getVariantId()))
+            			projectByVariant.put(vrd.getVariantId(), vrd.getId().getProjectId());
+            	});
 			}
 			else if (runQuery != null) {
 				Document finalRunQuery = runQuery.getQueryObject();
@@ -287,7 +299,7 @@ public class VariantsApiController implements VariantsApi {
 					}
 				};
 				countThread.start();
-	        	varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
+	        	varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, assemblyIdForReturnedPositions, VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
 			}
 			else {
 				status.setMessage("At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified as parameter!");
@@ -309,6 +321,11 @@ public class VariantsApiController implements VariantsApi {
         		variant.setVariantType(dbVariant.getType());
         		ReferencePosition refPos = assemblyIdForReturnedPositions != null ? dbVariant.getReferencePosition(assemblyIdForReturnedPositions) : dbVariant.getDefaultReferencePosition();
         		if (refPos != null) {
+        			Integer nProjectIdForVariant = projId != null ? projId : projectByVariant.get(dbVariant.getVariantId());
+        			if (nProjectIdForVariant != null) {
+	        			variant.setReferenceSetDbId(module + IGigwaService.ID_SEPARATOR + nProjectIdForVariant + IGigwaService.ID_SEPARATOR + assemblyIdForReturnedPositions);
+				    	variant.setReferenceDbId(variant.getReferenceSetDbId() + IGigwaService.ID_SEPARATOR + refPos.getSequence());
+        			}
 	        		variant.setReferenceName(refPos.getSequence());
 	        		variant.setStart((int) refPos.getStartSite());
 	        		if (refPos.getEndSite() != null)
@@ -405,9 +422,10 @@ public class VariantsApiController implements VariantsApi {
 		return new ResponseEntity<>(vlr, HttpStatus.OK);
     }
 
-	protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Class varClass, Query varQuery, int skip, int limit) {
+	protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Integer nAssemblyId, Class varClass, Query varQuery, int skip, int limit) {
+		String refPosPath = Assembly.getVariantRefPosPath(nAssemblyId);
 		varQuery.collation(org.springframework.data.mongodb.core.query.Collation.of("en_US").numericOrderingEnabled());
-		varQuery.with(Sort.by(Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE)));
+		varQuery.with(Sort.by(Order.asc(refPosPath + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(refPosPath + "." + ReferencePosition.FIELDNAME_START_SITE)));
 		varQuery.skip(skip).limit(limit).cursorBatchSize(limit);
 		return mongoTemplate.find(varQuery, varClass, mongoTemplate.getCollectionName(varClass));
 	}

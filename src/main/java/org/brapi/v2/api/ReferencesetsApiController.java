@@ -92,11 +92,11 @@ public class ReferencesetsApiController implements ReferencesetsApi {
     			if (moduleAssemblies == null) {
     				moduleAssemblies = MongoTemplateManager.get(info[0]).findAll(Assembly.class);
     				if (moduleAssemblies.isEmpty())
-						moduleAssemblies.add(new Assembly(0)); // default dummy assembly for old-style DBs
+						moduleAssemblies.add(new Assembly(null)); // default dummy assembly for old-style DBs
     				assembliesByModule.put(info[0], moduleAssemblies);
     			}
     			for (Assembly asm : moduleAssemblies) {
-    				String refSetId = study.getStudyDbId() + IGigwaService.ID_SEPARATOR + asm.getId();
+    				String refSetId = study.getStudyDbId() + IGigwaService.ID_SEPARATOR + (asm.getId() == null ? "" : asm.getId());
     				if (!fGotRefSetIdList || body.getReferenceSetDbIds().contains(refSetId))
     					result.addDataItem(new ReferenceSet() {{
     		        		setReferenceSetDbId(refSetId);
