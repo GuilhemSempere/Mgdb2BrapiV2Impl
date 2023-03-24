@@ -5,7 +5,6 @@ import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_SEQ
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_START_SITE;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
-import static org.springframework.data.mongodb.core.aggregation.ArrayOperators.IndexOfArray.arrayOf;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +39,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.ArrayOperators;
 import org.springframework.data.mongodb.core.aggregation.CountOperation;
 import org.springframework.data.mongodb.core.aggregation.Field;
 import org.springframework.data.mongodb.core.aggregation.Fields;
@@ -455,7 +455,6 @@ public class AllelematrixApiController implements AllelematrixApi {
                 sampleIDs.sort(Comparator.comparing(v->sIds.indexOf(v)));  //sort samples in the same order as callSetDbIds
             }
             
-            runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
             nTotalSamplesCount = sampleIDs.size();
             if (callSetsPage * numberOfCallSetsPerPage >= sampleIDs.size())
                 sampleIDs = new ArrayList<>();
@@ -482,6 +481,9 @@ public class AllelematrixApiController implements AllelematrixApi {
             	sampleIDs.add(gs.getId());
         }
         
+        if (!fVcfStyleGenotypes && !body.isPreview())
+        	runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
+
         List<String> callSetDbIds = new ArrayList<>();
         for (Integer spId : sampleIDs) {
             callSetDbIds.add(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
@@ -535,13 +537,14 @@ public class AllelematrixApiController implements AllelematrixApi {
 	        	else if (fGotVariantList) {	// a list of sampleIDs must exist, even if not passed on (should have been created for pagination in that case)
 	                // use aggregation to keep the order of variantDbIds
 		                MatchOperation match = match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-		                ProjectionOperation project = Aggregation.project("_id", VariantRunData.SECTION_ADDITIONAL_INFO)
-		                		.and(arrayOf(varIDs).indexOf("$_id." + VariantRunDataId.FIELDNAME_VARIANT_ID)).as("_order")
+		                ProjectionOperation project = Aggregation.project("_id", VariantRunData.FIELDNAME_KNOWN_ALLELES, VariantRunData.SECTION_ADDITIONAL_INFO)
+		                		.and(ArrayOperators.arrayOf(varIDs).indexOf("$_id." + VariantRunDataId.FIELDNAME_VARIANT_ID)).as("_order")
 		                		.and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES).nested(Fields.from(sampleIDs.stream().map(spId -> Fields.field(spId.toString(), VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + spId.toString())).toArray(Field[]::new)));
 		                
 		                // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
 		                // using _order as project ID is a hack, we need this field to exist for resulting records to be deserializable, and luckily enough _order is the same for each variant ID so this still allows grouping to work as we want
 		                GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
+		                		.and(VariantRunData.FIELDNAME_KNOWN_ALLELES, ArrayOperators.First.firstOf(VariantRunData.FIELDNAME_KNOWN_ALLELES))
 		                		.and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
 		                		.and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
 		                
