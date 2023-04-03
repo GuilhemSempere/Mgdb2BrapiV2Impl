@@ -5,8 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import org.slf4j.Logger;
@@ -31,7 +30,6 @@ import org.brapi.v2.model.GermplasmAttributeValueListResponseResult;
 import org.brapi.v2.model.GermplasmAttributeValueSearchRequest;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.ProgramListResponse;
 import org.brapi.v2.model.Status;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -127,7 +125,7 @@ public class AttributevaluesApiController implements AttributevaluesApi {
 	        if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
 	            requestedGermplasmIDs = body.getGermplasmDbIds();
 	            for (String gpId : requestedGermplasmIDs) {
-	                String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 2);
+	                String[] info = Helper.getInfoFromId(gpId, 2);
 	                if (programDbId == null) {
 	                    programDbId = info[0];
 	                } else if (!programDbId.equals(info[0])) {
@@ -167,7 +165,7 @@ public class AttributevaluesApiController implements AttributevaluesApi {
 	                        		continue;
 
 	                            GermplasmAttributeValue attrValue = new GermplasmAttributeValue();
-	                            attrValue.setGermplasmDbId(programDbId + IGigwaService.ID_SEPARATOR + individualId);
+	                            attrValue.setGermplasmDbId(programDbId + Helper.ID_SEPARATOR + individualId);
 	                            attrValue.setGermplasmName(individualId);
 	                            attrValue.setAttributeValueDbId(attributeDbId);
 	                            attrValue.setValue(addInfo.get(attributeDbId).toString());

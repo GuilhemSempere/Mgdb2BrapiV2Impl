@@ -24,9 +24,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.AlphaNumericComparator;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 
@@ -81,7 +80,7 @@ public class ReferencesApiController implements ReferencesApi {
 
 	    	if (fGotReferenceIDs) {
 	        	for (String referenceId : body.getReferenceDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(referenceId, 4);
+	        		String[] info = Helper.getInfoFromId(referenceId, 4);
 					if (programDbId == null)
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
@@ -93,14 +92,14 @@ public class ReferencesApiController implements ReferencesApi {
 	    				assemblySequences = new ArrayList<>();
 	    				projectsSequencesByAssembly.put(assemblyId, assemblySequences);
 	    			}
-	    			assemblySequences.add(info[1] + IGigwaService.ID_SEPARATOR + info[3]);	// this is not a real ID, just concatenating project and sequence for convenience
+	    			assemblySequences.add(info[1] + Helper.ID_SEPARATOR + info[3]);	// this is not a real ID, just concatenating project and sequence for convenience
 	        	}
         	}
 
 	    	if (fGotReferenceSetIDs) {
 	        	for (String referenceSetId : body.getReferenceSetDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(referenceSetId, 3);
-	        		if (fGotStudyIDs && !body.getStudyDbIds().contains(info[0] + IGigwaService.ID_SEPARATOR + info[1]))
+	        		String[] info = Helper.getInfoFromId(referenceSetId, 3);
+	        		if (fGotStudyIDs && !body.getStudyDbIds().contains(info[0] + Helper.ID_SEPARATOR + info[1]))
 	        			continue;	// we have a list of studies to restrict search to, and this referenceSet belongs to a study which is not in that list
 
 					if (programDbId == null)
@@ -121,7 +120,7 @@ public class ReferencesApiController implements ReferencesApi {
         	}
 	    	else if (fGotStudyIDs) {
 	    		for (String studyId : body.getStudyDbIds() ) {
-	    			String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+	    			String[] info = Helper.getInfoFromId(studyId, 2);
 					if (programDbId == null)
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
@@ -146,7 +145,7 @@ public class ReferencesApiController implements ReferencesApi {
 	   				for (Integer assemblyId : assembliesToAccountFor) {
 	   					ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
 			   			for (String seq : project.getContigs(assemblyId))
-			   				if (projectsSequencesByAssembly.isEmpty() || (assemblySequences != null && assemblySequences.contains(project.getId() + IGigwaService.ID_SEPARATOR + seq))) {
+			   				if (projectsSequencesByAssembly.isEmpty() || (assemblySequences != null && assemblySequences.contains(project.getId() + Helper.ID_SEPARATOR + seq))) {
 			   					Reference ref = new Reference();
 			   					String speciesName = MongoTemplateManager.getSpecies(programDbId);
 			   					if (speciesName != null) {
@@ -155,8 +154,8 @@ public class ReferencesApiController implements ReferencesApi {
 				   					speciesOT.setTerm(speciesName);
 						        	ref.setSpecies(speciesOT);
 			   					}
-						    	ref.setReferenceSetDbId(programDbId + IGigwaService.ID_SEPARATOR + project.getId() + IGigwaService.ID_SEPARATOR + (assemblyId == null ? "" : assemblyId));
-						    	ref.setReferenceDbId(ref.getReferenceSetDbId() + IGigwaService.ID_SEPARATOR + seq);
+						    	ref.setReferenceSetDbId(programDbId + Helper.ID_SEPARATOR + project.getId() + Helper.ID_SEPARATOR + (assemblyId == null ? "" : assemblyId));
+						    	ref.setReferenceDbId(ref.getReferenceSetDbId() + Helper.ID_SEPARATOR + seq);
 						    	ref.setReferenceName(seq);
 						    	result.addDataItem(ref);
 			   				}

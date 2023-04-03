@@ -25,8 +25,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
@@ -77,8 +76,8 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         	ssr.setTrialDbIds(body.getTrialDbIds());
         	if (fGotRefSetIdList) {
         		ssr.setStudyDbIds(body.getReferenceSetDbIds().stream().map(refSetId -> {
-        			String[] info = GigwaSearchVariantsRequest.getInfoFromId(refSetId, 3);
-        			String studyId = info == null ? null : (info[0] + IGigwaService.ID_SEPARATOR + info[1]);
+        			String[] info = Helper.getInfoFromId(refSetId, 3);
+        			String studyId = info == null ? null : (info[0] + Helper.ID_SEPARATOR + info[1]);
         			return studyId == null || (fGotStudyIdList && !body.getStudyDbIds().contains(studyId)) ? null : studyId;
         		}).filter(refSetId -> refSetId != null).toList());
         	}
@@ -87,7 +86,7 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         	
         	HashMap<String /*module*/, Collection<Assembly>> assembliesByModule = new HashMap<>();
         	for (Study study : studiesApiController.searchStudiesPost(ssr, authorization).getBody().getResult().getData()) {
-        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(study.getStudyDbId(), 2);
+        		String[] info = Helper.getInfoFromId(study.getStudyDbId(), 2);
         		Collection<Assembly> moduleAssemblies = assembliesByModule.get(info[0]);
     			if (moduleAssemblies == null) {
     				moduleAssemblies = MongoTemplateManager.get(info[0]).findAll(Assembly.class);
@@ -96,7 +95,7 @@ public class ReferencesetsApiController implements ReferencesetsApi {
     				assembliesByModule.put(info[0], moduleAssemblies);
     			}
     			for (Assembly asm : moduleAssemblies) {
-    				String refSetId = study.getStudyDbId() + IGigwaService.ID_SEPARATOR + (asm.getId() == null ? "" : asm.getId());
+    				String refSetId = study.getStudyDbId() + Helper.ID_SEPARATOR + (asm.getId() == null ? "" : asm.getId());
     				if (!fGotRefSetIdList || body.getReferenceSetDbIds().contains(refSetId))
     					result.addDataItem(new ReferenceSet() {{
     		        		setReferenceSetDbId(refSetId);

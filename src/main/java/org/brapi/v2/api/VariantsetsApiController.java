@@ -66,9 +66,8 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.AlphaNumericComparator;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.ProgressIndicator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -113,7 +112,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     	Map<String, Map<Integer, List<String>>> result = new HashMap<>();
     	if (variantSetOrStudyDbIds != null)
 	    	for (String variantSetOrStudyId : variantSetOrStudyDbIds) {
-	    		String[] splitId = variantSetOrStudyId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+	    		String[] splitId = variantSetOrStudyId.split(Helper.ID_SEPARATOR);
 	    		Map<Integer, List<String>> moduleProjectsAndRuns = result.get(splitId[0]);
 	    		if (moduleProjectsAndRuns == null) {
 	    			moduleProjectsAndRuns = new HashMap<>();
@@ -160,7 +159,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	    	        	List<String> wantedProjectRuns = variantSetDbIDsByStudy == null ? new ArrayList<>() : variantSetDbIDsByStudy.get(proj.getId());
 	    	        	for (String run : proj.getRuns())
 		    	        	if (wantedProjectRuns.isEmpty() || wantedProjectRuns.contains(run)) {
-		    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, programDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + proj.getId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + run);
+		    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, programDbId + Helper.ID_SEPARATOR + proj.getId() + Helper.ID_SEPARATOR + run);
 			    	            result.addDataItem(variantSet);
 		    	        	}
 	    	        }
@@ -169,7 +168,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	        else {	// no study or variantSet specified, but we have a list of callSets
 	        	HashMap<String /*module*/, HashSet<Integer> /*samples*/> samplesByModule = new HashMap<>();
 				for (String csId : body.getCallSetDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 2);
+					String[] info = Helper.getInfoFromId(csId, 2);
 					HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
 					if (moduleSamples == null) {
 						moduleSamples = new HashSet<>();
@@ -181,7 +180,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	        	for (String module : samplesByModule.keySet()) {
 	        		MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 	    	        for (GenotypingSample sample : mongoTemplate.find(new Query(Criteria.where("_id").in(samplesByModule.get(module))), GenotypingSample.class)) {
-	    	        	String variantSetDbId = module + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun();
+	    	        	String variantSetDbId = module + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun();
 	    	        	if (!addedVariantSets.contains(variantSetDbId)) {
 	    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
 		    	            result.addDataItem(variantSet);
@@ -316,7 +315,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         	VariantSetResponse rlr = new VariantSetResponse();
 			Metadata metadata = new Metadata();
 			rlr.setMetadata(metadata);
-        	String[] splitId = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+        	String[] splitId = Helper.getInfoFromId(variantSetDbId, 3);
         	
     		if (!tokenManager.canUserReadProject(token, splitId[0], Integer.parseInt(splitId[1]))) {
 				Status status = new Status();
@@ -339,7 +338,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	@Override
 	public void variantsetsExportIntoFormat(HttpServletResponse response, String variantSetDbId, String dataFormat, String authorization) throws Exception {
 		String token = ServerinfoApiController.readToken(authorization);
-		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+		String[] info = Helper.getInfoFromId(variantSetDbId, 3);
 		if (!tokenManager.canUserReadProject(token, info[0], Integer.parseInt(info[1]))){
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			response.getWriter().write("You are not allowed to access this content");
@@ -350,7 +349,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		if (dataFormat.equalsIgnoreCase(DataFormatEnum.PLINK.toString())) {
 			PLinkExportHandler exportHandler = (PLinkExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
 			
-        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	String[] splitId = variantSetDbId.split(Helper.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
         	String exportId = brapiV2ExportFilePrefix  + variantSetDbId;
@@ -375,7 +374,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         				String sLine  = scanner.nextLine();
     					int nFirstSpacePos = sLine.indexOf(" "), nSecondSpacePos = sLine.indexOf(" ", nFirstSpacePos + 1);
     					String ind = sLine.substring(nFirstSpacePos + 1, nSecondSpacePos);
-    					response.getWriter().write(sLine.substring(0, nFirstSpacePos + 1) + splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nSecondSpacePos) + "\n");
+    					response.getWriter().write(sLine.substring(0, nFirstSpacePos + 1) + splitId[0] + Helper.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nSecondSpacePos) + "\n");
         			}
         			scanner.close();
         			response.getWriter().close();
@@ -413,7 +412,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		else if (dataFormat.equalsIgnoreCase(DataFormatEnum.FLAPJACK.toString())) {
 			FlapjackExportHandler exportHandler = (FlapjackExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
 			
-        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	String[] splitId = variantSetDbId.split(Helper.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
         	String exportId = brapiV2ExportFilePrefix + variantSetDbId;
@@ -442,7 +441,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         				else {
         					int nFirstTabPos = sLine.indexOf("\t");
         					String ind = sLine.substring(0, nFirstTabPos);
-        					response.getWriter().write(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nFirstTabPos) + "\n");
+        					response.getWriter().write(splitId[0] + Helper.ID_SEPARATOR + individualToSampleMap.get(ind) + sLine.substring(nFirstTabPos) + "\n");
         				}
         			}
         			scanner.close();
@@ -481,7 +480,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		else if (dataFormat.equalsIgnoreCase(DataFormatEnum.VCF.toString())) {
 			VcfExportHandler exportHandler = (VcfExportHandler) AbstractMarkerOrientedExportHandler.getMarkerOrientedExportHandlers().get(dataFormat.toUpperCase());
 			
-        	String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+        	String[] splitId = variantSetDbId.split(Helper.ID_SEPARATOR);
         	MongoTemplate mongoTemplate = MongoTemplateManager.get(splitId[0]);
         	int projId = Integer.parseInt(splitId[1]);
         	String exportId = brapiV2ExportFilePrefix + variantSetDbId;
@@ -510,7 +509,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         					String[] splitLine = sLine.split("\t");
         					long nIndCount = runSamples.stream().map(gs -> gs.getIndividual()).distinct().count();
         					for (int i=0; i<nIndCount; i++)
-        						splitLine[splitLine.length - 1 - i] = splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR /*+ splitLine[splitLine.length - 1 - i] + GigwaGa4ghServiceImpl.ID_SEPARATOR*/ + individualToSampleMap.get(splitLine[splitLine.length - 1 - i]);
+        						splitLine[splitLine.length - 1 - i] = splitId[0] + Helper.ID_SEPARATOR /*+ splitLine[splitLine.length - 1 - i] + Helper.ID_SEPARATOR*/ + individualToSampleMap.get(splitLine[splitLine.length - 1 - i]);
         					for (int i=0; i<splitLine.length; i++)
         						response.getWriter().write(splitLine[i] + (i == splitLine.length - 1 ? "\n" : "\t"));
         				}
@@ -568,7 +567,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
-			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0]);
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
 			this.varColl = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantRunData.class));
 			this.samplesToExport = samplesToExport;
 			this.exportId = exportID;
@@ -583,7 +582,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		@Override
 		public void run() {
 			try {
-				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
 				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); add(new Document(VariantData.FIELDNAME_TYPE, Type.SNP.toString())); /*only SNPs are supported*/ }} );
@@ -623,7 +622,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
-			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0]);
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
 			this.varColl = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantRunData.class));
 			this.samplesToExport = samplesToExport;
 			this.exportId = exportID;
@@ -638,7 +637,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		@Override
 		public void run() {
 			try {
-				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
 				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );
@@ -678,7 +677,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		VcfExportThread(VcfExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
-			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR)[0]);
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
 			this.varColl = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantRunData.class));
 			this.samplesToExport = samplesToExport;
 			this.exportId = exportID;
@@ -693,7 +692,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		@Override
 		public void run() {
 			try {
-				String[] splitId = variantSet.getVariantSetDbId().split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
 				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );

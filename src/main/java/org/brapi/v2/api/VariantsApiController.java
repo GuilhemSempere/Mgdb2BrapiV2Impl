@@ -56,13 +56,10 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.utils.Constants;
+
 import htsjdk.variant.variantcontext.VariantContext.Type;
 import io.swagger.annotations.ApiParam;
 import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
@@ -127,7 +124,7 @@ public class VariantsApiController implements VariantsApi {
 			if (fGotVariants) {
 				variantIDs = new HashSet<>();
 				for (String variantDbId : body.getVariantDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
+					String[] info = Helper.getInfoFromId(variantDbId, 2);
 					if (module != null && !module.equals(info[0])) {
 						status.setMessage("You may only request variant records from one program at a time!");
 						metadata.addStatusItem(status);
@@ -140,7 +137,7 @@ public class VariantsApiController implements VariantsApi {
 	    	else if (fGotRefDbIds || fGotRefSetDbIds) {
 		    	if (!fGotRefDbIds) { // select all references in this referenceSet 
 		    		for (String referenceSetDbId : body.getReferenceSetDbIds()) {
-		    			String[] info = GigwaSearchVariantsRequest.getInfoFromId(referenceSetDbId, 3);
+		    			String[] info = Helper.getInfoFromId(referenceSetDbId, 3);
 						if (module != null && !module.equals(info[0])) {
 							status.setMessage("You may only request variant records from one program at a time!");
 							metadata.addStatusItem(status);
@@ -149,7 +146,7 @@ public class VariantsApiController implements VariantsApi {
 			        	module = info[0];
 			        	int assemblyId = Integer.parseInt(info[2]);
 			        	for (String ref : MongoTemplateManager.get(module).findDistinct(new Query(), assemblyId != 0 ? GenotypingProject.FIELDNAME_CONTIGS + "." + assemblyId : GenotypingProject.FIELDNAME_SEQUENCES, GenotypingProject.class, String.class))
-			        		body.addReferenceDbIdsItem(referenceSetDbId + GigwaGa4ghServiceImpl.ID_SEPARATOR + ref);
+			        		body.addReferenceDbIdsItem(referenceSetDbId + Helper.ID_SEPARATOR + ref);
 		    		}
 
 			    	if (body.getReferenceDbIds() == null || body.getReferenceDbIds().isEmpty()) {
@@ -161,7 +158,7 @@ public class VariantsApiController implements VariantsApi {
 
 		    	HashMap<String /*refPos path*/, List<String> /*sequences*/> seqsByAssembly = new HashMap<>();
 	        	for (String referenceDbId : body.getReferenceDbIds()) {
-		        	String[] info = GigwaSearchVariantsRequest.getInfoFromId(referenceDbId, 4);
+		        	String[] info = Helper.getInfoFromId(referenceDbId, 4);
 					if (module != null && !module.equals(info[0])) {
 						status.setMessage("You may only request variant records from one program at a time!");
 						metadata.addStatusItem(status);
@@ -173,7 +170,7 @@ public class VariantsApiController implements VariantsApi {
 		        	if (assemblyIdForReturnedPositions == null)
 		        		 assemblyIdForReturnedPositions = assemblyId;	// if there are several then the first encountered will be used
 		        	else if (assemblyIdForReturnedPositions != assemblyId && (metadata.getStatus() == null || metadata.getStatus().isEmpty())) {
-		        		status.setMessage("Returned variant positions are based on assembly " + MongoTemplateManager.get(module).findById(assemblyIdForReturnedPositions, Assembly.class).getName() + " (referenceSetDbId " + info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR  + info[1] + GigwaGa4ghServiceImpl.ID_SEPARATOR  + info[2] + ")");
+		        		status.setMessage("Returned variant positions are based on assembly " + MongoTemplateManager.get(module).findById(assemblyIdForReturnedPositions, Assembly.class).getName() + " (referenceSetDbId " + info[0] + Helper.ID_SEPARATOR  + info[1] + Helper.ID_SEPARATOR  + info[2] + ")");
 		        		status.setMessageType(Status.MessageTypeEnum.INFO);
 						metadata.addStatusItem(status);
 		        	}
@@ -198,7 +195,7 @@ public class VariantsApiController implements VariantsApi {
 			else if (fGotVariantSets) {
 				HashMap<Integer, Set<String>> runsByProject = new HashMap<>();
 		    	for (String variantSetDbId : body.getVariantSetDbIds()) {
-		    		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+		    		String[] info = Helper.getInfoFromId(variantSetDbId, 3);
 					if (module != null && !module.equals(info[0])) {
 						status.setMessage("You may only request variant records from one program at a time!");
 						metadata.addStatusItem(status);
@@ -312,7 +309,7 @@ public class VariantsApiController implements VariantsApi {
 
         	for (AbstractVariantData dbVariant : varList) {
         		Variant variant = new Variant();
-        		variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
+        		variant.setVariantDbId(module + Helper.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
         		List<String> alleles = dbVariant.getKnownAlleles();
         		if (alleles.size() > 0)
         			variant.setReferenceBases(alleles.get(0));
@@ -323,8 +320,8 @@ public class VariantsApiController implements VariantsApi {
         		if (refPos != null) {
         			Integer nProjectIdForVariant = projId != null ? projId : projectByVariant.get(dbVariant.getVariantId());
         			if (nProjectIdForVariant != null) {
-	        			variant.setReferenceSetDbId(module + IGigwaService.ID_SEPARATOR + nProjectIdForVariant + IGigwaService.ID_SEPARATOR + assemblyIdForReturnedPositions);
-				    	variant.setReferenceDbId(variant.getReferenceSetDbId() + IGigwaService.ID_SEPARATOR + refPos.getSequence());
+	        			variant.setReferenceSetDbId(module + Helper.ID_SEPARATOR + nProjectIdForVariant + Helper.ID_SEPARATOR + assemblyIdForReturnedPositions);
+				    	variant.setReferenceDbId(variant.getReferenceSetDbId() + Helper.ID_SEPARATOR + refPos.getSequence());
         			}
 	        		variant.setReferenceName(refPos.getSequence());
 	        		variant.setStart((int) refPos.getStartSite());
@@ -348,9 +345,9 @@ public class VariantsApiController implements VariantsApi {
                     	if (headerList == null) {	// go get it
                             fAnnStyle = !subKey.equals(VcfImport.ANNOTATION_FIELDNAME_EFF);
                     		
-                    		BasicDBObject fieldHeader = new BasicDBObject(Constants.INFO_META_DATA + "." + (fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF) + "." + Constants.DESCRIPTION, 1);
+                    		BasicDBObject fieldHeader = new BasicDBObject(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA + "." + (fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF) + "." + AbstractVariantData.VCF_CONSTANT_DESCRIPTION, 1);
                             if (fAnnStyle)
-                            	fieldHeader.put(Constants.INFO_META_DATA + "." + VcfImport.ANNOTATION_FIELDNAME_CSQ + "." + Constants.DESCRIPTION, 1);
+                            	fieldHeader.put(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA + "." + VcfImport.ANNOTATION_FIELDNAME_CSQ + "." + AbstractVariantData.VCF_CONSTANT_DESCRIPTION, 1);
                             
         	                MongoCollection<Document> vcfHeaderColl = MongoTemplateManager.get(module).getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
         	                BasicDBList vcfHeaderQueryOrList = new BasicDBList();
@@ -362,11 +359,11 @@ public class VariantsApiController implements VariantsApi {
         	                headerList = new ArrayList<>();
         	                if (!fAnnStyle)
         	                	headerList.add("Consequence");	// EFF style annotations
-        	                Document annInfo = (Document) ((Document) vcfHeaderEff.get(Constants.INFO_META_DATA)).get(fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF);
+        	                Document annInfo = (Document) ((Document) vcfHeaderEff.get(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA)).get(fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF);
         	                if (annInfo == null && fAnnStyle)
-        	                	annInfo = (Document) ((Document) vcfHeaderEff.get(Constants.INFO_META_DATA)).get(VcfImport.ANNOTATION_FIELDNAME_CSQ);
+        	                	annInfo = (Document) ((Document) vcfHeaderEff.get(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA)).get(VcfImport.ANNOTATION_FIELDNAME_CSQ);
         	                if (annInfo != null) {
-        	                    String header = (String) annInfo.get(Constants.DESCRIPTION);
+        	                    String header = (String) annInfo.get(AbstractVariantData.VCF_CONSTANT_DESCRIPTION);
         	                    if (header != null) {
         	                        // consider using the headers for additional info keySet
         	                    	String sBeforeFieldList = fAnnStyle ? ": " : " (";
@@ -489,9 +486,9 @@ public class VariantsApiController implements VariantsApi {
 //        			ListValue lv = new ListValue();
 //        			lv.addValuesItem(genotype);
 //        			call.setGenotype(lv);
-//        			call.setVariantDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
+//        			call.setVariantDbId(info[0] + Helper.ID_SEPARATOR + vrd.getId().getVariantId());
 //        			call.setVariantName(call.getVariantDbId());
-//        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + sampleIndividuals.get(spId) + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
+//        			call.setCallSetDbId(info[0] + Helper.ID_SEPARATOR + sampleIndividuals.get(spId) + Helper.ID_SEPARATOR + spId);
 //        			call.setCallSetName(call.getCallSetDbId());
 //                	result.addDataItem(call);
 //        		}

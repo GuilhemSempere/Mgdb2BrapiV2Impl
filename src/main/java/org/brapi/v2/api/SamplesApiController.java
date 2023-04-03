@@ -37,9 +37,7 @@ import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
@@ -100,7 +98,7 @@ public class SamplesApiController implements SamplesApi {
 
             if (body.getStudyDbIds() != null) {                    
                 for (String studyId : body.getStudyDbIds()) {
-                    String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+                    String[] info = Helper.getInfoFromId(studyId, 2);
                     String module = info[0];
                     int nProjId = Integer.parseInt(info[1]);
                     if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), module, nProjId)) {
@@ -286,10 +284,10 @@ public class SamplesApiController implements SamplesApi {
         List<Sample> brapiSamples = new ArrayList<>();
         for (GenotypingSample mgdbSample : genotypingSamples) {
             Sample sample = new Sample();
-            sample.sampleDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getId()));
-            sample.germplasmDbId(GigwaGa4ghServiceImpl.createId(database, mgdbSample.getIndividual()));
+            sample.sampleDbId(Helper.createId(database, mgdbSample.getId()));
+            sample.germplasmDbId(Helper.createId(database, mgdbSample.getIndividual()));
             sample.setSampleName(mgdbSample.getSampleName());
-            sample.studyDbId(database + IGigwaService.ID_SEPARATOR + mgdbSample.getProjectId());
+            sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
                 sample.setAdditionalInfo(new HashMap<>());
                 ExternalReferencesInner ref = new ExternalReferencesInner();
@@ -317,7 +315,7 @@ public class SamplesApiController implements SamplesApi {
     private HashMap<String, Collection<Long>> readSampleIDs(List<String> sampleDbIds) {
         HashMap<String, Collection<Long>> dbSampleIDs = new HashMap<>();
         for (String sId : sampleDbIds) {
-            String[] info = GigwaSearchVariantsRequest.getInfoFromId(sId, 2);
+            String[] info = Helper.getInfoFromId(sId, 2);
             if (info == null)
                 throw new MalformedParametersException("malformed sampleDbId: " + sId);
 

@@ -5,10 +5,10 @@
 	<packaging>jar</packaging> 
     <version>2.0.3-RELEASE</version>
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <Gigwa2ServiceImpl.version>2.6-SNAPSHOT</Gigwa2ServiceImpl.version>
+        <mgdb2_export.version>2.6-beta</mgdb2_export.version>
     </properties>
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>
@@ -21,26 +21,16 @@
         </dependency>
         <dependency>
             <groupId>fr.cirad</groupId>
-            <artifactId>Gigwa2ServiceImpl</artifactId>
-            <version>${Gigwa2ServiceImpl.version}</version>
+            <artifactId>mgdb2_export</artifactId>
+            <version>${mgdb2_export.version}</version>
             <exclusions>
                 <exclusion>
-                    <groupId>com.fasterxml.jackson.core</groupId>
-                    <artifactId>jackson-annotations</artifactId>
-                </exclusion>
-                <exclusion>
-		            <groupId>org.ga4gh</groupId>
-		            <artifactId>ga4gh-schemas</artifactId>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>servlet-api</artifactId>
-            <version>2.5</version>
-            <scope>provided</scope>
-        </dependency>
-        
+
 		<dependency>
 		    <groupId>javax.xml.bind</groupId>
 		    <artifactId>jaxb-api</artifactId>

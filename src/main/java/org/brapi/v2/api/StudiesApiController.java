@@ -36,8 +36,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -75,7 +73,7 @@ public class StudiesApiController implements StudiesApi {
         	HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
         	if (body.getStudyDbIds() != null)
 				for (String studyId : body.getStudyDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+					String[] info = Helper.getInfoFromId(studyId, 2);
 					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedStudies.get(info[0]);
 					if (moduleProjects == null) {
 						moduleProjects = new HashSet<>();
@@ -168,7 +166,7 @@ public class StudiesApiController implements StudiesApi {
 		        		if (tokenManager.canUserReadProject(token, module, pj.getId()))
 			            	result.addDataItem(new Study() {{
 			            		setTrialDbId(module);
-			            		setStudyDbId(module + IGigwaService.ID_SEPARATOR + pj.getId());
+			            		setStudyDbId(module + Helper.ID_SEPARATOR + pj.getId());
 			            		setStudyType("genotype");
 			            		setStudyName(pj.getName());	/* variantSets in GA4GH correspond to projects, i.e. studies in BrAPI v2 */
 			            		setStudyDescription(pj.getDescription());
