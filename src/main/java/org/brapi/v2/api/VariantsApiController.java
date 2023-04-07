@@ -166,7 +166,7 @@ public class VariantsApiController implements VariantsApi {
 					}
 		        	module = info[0];
 		        	projId = Integer.parseInt(info[1]);
-		        	int assemblyId = Integer.parseInt(info[2]);
+		        	Integer assemblyId = info[2].isEmpty() ? null : Integer.parseInt(info[2]);
 		        	if (assemblyIdForReturnedPositions == null)
 		        		 assemblyIdForReturnedPositions = assemblyId;	// if there are several then the first encountered will be used
 		        	else if (assemblyIdForReturnedPositions != assemblyId && (metadata.getStatus() == null || metadata.getStatus().isEmpty())) {
@@ -175,7 +175,7 @@ public class VariantsApiController implements VariantsApi {
 						metadata.addStatusItem(status);
 		        	}
 
-		        	String refPosPath = assemblyId != 0 ? VariantData.FIELDNAME_POSITIONS + "." + assemblyId : VariantData.FIELDNAME_REFERENCE_POSITION;
+		        	String refPosPath = assemblyId != null ? VariantData.FIELDNAME_POSITIONS + "." + assemblyId : VariantData.FIELDNAME_REFERENCE_POSITION;
 		        	List<String> asmSeqs = seqsByAssembly.get(refPosPath);
 		        	if (asmSeqs == null) {
 		        		asmSeqs = new ArrayList<>();
@@ -320,7 +320,7 @@ public class VariantsApiController implements VariantsApi {
         		if (refPos != null) {
         			Integer nProjectIdForVariant = projId != null ? projId : projectByVariant.get(dbVariant.getVariantId());
         			if (nProjectIdForVariant != null) {
-	        			variant.setReferenceSetDbId(module + Helper.ID_SEPARATOR + nProjectIdForVariant + Helper.ID_SEPARATOR + assemblyIdForReturnedPositions);
+	        			variant.setReferenceSetDbId(module + Helper.ID_SEPARATOR + nProjectIdForVariant + Helper.ID_SEPARATOR + (assemblyIdForReturnedPositions == null ? "" : assemblyIdForReturnedPositions));
 				    	variant.setReferenceDbId(variant.getReferenceSetDbId() + Helper.ID_SEPARATOR + refPos.getSequence());
         			}
 	        		variant.setReferenceName(refPos.getSequence());
@@ -333,7 +333,7 @@ public class VariantsApiController implements VariantsApi {
 	        			variant.setEnd(variant.getStart() + variant.getReferenceBases().length() - 1);
         		}
 
-        		List<String> variantNames = new ArrayList() {{ add(dbVariant.getVariantId()); }};
+        		List<String> variantNames = new ArrayList<>() {{ add(dbVariant.getVariantId()); }};
         		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty())
         			for (TreeSet<String> synsForAType : dbVariant.getSynonyms().values())
         				variantNames.addAll(synsForAType);

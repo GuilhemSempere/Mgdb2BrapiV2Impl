@@ -86,7 +86,7 @@ public class ReferencesApiController implements ReferencesApi {
 					else if (!programDbId.equals(info[0]))
 						sErrorMsg += "You may only request reference records from one program at a time!";
 
-					int assemblyId = Integer.parseInt(info[2]);
+					Integer assemblyId = info[2].isEmpty() ? null : Integer.parseInt(info[2]);
 	    			ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
 	    			if (assemblySequences == null) {
 	    				assemblySequences = new ArrayList<>();
@@ -140,7 +140,7 @@ public class ReferencesApiController implements ReferencesApi {
 	   			for (GenotypingProject project : MongoTemplateManager.get(programDbId).find(!assembliesByProject.isEmpty() ? new Query(Criteria.where("_id").in(assembliesByProject.keySet())) : new Query(), GenotypingProject.class)) {
 	   				Collection<Integer> assembliesToAccountFor = assembliesByProject.get(project.getId());
 	   				if (assembliesToAccountFor == null)	// if no assemblies specified in the request, grab all available
-	   					assembliesToAccountFor = project.getContigs().isEmpty() ? Arrays.asList(null) : project.getContigs().keySet();
+	   					assembliesToAccountFor = project.getContigs().isEmpty() ? new ArrayList<>() {{ add(null); }} : project.getContigs().keySet();
 	
 	   				for (Integer assemblyId : assembliesToAccountFor) {
 	   					ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
