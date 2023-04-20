@@ -9,10 +9,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.validation.Valid;
@@ -47,24 +49,25 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCollection;
 
 import fr.cirad.mgdb.importing.VcfImport;
+import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.model.GigwaSearchVariantsRequest;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.utils.Constants;
+
+import htsjdk.variant.variantcontext.VariantContext.Type;
 import io.swagger.annotations.ApiParam;
 import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
+
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import static org.springframework.data.mongodb.core.aggregation.ArrayOperators.IndexOfArray.arrayOf;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.aggregation.SortOperation;
@@ -94,13 +97,17 @@ public class VariantsApiController implements VariantsApi {
     public ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam(value = "Variant Search request") @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	boolean fGotVariants = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
     	boolean fGotVariantSets = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
-    	boolean fGotRefDbId = body.getReferenceDbId() != null && !body.getReferenceDbId().isEmpty();
+    	if (body.getReferenceDbId() != null && !body.getReferenceDbId().isEmpty() && (body.getReferenceDbIds() == null || body.getReferenceDbId().isEmpty()))
+    		body.setReferenceDbIds(Arrays.asList(body.getReferenceDbId()));
+    	boolean fGotRefDbIds = body.getReferenceDbIds() != null && !body.getReferenceDbIds().isEmpty();
+    	boolean fGotRefSetDbIds = body.getReferenceSetDbIds() != null && !body.getReferenceSetDbIds().isEmpty();
 
 		String token = ServerinfoApiController.readToken(authorization);
 
 		String module = null;
-		int projId;
-		Query varQuery = null, runQuery = null;
+		Integer projId = null;
+		Integer assemblyIdForReturnedPositions = null;
+		List<Criteria> varQueryCrits = new ArrayList<>(), runQueryCrits = new ArrayList<>();
 
 		VariantListResponseResult result = new VariantListResponseResult();
 		VariantListResponse vlr = new VariantListResponse();
@@ -113,39 +120,80 @@ public class VariantsApiController implements VariantsApi {
         	body.setPageSize(VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE);
         int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
 
-		Collection<String> variantIDs = new HashSet<>();
+		Collection<String> variantIDs = null;
 		try {
 			if (fGotVariants) {
+				variantIDs = new LinkedHashSet<>();
 				for (String variantDbId : body.getVariantDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantDbId, 2);
+					String[] info = Helper.getInfoFromId(variantDbId, 2);
 					if (module != null && !module.equals(info[0])) {
-						status.setMessage("You may only supply IDs of variant records from one program at a time!");
+						status.setMessage("You may only request variant records from one program at a time!");
 						metadata.addStatusItem(status);
-						return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
 					}
 					module = info[0];
 					variantIDs.add(info[1]);
-				}                                
-                                
-				//varQuery = new Query(Criteria.where("_id").in(variantIDs));
+				}
+				varQueryCrits.add(Criteria.where("_id").in(variantIDs));
 			}
-	    	else if (fGotRefDbId) {
-	        	String[] info = GigwaSearchVariantsRequest.getInfoFromId(body.getReferenceDbId(), 2);
-	        	module = info[0];
-	    		List<Criteria> crits = new ArrayList<>();	    		
-	        	crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE).is(info[1]));
+	    	else if (fGotRefDbIds || fGotRefSetDbIds) {
+		    	if (!fGotRefDbIds) { // select all references in this referenceSet 
+		    		for (String referenceSetDbId : body.getReferenceSetDbIds()) {
+		    			String[] info = Helper.getInfoFromId(referenceSetDbId, 3);
+						if (module != null && !module.equals(info[0])) {
+							status.setMessage("You may only request variant records from one program at a time!");
+							metadata.addStatusItem(status);
+							return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+						}
+			        	module = info[0];
+			        	Integer assemblyId = info[2].isEmpty() ? null : Integer.parseInt(info[2]);
+			        	for (String ref : MongoTemplateManager.get(module).findDistinct(new Query(), assemblyId != null ? GenotypingProject.FIELDNAME_CONTIGS + "." + assemblyId : GenotypingProject.FIELDNAME_SEQUENCES, GenotypingProject.class, String.class))
+			        		body.addReferenceDbIdsItem(referenceSetDbId + Helper.ID_SEPARATOR + ref);
+		    		}
+
+			    	if (body.getReferenceDbIds() == null || body.getReferenceDbIds().isEmpty()) {
+						status.setMessage("Unable to find any references for the supplied referenceSet(s)!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+			    	}
+			    }
+
+		    	HashMap<String /*refPos path*/, List<String> /*sequences*/> seqsByAssembly = new HashMap<>();
+	        	for (String referenceDbId : body.getReferenceDbIds()) {
+		        	String[] info = Helper.getInfoFromId(referenceDbId, 4);
+					if (module != null && !module.equals(info[0])) {
+						status.setMessage("You may only request variant records from one program at a time!");
+						metadata.addStatusItem(status);
+						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+					}
+		        	module = info[0];
+		        	projId = Integer.parseInt(info[1]);
+		        	Integer assemblyId = info[2].isEmpty() ? null : Integer.parseInt(info[2]);
+		        	if (assemblyIdForReturnedPositions == null)
+		        		 assemblyIdForReturnedPositions = assemblyId;	// if there are several then the first encountered will be used
+
+		        	String refPosPath = assemblyId != null ? VariantData.FIELDNAME_POSITIONS + "." + assemblyId : VariantData.FIELDNAME_REFERENCE_POSITION;
+		        	List<String> asmSeqs = seqsByAssembly.get(refPosPath);
+		        	if (asmSeqs == null) {
+		        		asmSeqs = new ArrayList<>();
+		        		seqsByAssembly.put(refPosPath, asmSeqs);
+		        	}
+		        	asmSeqs.add(info[3]);
+	        	}
+
+	        	varQueryCrits.add(new Criteria().orOperator(seqsByAssembly.entrySet().stream().map(e -> Criteria.where(e.getKey() + "." + ReferencePosition.FIELDNAME_SEQUENCE).in(e.getValue())).toList()));
 	    		if (body.getStart() != null)
-	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()));
+	    			varQueryCrits.add(new Criteria().orOperator(seqsByAssembly.keySet().stream().map(k -> new Criteria().orOperator(Criteria.where(k + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()), Criteria.where(k + "." + ReferencePosition.FIELDNAME_END_SITE).gte(body.getStart()))).toList()));
 	    		if (body.getEnd() != null)
-	        		crits.add(Criteria.where(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd()));
-	    		varQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
+	    			varQueryCrits.add(new Criteria().orOperator(seqsByAssembly.keySet().stream().map(k -> Criteria.where(k + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd())).toList()));
+
 	    	}
 			else if (fGotVariantSets) {
 				HashMap<Integer, Set<String>> runsByProject = new HashMap<>();
 		    	for (String variantSetDbId : body.getVariantSetDbIds()) {
-		    		String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+		    		String[] info = Helper.getInfoFromId(variantSetDbId, 3);
 					if (module != null && !module.equals(info[0])) {
-						status.setMessage("You may only supply IDs of variantSet records from one program at a time!");
+						status.setMessage("You may only request variant records from one program at a time!");
 						metadata.addStatusItem(status);
 						return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
 					}
@@ -169,8 +217,13 @@ public class VariantsApiController implements VariantsApi {
 		    	List<Criteria> orCrits = new ArrayList<>();
 		    	for (Integer proj : runsByProject.keySet())
 		    		orCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(proj), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).in(runsByProject.get(proj))));
-		    	runQuery = new Query(new Criteria().orOperator(orCrits.toArray(new Criteria[orCrits.size()])));
-				runQuery.fields().exclude(VariantRunData.FIELDNAME_SAMPLEGENOTYPES);
+		    	runQueryCrits.add(new Criteria().orOperator(orCrits.toArray(new Criteria[orCrits.size()])));
+			}
+			
+			if (module == null) {
+				status.setMessage("You must provide one of variantDbIds, referenceSetDbIds, referenceDbIds, variantSetDbIds! Only the first filter (in given order) encountered will be applied.");
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
 			}
 			
 			if (!tokenManager.canUserReadDB(token, module)) {
@@ -179,23 +232,51 @@ public class VariantsApiController implements VariantsApi {
 				return new ResponseEntity<>(vlr, HttpStatus.FORBIDDEN);
 			}
 			
+			MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+			if (fGotVariants || fGotVariantSets) {
+				if (assemblyIdForReturnedPositions == null) {	// in this case we haven't searched for an assembly
+					List<Assembly> assemblies = mongoTemplate.findAll(Assembly.class);
+					if (!assemblies.isEmpty())
+						assemblyIdForReturnedPositions = assemblies.get(0).getId();	// otherwise we must be working on an old-style DBs that does not support assemblies
+				}
+				
+				// account for start / end filters in this case too
+				if (body.getStart() != null || body.getEnd() != null) {
+					String refPosPath = assemblyIdForReturnedPositions != null ? VariantData.FIELDNAME_POSITIONS + "." + assemblyIdForReturnedPositions : VariantData.FIELDNAME_REFERENCE_POSITION;
+					List<Criteria> crit = fGotVariants ? varQueryCrits: runQueryCrits;
+		    		if (body.getStart() != null)
+		    			crit.add(new Criteria().orOperator(Criteria.where(refPosPath + "." + ReferencePosition.FIELDNAME_START_SITE).gte(body.getStart()), Criteria.where(refPosPath + "." + ReferencePosition.FIELDNAME_END_SITE).gte(body.getStart())));
+		    		if (body.getEnd() != null)
+		    			crit.add(Criteria.where(refPosPath + "." + ReferencePosition.FIELDNAME_START_SITE).lte(body.getEnd()));
+				}
+			}
+
+			AtomicLong totalCount = new AtomicLong();
+			Thread countThread = null;
 			List<? extends AbstractVariantData> varList;
-			if (varQuery != null || !variantIDs.isEmpty()) {
-                            if (fGotVariants) {
-                                //use aggregation to keep the order of variantDbIds
-                                MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-                                MatchOperation match = match(Criteria.where("_id").in(variantIDs));
-                                AddFieldsOperation addFields = AddFieldsOperation.addField("_order").withValue(arrayOf(variantIDs).indexOf("$_id")).build();
-                                SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_order"));
-                                Aggregation aggregation = Aggregation.newAggregation(match, addFields, sort, Aggregation.skip(page * body.getPageSize()), Aggregation.limit(body.getPageSize())).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
-                                AggregationResults<VariantData> results = mongoTemplate.aggregate(aggregation, VariantData.class, VariantData.class);
-                                varList = results.getMappedResults();
-                            } else {                         
-				varQuery.limit(body.getPageSize());
-				if (page > 0)
-					varQuery.skip(page * body.getPageSize());
-				varList = IteratorUtils.toList(MongoTemplateManager.get(module).find(varQuery, VariantData.class).iterator());
-                            }
+			HashMap<String, Integer> projectByVariant = projId == null ? new HashMap<>() : null;	// if searching by variantDbIds we have no info what projectId to set in referenceDbId and referenceSetDbId: find this out 
+			if (!varQueryCrits.isEmpty()) {
+				final Query finalVarQuery = new Query(new Criteria().andOperator(varQueryCrits));
+				countThread = new Thread() {
+					public void run() {
+						totalCount.set(mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).countDocuments(finalVarQuery.getQueryObject()));
+					}
+				};
+				countThread.start();
+
+                if (fGotVariants) {
+                    //use aggregation to keep the order of variantDbIds
+                    MatchOperation match = match(new Criteria().andOperator(varQueryCrits));
+                    AddFieldsOperation addFields = AddFieldsOperation.addField("_order").withValue(arrayOf(variantIDs).indexOf("$_id")).build();
+                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_order"));
+                    Aggregation aggregation = Aggregation.newAggregation(match, addFields, sort, Aggregation.skip(page * body.getPageSize()), Aggregation.limit(body.getPageSize())).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+                    varList = mongoTemplate.aggregate(aggregation, VariantData.class, VariantData.class).getMappedResults();
+                } else {
+                	finalVarQuery.limit(body.getPageSize());
+					if (page > 0)
+						finalVarQuery.skip(page * body.getPageSize());
+					varList = IteratorUtils.toList(mongoTemplate.find(finalVarQuery, VariantData.class).iterator());
+				}
 				// we may need to grab functional annotations from VRD records (FIXME: these should really be duplicated into VariantData)
             	if (!fGotVariants)
             		variantIDs = varList.stream().map(avd -> avd.getVariantId()).collect(Collectors.toList());
@@ -204,13 +285,28 @@ public class VariantsApiController implements VariantsApi {
             	for (AbstractVariantData variant : varList)
             		variantsById.put(variant.getVariantId(), variant);
             	
-            	Query q = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantIDs));
-            	q.fields().include(AbstractVariantData.SECTION_ADDITIONAL_INFO);
-            	for (VariantRunData vrd : MongoTemplateManager.get(module).find(q, VariantRunData.class))
-            		variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());	// FIXE: this is sub-optimal as it may be called several times for the same variant
+            	finalVarQuery.fields().include(AbstractVariantData.SECTION_ADDITIONAL_INFO);
+            	
+            	Query vrdQueryForAI = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantsById.keySet()));
+            	vrdQueryForAI.fields().include(VariantRunData.SECTION_ADDITIONAL_INFO);
+            	mongoTemplate.find(vrdQueryForAI, VariantRunData.class).forEach(vrd -> {
+        			variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());	// FIXME: this is sub-optimal as it may be called several times for the same variant
+//        			Optional.ofNullable(variantsById.get(vrd.getVariantId())).ifPresent(variant -> variant.getAdditionalInfo().putAll(vrd.getAdditionalInfo()));	// FIXME: this is sub-optimal as it may be called several times for the same variant
+            		if (projectByVariant != null && !projectByVariant.containsKey(vrd.getVariantId()))
+            			projectByVariant.put(vrd.getVariantId(), vrd.getId().getProjectId());
+            	});
 			}
-			else if (runQuery != null)
-	        	varList = VariantsApiController.getSortedVariantListChunk(MongoTemplateManager.get(module), VariantRunData.class, runQuery, page * body.getPageSize(), body.getPageSize());
+			else if (!runQueryCrits.isEmpty()) {
+				final Query finalRunQuery = new Query(new Criteria().andOperator(runQueryCrits));
+				countThread = new Thread() {
+					public void run() {
+						totalCount.set(mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantRunData.class)).countDocuments(finalRunQuery.getQueryObject()));
+					}
+				};
+				countThread.start();
+				finalRunQuery.fields().exclude(VariantRunData.FIELDNAME_SAMPLEGENOTYPES);
+	        	varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, assemblyIdForReturnedPositions, VariantRunData.class, finalRunQuery, page * body.getPageSize(), body.getPageSize());
+			}
 			else {
 				status.setMessage("At least a variantDbId, a variantSetDbId, or a referenceDbId must be specified as parameter!");
 				metadata.addStatusItem(status);
@@ -222,20 +318,36 @@ public class VariantsApiController implements VariantsApi {
 
         	for (AbstractVariantData dbVariant : varList) {
         		Variant variant = new Variant();
-        		variant.setVariantDbId(module + GigwaGa4ghServiceImpl.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
+        		variant.setVariantDbId(module + Helper.ID_SEPARATOR + (dbVariant instanceof VariantRunData ? ((VariantRunData) dbVariant).getId().getVariantId() : ((VariantData) dbVariant).getId()));
         		List<String> alleles = dbVariant.getKnownAlleles();
         		if (alleles.size() > 0)
         			variant.setReferenceBases(alleles.get(0));
         		if (alleles.size() > 1)
         			variant.setAlternateBases(alleles.subList(1, alleles.size()));
         		variant.setVariantType(dbVariant.getType());
-        		if (dbVariant.getReferencePosition() != null) {
-	        		variant.setReferenceName(dbVariant.getReferencePosition().getSequence());
-	        		variant.setStart((int) dbVariant.getReferencePosition().getStartSite());
-	        		variant.setEnd((int) (dbVariant.getReferencePosition().getEndSite() != null ? dbVariant.getReferencePosition().getEndSite() : (variant.getReferenceBases() != null ? (variant.getStart() + variant.getReferenceBases().length() - 1) : null)));
+        		ReferencePosition refPos = assemblyIdForReturnedPositions != null ? dbVariant.getReferencePosition(assemblyIdForReturnedPositions) : dbVariant.getDefaultReferencePosition();
+        		if (refPos != null) {
+        			Integer nProjectIdForVariant = projId != null ? projId : projectByVariant.get(dbVariant.getVariantId());
+        			if (nProjectIdForVariant != null) {
+	        			variant.setReferenceSetDbId(module + Helper.ID_SEPARATOR + nProjectIdForVariant + Helper.ID_SEPARATOR + (assemblyIdForReturnedPositions == null ? "" : assemblyIdForReturnedPositions));
+				    	variant.setReferenceDbId(variant.getReferenceSetDbId() + Helper.ID_SEPARATOR + refPos.getSequence());
+						if (status.getMessage() == null) {
+			        		status.setMessage("Returned variant positions are based on referenceSetDbId " + variant.getReferenceSetDbId());
+			        		status.setMessageType(Status.MessageTypeEnum.INFO);
+							metadata.addStatusItem(status);
+			        	}
+        			}
+	        		variant.setReferenceName(refPos.getSequence());
+	        		variant.setStart((int) refPos.getStartSite());
+	        		if (refPos.getEndSite() != null)
+	        			variant.setEnd(refPos.getEndSite().intValue());
+	        		else if (Type.SNP.toString().equals(dbVariant.getType()))
+	        			variant.setEnd(variant.getStart());
+	        		else if (variant.getReferenceBases() != null)
+	        			variant.setEnd(variant.getStart() + variant.getReferenceBases().length() - 1);
         		}
 
-        		List<String> variantNames = Arrays.asList(dbVariant.getVariantId());
+        		List<String> variantNames = new ArrayList<>() {{ add(dbVariant.getVariantId()); }};
         		if (dbVariant.getSynonyms() != null && !dbVariant.getSynonyms().isEmpty())
         			for (TreeSet<String> synsForAType : dbVariant.getSynonyms().values())
         				variantNames.addAll(synsForAType);
@@ -247,9 +359,9 @@ public class VariantsApiController implements VariantsApi {
                     	if (headerList == null) {	// go get it
                             fAnnStyle = !subKey.equals(VcfImport.ANNOTATION_FIELDNAME_EFF);
                     		
-                    		BasicDBObject fieldHeader = new BasicDBObject(Constants.INFO_META_DATA + "." + (fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF) + "." + Constants.DESCRIPTION, 1);
+                    		BasicDBObject fieldHeader = new BasicDBObject(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA + "." + (fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF) + "." + AbstractVariantData.VCF_CONSTANT_DESCRIPTION, 1);
                             if (fAnnStyle)
-                            	fieldHeader.put(Constants.INFO_META_DATA + "." + VcfImport.ANNOTATION_FIELDNAME_CSQ + "." + Constants.DESCRIPTION, 1);
+                            	fieldHeader.put(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA + "." + VcfImport.ANNOTATION_FIELDNAME_CSQ + "." + AbstractVariantData.VCF_CONSTANT_DESCRIPTION, 1);
                             
         	                MongoCollection<Document> vcfHeaderColl = MongoTemplateManager.get(module).getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
         	                BasicDBList vcfHeaderQueryOrList = new BasicDBList();
@@ -261,11 +373,11 @@ public class VariantsApiController implements VariantsApi {
         	                headerList = new ArrayList<>();
         	                if (!fAnnStyle)
         	                	headerList.add("Consequence");	// EFF style annotations
-        	                Document annInfo = (Document) ((Document) vcfHeaderEff.get(Constants.INFO_META_DATA)).get(fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF);
+        	                Document annInfo = (Document) ((Document) vcfHeaderEff.get(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA)).get(fAnnStyle ? VcfImport.ANNOTATION_FIELDNAME_ANN : VcfImport.ANNOTATION_FIELDNAME_EFF);
         	                if (annInfo == null && fAnnStyle)
-        	                	annInfo = (Document) ((Document) vcfHeaderEff.get(Constants.INFO_META_DATA)).get(VcfImport.ANNOTATION_FIELDNAME_CSQ);
+        	                	annInfo = (Document) ((Document) vcfHeaderEff.get(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA)).get(VcfImport.ANNOTATION_FIELDNAME_CSQ);
         	                if (annInfo != null) {
-        	                    String header = (String) annInfo.get(Constants.DESCRIPTION);
+        	                    String header = (String) annInfo.get(AbstractVariantData.VCF_CONSTANT_DESCRIPTION);
         	                    if (header != null) {
         	                        // consider using the headers for additional info keySet
         	                    	String sBeforeFieldList = fAnnStyle ? ": " : " (";
@@ -299,6 +411,12 @@ public class VariantsApiController implements VariantsApi {
         		
         		result.addDataItem(variant);
         	}
+        	
+			if (assemblyIdForReturnedPositions != null && status.getMessage() == null) {
+        		status.setMessage("Returned variant positions are based on assembly #" + assemblyIdForReturnedPositions + " (" + mongoTemplate.findById(assemblyIdForReturnedPositions, Assembly.class).getName() + ")");
+        		status.setMessageType(Status.MessageTypeEnum.INFO);
+				metadata.addStatusItem(status);
+        	}
 
         	int nNextPage = page + 1;
         	TokenPagination pagination = new TokenPagination();
@@ -308,8 +426,11 @@ public class VariantsApiController implements VariantsApi {
     			pagination.setNextPageToken("" + nNextPage);
     		if (page > 0)
     			pagination.setPrevPageToken("" + (page - 1));
+    		if (countThread != null) {
+    			countThread.join(5000);
+    			pagination.setTotalCount((int) totalCount.get());
+    		}
 			metadata.setPagination(pagination);
-
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<>(vlr, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -318,9 +439,10 @@ public class VariantsApiController implements VariantsApi {
 		return new ResponseEntity<>(vlr, HttpStatus.OK);
     }
 
-	protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Class varClass, Query varQuery, int skip, int limit) {
+	protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Integer nAssemblyId, Class varClass, Query varQuery, int skip, int limit) {
+		String refPosPath = Assembly.getVariantRefPosPath(nAssemblyId);
 		varQuery.collation(org.springframework.data.mongodb.core.query.Collation.of("en_US").numericOrderingEnabled());
-		varQuery.with(Sort.by(Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_START_SITE)));
+		varQuery.with(Sort.by(Order.asc(refPosPath + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(refPosPath + "." + ReferencePosition.FIELDNAME_START_SITE)));
 		varQuery.skip(skip).limit(limit).cursorBatchSize(limit);
 		return mongoTemplate.find(varQuery, varClass, mongoTemplate.getCollectionName(varClass));
 	}
@@ -384,9 +506,9 @@ public class VariantsApiController implements VariantsApi {
 //        			ListValue lv = new ListValue();
 //        			lv.addValuesItem(genotype);
 //        			call.setGenotype(lv);
-//        			call.setVariantDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + vrd.getId().getVariantId());
+//        			call.setVariantDbId(info[0] + Helper.ID_SEPARATOR + vrd.getId().getVariantId());
 //        			call.setVariantName(call.getVariantDbId());
-//        			call.setCallSetDbId(info[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + sampleIndividuals.get(spId) + GigwaGa4ghServiceImpl.ID_SEPARATOR + spId);
+//        			call.setCallSetDbId(info[0] + Helper.ID_SEPARATOR + sampleIndividuals.get(spId) + Helper.ID_SEPARATOR + spId);
 //        			call.setCallSetName(call.getCallSetDbId());
 //                	result.addDataItem(call);
 //        		}

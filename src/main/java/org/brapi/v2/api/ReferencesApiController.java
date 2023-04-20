@@ -1,8 +1,10 @@
 package org.brapi.v2.api;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.HashMap;
 
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
@@ -15,7 +17,6 @@ import org.brapi.v2.model.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
@@ -23,8 +24,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.AlphaNumericComparator;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 
@@ -66,37 +67,68 @@ public class ReferencesApiController implements ReferencesApi {
 
 	    	String sErrorMsg = "";
         	String programDbId = null;
-    		Collection<Integer> referenceSetIds = new HashSet<>();
-        	Collection<String> referenceIds = new HashSet<>();
+
 	    	boolean fGotReferenceSetIDs = body != null && body.getReferenceSetDbIds() != null && !body.getReferenceSetDbIds().isEmpty();
-	    	
-	    	if (body.getReferenceDbIds() != null) {
+	    	boolean fGotReferenceIDs = body != null && body.getReferenceDbIds() != null && !body.getReferenceDbIds().isEmpty();
+	    	boolean fGotStudyIDs = body != null && body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty();
+
+	    	if (!fGotStudyIDs && !fGotReferenceSetIDs && !fGotReferenceIDs)
+        		sErrorMsg += "You must provide at least one of studyDbIds, referenceSetDbIds, referenceDbIds!";
+
+    		HashMap<Integer, ArrayList<Integer>> assembliesByProject = new HashMap<>();
+    		HashMap<Integer, ArrayList<String>> projectsSequencesByAssembly = new HashMap<>();
+
+	    	if (fGotReferenceIDs) {
 	        	for (String referenceId : body.getReferenceDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(referenceId, 2);
+	        		String[] info = Helper.getInfoFromId(referenceId, 4);
 					if (programDbId == null)
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
-						sErrorMsg += "You may only supply IDs of reference records from one program at a time!";
+						sErrorMsg += "You may only request reference records from one program at a time!";
 
-					referenceIds.add(info[1]);
+					Integer assemblyId = info[2].isEmpty() ? null : Integer.parseInt(info[2]);
+	    			ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
+	    			if (assemblySequences == null) {
+	    				assemblySequences = new ArrayList<>();
+	    				projectsSequencesByAssembly.put(assemblyId, assemblySequences);
+	    			}
+	    			assemblySequences.add(info[1] + Helper.ID_SEPARATOR + info[3]);	// this is not a real ID, just concatenating project and sequence for convenience
 	        	}
         	}
-	    	else if (fGotReferenceSetIDs) {
+
+	    	if (fGotReferenceSetIDs) {
 	        	for (String referenceSetId : body.getReferenceSetDbIds()) {
-	        		String[] info = GigwaSearchVariantsRequest.getInfoFromId(referenceSetId, 2);
+	        		String[] info = Helper.getInfoFromId(referenceSetId, 3);
+	        		if (fGotStudyIDs && !body.getStudyDbIds().contains(info[0] + Helper.ID_SEPARATOR + info[1]))
+	        			continue;	// we have a list of studies to restrict search to, and this referenceSet belongs to a study which is not in that list
+
 					if (programDbId == null)
 						programDbId = info[0];
 					else if (!programDbId.equals(info[0]))
-						sErrorMsg += "You may only supply IDs of referenceSet records from one program at a time!";
+						sErrorMsg += "You may only request reference records from one program at a time!";
 
 		        	int projId = Integer.parseInt(info[1]);
-		    		if (tokenManager.canUserReadProject(token, programDbId, projId))
-		    			referenceSetIds.add(projId);
+		    		if (tokenManager.canUserReadProject(token, programDbId, projId)) {
+		    			ArrayList<Integer> projectAssemblies = assembliesByProject.get(projId);
+		    			if (projectAssemblies == null) {
+		    				projectAssemblies = new ArrayList<>();
+		    				assembliesByProject.put(projId, projectAssemblies);
+		    			}
+		    			projectAssemblies.add(info[2].isEmpty() ? null : Integer.parseInt(info[2]));
+		    		}
 		    	}
         	}
-        	else
-        		sErrorMsg += "You must provide either a list of referenceSetDbIds or a list of referenceDbIds!";
-	    	
+	    	else if (fGotStudyIDs) {
+	    		for (String studyId : body.getStudyDbIds() ) {
+	    			String[] info = Helper.getInfoFromId(studyId, 2);
+					if (programDbId == null)
+						programDbId = info[0];
+					else if (!programDbId.equals(info[0]))
+						sErrorMsg += "You may only request reference records from one program at a time!";
+	    			assembliesByProject.put(Integer.parseInt(info[1]), null /* means all assemblies wanted */);
+	    		}
+	    	}
+	    		    	
    			if (!sErrorMsg.isEmpty()) {
 				Status status = new Status();
 				status.setMessage(sErrorMsg);
@@ -104,27 +136,34 @@ public class ReferencesApiController implements ReferencesApi {
 				return new ResponseEntity<>(rlr, HttpStatus.BAD_REQUEST);
 			}
 
-   			if (referenceIds.isEmpty() && fGotReferenceSetIDs && referenceSetIds.isEmpty()) 
-   				return new ResponseEntity<>(rlr, HttpStatus.FORBIDDEN);	// none of them was allowed for this user to see
+   			if (!projectsSequencesByAssembly.isEmpty() || !assembliesByProject.isEmpty() || !fGotReferenceSetIDs || !fGotStudyIDs) 
+	   			for (GenotypingProject project : MongoTemplateManager.get(programDbId).find(!assembliesByProject.isEmpty() ? new Query(Criteria.where("_id").in(assembliesByProject.keySet())) : new Query(), GenotypingProject.class)) {
+	   				Collection<Integer> assembliesToAccountFor = assembliesByProject.get(project.getId());
+	   				if (assembliesToAccountFor == null)	// if no assemblies specified in the request, grab all available
+	   					assembliesToAccountFor = project.getContigs().isEmpty() ? new ArrayList<>() {{ add(null); }} : project.getContigs().keySet();
+	
+	   				for (Integer assemblyId : assembliesToAccountFor) {
+	   					ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
+			   			for (String seq : project.getContigs(assemblyId))
+			   				if (projectsSequencesByAssembly.isEmpty() || (assemblySequences != null && assemblySequences.contains(project.getId() + Helper.ID_SEPARATOR + seq))) {
+			   					Reference ref = new Reference();
+			   					String speciesName = MongoTemplateManager.getSpecies(programDbId);
+			   					if (speciesName != null) {
+				   					OntologyTerm speciesOT = new OntologyTerm();
+				   					speciesOT.setTermURI("TAXRANK:0000006");
+				   					speciesOT.setTerm(speciesName);
+						        	ref.setSpecies(speciesOT);
+			   					}
+						    	ref.setReferenceSetDbId(programDbId + Helper.ID_SEPARATOR + project.getId() + Helper.ID_SEPARATOR + (assemblyId == null ? "" : assemblyId));
+						    	ref.setReferenceDbId(ref.getReferenceSetDbId() + Helper.ID_SEPARATOR + seq);
+						    	ref.setReferenceName(seq);
+						    	result.addDataItem(ref);
+			   				}
+	   				}
+	   			}
 
-   			MongoTemplate mongoTemplate = MongoTemplateManager.get(programDbId);
-   			Query q = !referenceSetIds.isEmpty() ? new Query(Criteria.where("_id").in(referenceSetIds)) : new Query();
-   			for (String seq : mongoTemplate.findDistinct(q, GenotypingProject.FIELDNAME_SEQUENCES, GenotypingProject.class, String.class))
-   				if (referenceIds.isEmpty() || referenceIds.contains(seq)) {
-   					Reference ref = new Reference();
-   					String speciesName = MongoTemplateManager.getSpecies(programDbId);
-   					if (speciesName != null) {
-	   					OntologyTerm speciesOT = new OntologyTerm();
-	   					speciesOT.setTermURI("TAXRANK:0000006");
-	   					speciesOT.setTerm(speciesName);
-			        	ref.setSpecies(speciesOT);
-   					}
-			    	ref.setReferenceDbId(programDbId + IGigwaService.ID_SEPARATOR + seq);
-			    	ref.setReferenceName(seq);
-			    	result.addDataItem(ref);
-   			}
-
-			IndexPagination pagination = new IndexPagination();
+   			Collections.sort(result.getData(), new AlphaNumericComparator());
+ 			IndexPagination pagination = new IndexPagination();
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);
 			pagination.setTotalPages(1);

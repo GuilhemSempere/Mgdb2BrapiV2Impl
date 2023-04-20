@@ -10,13 +10,14 @@ import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.log4j.Logger;
 import org.brapi.v2.api.ServerinfoApi;
 import org.brapi.v2.api.VariantsetsApi;
 import org.brapi.v2.model.VariantSet;
 import org.brapi.v2.model.VariantSetAvailableFormats;
 import org.brapi.v2.model.VariantSetAvailableFormats.DataFormatEnum;
 import org.brapi.v2.model.VariantSetAvailableFormats.FileFormatEnum;
-import org.mortbay.log.Log;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -26,8 +27,8 @@ import org.springframework.stereotype.Component;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
 import fr.cirad.tools.AppConfig;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.web.controller.BackOfficeController;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
@@ -43,6 +44,8 @@ public class MongoBrapiCache {
 	public static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet";
 
 	@Autowired private AppConfig appConfig;
+	
+    private static final Logger LOG = Logger.getLogger(MongoBrapiCache.class);
 	
 	private HttpServletRequest request;
 
@@ -63,9 +66,9 @@ public class MongoBrapiCache {
 //	        analysisItem.setType("TODO: check how to deal with this field");
 //          variantSet.addAnalysisItem(analysisItem);
 			
-			String[] splitId = variantSetDbId.split(GigwaGa4ghServiceImpl.ID_SEPARATOR);
+			String[] splitId = variantSetDbId.split(Helper.ID_SEPARATOR);
 			int projId = Integer.parseInt(splitId[1]);
-			variantSet.setStudyDbId(splitId[0] + GigwaGa4ghServiceImpl.ID_SEPARATOR + projId);
+			variantSet.setStudyDbId(splitId[0] + Helper.ID_SEPARATOR + projId);
 			variantSet.setReferenceSetDbId(variantSet.getStudyDbId());
 			variantSet.setVariantSetDbId(variantSetDbId);
 			variantSet.setVariantSetName(splitId[2]);
@@ -104,7 +107,7 @@ public class MongoBrapiCache {
                         }
                         
 			mongoTemplate.save(variantSet, BRAPI_CACHE_COLL_VARIANTSET);
-			Log.debug("VariantSet cache generated for " + variantSetDbId + " in " + (System.currentTimeMillis() - before) / 1000 + "s");
+			LOG.debug("VariantSet cache generated for " + variantSetDbId + " in " + (System.currentTimeMillis() - before) / 1000 + "s");
     	}
     	
 		List<VariantSetAvailableFormats> formatList = new ArrayList<VariantSetAvailableFormats>();
@@ -131,9 +134,9 @@ public class MongoBrapiCache {
 		return variantSet;
 	}
 
-	private String getPublicHostName(HttpServletRequest request2) throws SocketException, UnknownHostException {
+	private String getPublicHostName(HttpServletRequest req) throws SocketException, UnknownHostException {
 		if (publicHostName == null)
-			publicHostName = BackOfficeController.determinePublicHostName(request);
+			publicHostName = BackOfficeController.determinePublicHostName(req);	/*FIXME: not sure this project should depend on role_manager*/
 		return publicHostName;
 	}
 }

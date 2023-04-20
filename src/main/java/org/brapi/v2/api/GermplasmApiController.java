@@ -42,8 +42,7 @@ import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
-import fr.cirad.mgdb.service.IGigwaService;
-import fr.cirad.model.GigwaSearchVariantsRequest;
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
@@ -70,7 +69,7 @@ public class GermplasmApiController implements GermplasmApi {
     public static HashMap<String, Collection<String>> readGermplasmIDs(Collection<String> germplasmDbIds) throws Exception {
     	HashMap<String, Collection<String>> dbIndividuals = new HashMap<>();
         for (String gpId : germplasmDbIds) {
-            String[] info = GigwaSearchVariantsRequest.getInfoFromId(gpId, 2); 
+            String[] info = Helper.getInfoFromId(gpId, 2); 
             if (info == null) {
                 throw new MalformedParametersException("malformed germplasmDbId: " + gpId);
             } else {
@@ -111,7 +110,7 @@ public class GermplasmApiController implements GermplasmApi {
         	HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
         	if (body.getStudyDbIds() != null)
 				for (String studyId : body.getStudyDbIds()) {
-					String[] info = GigwaSearchVariantsRequest.getInfoFromId(studyId, 2);
+					String[] info = Helper.getInfoFromId(studyId, 2);
 					int nProjId = Integer.parseInt(info[1]);
 	            	if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), info[0], nProjId)) {
 	                    Status status = new Status();
@@ -251,7 +250,7 @@ public class GermplasmApiController implements GermplasmApi {
             			}
 
                 	Germplasm germplasm = objectMapper.convertValue(ind.getAdditionalInfo(), Germplasm.class);
-                	germplasm.setGermplasmDbId(database + IGigwaService.ID_SEPARATOR + ind.getId());
+                	germplasm.setGermplasmDbId(database + Helper.ID_SEPARATOR + ind.getId());
                 	germplasm.setGermplasmName(ind.getId());
 
                 	Object extRefId = ind.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferenceId);

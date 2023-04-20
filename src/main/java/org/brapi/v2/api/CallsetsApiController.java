@@ -35,13 +35,12 @@ import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
-import fr.cirad.mgdb.service.GigwaGa4ghServiceImpl;
-import fr.cirad.model.GigwaSearchVariantsRequest;
+
+import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
-import org.apache.avro.generic.GenericData;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @Controller
@@ -112,7 +111,7 @@ public class CallsetsApiController implements CallsetsApi {
                             
 		        	HashMap<String /*module*/, HashSet<Integer> /*samples, null means all*/> samplesByModule = new HashMap<>();
                                 for (String csId : sampleIds) {
-                                        String[] info = GigwaSearchVariantsRequest.getInfoFromId(csId, 2);
+                                        String[] info = Helper.getInfoFromId(csId, 2);
                                         HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
                                         if (moduleSamples == null) {
                                                 moduleSamples = new HashSet<>();
@@ -181,7 +180,7 @@ public class CallsetsApiController implements CallsetsApi {
                             HashMap<String /*module*/, ArrayList<Criteria>> vsCritByModule = new HashMap<>();
                             boolean matchingVariantSetBase = false;
                                 for (String variantSetDbId : body.getVariantSetDbIds()) {
-                                        String[] info = GigwaSearchVariantsRequest.getInfoFromId(variantSetDbId, 3);
+                                        String[] info = Helper.getInfoFromId(variantSetDbId, 3);
                                         int projId = Integer.parseInt(info[1]); 
                                         
                                         if ((fFilterOnCallSets || fFilterOnGermplasm) && sampleCritByModule.containsKey(info[0])) { //variantSet base matches with callSets or germplasm base 
@@ -239,10 +238,10 @@ public class CallsetsApiController implements CallsetsApi {
                                         GenotypingSample sample = samples.get(i);
                                         nTotalCallSetsEncountered++;
                                         CallSet callset = new CallSet();
-                                        callset.setCallSetDbId(db + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getId());
+                                        callset.setCallSetDbId(db + Helper.ID_SEPARATOR + sample.getId());
                                         callset.setCallSetName(sample.getSampleName());
                                         callset.setSampleDbId(callset.getCallSetDbId());
-                                        callset.setVariantSetDbIds(Arrays.asList(db + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getProjectId() + GigwaGa4ghServiceImpl.ID_SEPARATOR + sample.getRun()));
+                                        callset.setVariantSetDbIds(Arrays.asList(db + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun()));
                                         final Individual ind = indMap.get(sample.getIndividual());
                                         for (String key : ind.getAdditionalInfo().keySet()) {
                                             String sLCkey = key.toLowerCase();
