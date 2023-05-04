@@ -8,7 +8,7 @@
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <mgdb2_export.version>2.6-beta</mgdb2_export.version>
+        <mgdb2_export.version>2.6-RELEASE</mgdb2_export.version>
     </properties>
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>
