@@ -41,8 +41,6 @@ import org.bson.Document;
 @Component
 public class MongoBrapiCache {
 
-	public static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet";
-
 	@Autowired private AppConfig appConfig;
 	
     private static final Logger LOG = Logger.getLogger(MongoBrapiCache.class);
@@ -57,7 +55,7 @@ public class MongoBrapiCache {
     }
 	
 	public VariantSet getVariantSet(MongoTemplate mongoTemplate, String variantSetDbId) throws SocketException, UnknownHostException {
-		VariantSet variantSet = mongoTemplate.findById(variantSetDbId, VariantSet.class, BRAPI_CACHE_COLL_VARIANTSET);
+		VariantSet variantSet = mongoTemplate.findById(variantSetDbId, VariantSet.class, VariantSet.BRAPI_CACHE_COLL_VARIANTSET);
     	if (variantSet == null) {
     		long before = System.currentTimeMillis();
     		variantSet = new VariantSet();
@@ -106,7 +104,7 @@ public class MongoBrapiCache {
                             }     
                         }
                         
-			mongoTemplate.save(variantSet, BRAPI_CACHE_COLL_VARIANTSET);
+			mongoTemplate.save(variantSet, VariantSet.BRAPI_CACHE_COLL_VARIANTSET);
 			LOG.debug("VariantSet cache generated for " + variantSetDbId + " in " + (System.currentTimeMillis() - before) / 1000 + "s");
     	}
     	
