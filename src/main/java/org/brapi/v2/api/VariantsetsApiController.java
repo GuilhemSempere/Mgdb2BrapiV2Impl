@@ -95,6 +95,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     
 	private ServletContext servletContext;
 
+	public static final  String brapiV2ExportFilePrefix = "brapiV2export-";
+	public static final String TMP_OUTPUT_FOLDER = "genofilt/brapiV2TmpOutput";
 	static final private long EXPORT_FILE_EXPIRATION_DELAY_MILLIS = 1000*60*60*24;	/* 1 day */
 
     private static HashMap<String /*export id*/, Thread /*temporary file generation thread */> exportThreads = new HashMap<>();

@@ -41,6 +41,8 @@ import org.bson.Document;
 @Component
 public class MongoBrapiCache {
 
+	public static final String BRAPI_CACHE_COLL_VARIANTSET = "brapiCache_VariantSet";
+
 	@Autowired private AppConfig appConfig;
 	
     private static final Logger LOG = Logger.getLogger(MongoBrapiCache.class);

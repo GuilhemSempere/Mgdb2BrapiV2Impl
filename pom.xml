@@ -1,9 +1,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-	<groupId>fr.cirad</groupId>
-	<artifactId>Mgdb2BrapiV2Impl</artifactId>
-	<packaging>jar</packaging> 
+    <groupId>fr.cirad</groupId>
+    <artifactId>Mgdb2BrapiV2Impl</artifactId>
+    <packaging>jar</packaging> 
     <version>2.0.4-RELEASE</version>
+    
+    <parent>
+        <groupId>fr.cirad</groupId>
+        <artifactId>gigwa-bom</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../gigwa-bom/pom.xml</relativePath>
+    </parent>
+    
     <properties>
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
@@ -15,9 +23,9 @@
     </build>
     <dependencies>
         <dependency>
-  			<groupId>fr.cirad</groupId>
-			<artifactId>Mgdb2BrapiImpl</artifactId>
-			<version>1.1.4-RELEASE</version>
+            <groupId>fr.cirad</groupId>
+            <artifactId>Mgdb2BrapiImpl</artifactId>
+            <version>1.1.4-RELEASE</version>
         </dependency>
         <dependency>
             <groupId>fr.cirad</groupId>
@@ -31,40 +39,40 @@
             </exclusions>
         </dependency>
         
- 		<dependency>
-    		<groupId>javax.servlet</groupId>
-    		<artifactId>javax.servlet-api</artifactId>
-    		<version>4.0.1</version>
-    		<scope>provided</scope>
-    	</dependency>
+ 	<dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+        </dependency>
 
-		<dependency>
-		    <groupId>javax.xml.bind</groupId>
-		    <artifactId>jaxb-api</artifactId>
-		    <version>2.3.1</version>
-		</dependency>
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+        </dependency>
         
-		<dependency>
-		    <groupId>com.google.code.gson</groupId>
-		    <artifactId>gson</artifactId>
-		    <version>2.8.6</version>
-		</dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.github.joschi.jackson</groupId>
             <artifactId>jackson-datatype-threetenbp</artifactId>
-            <version>2.12.5</version>
         </dependency>
-    <!-- Bean Validation API support -->
-		<dependency>
-		    <groupId>javax.validation</groupId>
-		    <artifactId>validation-api</artifactId>
-		    <version>1.1.0.Final</version>
-		</dependency>
-                <dependency>
+
+        <dependency>
+            <groupId>javax.validation</groupId>
+            <artifactId>validation-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>fr.cirad</groupId>
             <artifactId>Mgdb2BrapiModel</artifactId>
             <version>1.0.3-RELEASE</version>
+            <type>jar</type>
+        </dependency>
+        <dependency>
+            <groupId>io.springfox</groupId>
+            <artifactId>springfox-core</artifactId>
+            <version>3.0.0</version>
             <type>jar</type>
         </dependency>
     </dependencies>

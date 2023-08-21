@@ -70,6 +70,11 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperationContext;
+import org.springframework.data.mongodb.core.aggregation.MergeOperation;
+import org.springframework.data.mongodb.core.aggregation.ObjectOperators;
+import org.springframework.data.mongodb.core.aggregation.ScriptOperators.Accumulator;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
@@ -540,13 +545,34 @@ public class AllelematrixApiController implements AllelematrixApi {
 		                
 		                // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
 		                // using _order as project ID is a hack, we need this field to exist for resulting records to be deserializable, and luckily enough _order is the same for each variant ID so this still allows grouping to work as we want
-		                GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
-		                		.and(VariantRunData.FIELDNAME_KNOWN_ALLELES, ArrayOperators.First.firstOf(VariantRunData.FIELDNAME_KNOWN_ALLELES))
-		                		.and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
-		                		.and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
-		                
+//		                GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
+//		                		.and(VariantRunData.FIELDNAME_KNOWN_ALLELES, ArrayOperators.First.firstOf(VariantRunData.FIELDNAME_KNOWN_ALLELES))
+//		                		.and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
+//		                		.and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
+                                        
+                                Document id = new Document()
+                                            .append("vi", "$_id.vi")
+                                            .append("pi", "$_order");
+                                Document ka = new Document("$first","$ka");
+                                Document sp = new Document("$mergeObjects","$sp");
+                                Document ai = new Document("$mergeObjects","$ai");                               
+                                        
+                                Document groupDoc = new Document("$group", new Document()
+                                        .append("_id", id)
+                                        .append("ka", ka)
+                                        .append("sp", sp)
+                                        .append("ai", ai)
+                                );
+                                
+                                AggregationOperation group = new AggregationOperation() {
+                                    @Override
+                                    public Document toDocument(AggregationOperationContext context) {
+                                        return groupDoc;
+                                    }
+                                };
+     
 		                SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID));
-		                Aggregation aggregation = Aggregation.newAggregation(match, project, group, sort, Aggregation.skip(nSkipCount)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+		                Aggregation aggregation = Aggregation.newAggregation(match, project, group, sort).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
 		                AggregationResults<VariantRunData> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunData.class);
 		                varList = results.getMappedResults();
 	            } else
