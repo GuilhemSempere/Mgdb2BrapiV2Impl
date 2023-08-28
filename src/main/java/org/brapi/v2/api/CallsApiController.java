@@ -339,6 +339,8 @@ public class CallsApiController implements CallsApi {
                 
                 if (c.getGenotypeValue() != null) { 
                     String gt = null;
+                    List<String> knownAlleles = vrd.get(0).getKnownAlleles();
+
                     if (c.getGenotypeValue().equals(unknownGT)) {
                         if (c.getAdditionalInfo().isEmpty() && c.getGenotypeMetadata().isEmpty()) {
                             update.unset(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]); //remove the sp
@@ -349,16 +351,17 @@ public class CallsApiController implements CallsApi {
                         String[] splitUnphased = c.getGenotypeValue().split(sepUnphased);
                         String[] splitPhased = c.getGenotypeValue().split(sepPhased);                        
                         if (splitUnphased.length > 1 && splitUnphased.length == ploidyLevels.get(projectId)) {
+                            Arrays.setAll(splitUnphased, x -> splitUnphased[x].equals(knownAlleles.get(0)) ? "0" : "1");
                             gt = String.join("/", splitUnphased);
                         } else if (splitPhased.length > 1 && splitPhased.length == ploidyLevels.get(projectId)) {
+                            Arrays.setAll(splitPhased, x -> splitPhased[x].equals(knownAlleles.get(0)) ? "0" : "1");
                             gt = String.join("/", splitPhased);
                             //add phGT and phID into ai
                             update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + VariantData.GT_FIELD_PHASED_GT, String.join("|", splitPhased));
                             update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + VariantData.GT_FIELD_PHASED_ID, splitCallSetDbId[1]);
-                        } else if ((c.getGenotypeValue().equals("0") || c.getGenotypeValue().equals("1")) && !body.isExpandHomozygotes()){
-                            gt = c.getGenotypeValue();
-                        }       
-                        
+                        } else if (gt != null && !body.isExpandHomozygotes()) { //homozygote (one allele)
+                            gt = gt.equals(knownAlleles.get(0)) ? "0/0" : "1/1";
+                        }                        
                     }
                     if (gt != null) {
                         if (gt.equals("1/0")) {
