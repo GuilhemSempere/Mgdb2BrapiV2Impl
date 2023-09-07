@@ -117,8 +117,9 @@ public class CallsApiController implements CallsApi {
         String token = ServerinfoApiController.readToken(authorization);
         List<Call> callsToUpdate = body.getData();
         String unknownGT = body.getUnknownString() != null ? body.getUnknownString() : ".";
-        String sepPhased = body.getSepPhased() != null ? body.getSepPhased()  : "/";
-        String sepUnphased = body.getSepUnphased() != null ? body.getSepUnphased() : "|";
+        String sepPhased = body.getSepPhased() != null ? body.getSepPhased()  : "\\|";
+        String sepUnphased = body.getSepUnphased() != null ? body.getSepUnphased() : "/";
+        boolean expandHomozygotes = body.isExpandHomozygotes() != null ? body.isExpandHomozygotes() : true;
         
         CallsListResponse response = new CallsListResponse();
         Metadata metadata = new Metadata();
@@ -335,55 +336,96 @@ public class CallsApiController implements CallsApi {
                 String[] splitCallSetDbId = Helper.getInfoFromId(c.getCallSetDbId(), 2);
                 runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]);
                 
-                Update update = new Update();
-                
-                if (c.getGenotypeValue() != null) { 
-                    String gt = null;
-                    List<String> knownAlleles = vrd.get(0).getKnownAlleles();
+                Update update = new Update();                
 
-                    if (c.getGenotypeValue().equals(unknownGT)) {
-                        if (c.getAdditionalInfo().isEmpty() && c.getGenotypeMetadata().isEmpty()) {
-                            update.unset(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]); //remove the sp
-                        } else {                        
-                            update.unset(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE); //remove gt field
-                        }
-                    } else {
+                Document ai = new Document();
+                
+                String gt = null;
+                if (c.getGenotypeValue() != null) {                    
+                    List<String> knownAlleles = vrd.get(0).getKnownAlleles();
+                    boolean wrongGTFormat = false;
+
+                    if (!c.getGenotypeValue().equals(unknownGT)) {
                         String[] splitUnphased = c.getGenotypeValue().split(sepUnphased);
-                        String[] splitPhased = c.getGenotypeValue().split(sepPhased);                        
+                        String[] splitPhased = c.getGenotypeValue().split(sepPhased); 
                         if (splitUnphased.length > 1 && splitUnphased.length == ploidyLevels.get(projectId)) {
-                            Arrays.setAll(splitUnphased, x -> splitUnphased[x].equals(knownAlleles.get(0)) ? "0" : "1");
-                            gt = String.join("/", splitUnphased);
+                            boolean containsOnlyKnownAlleles = Arrays.stream(splitUnphased).allMatch(x -> x.equals(knownAlleles.get(0)) || x.equals(knownAlleles.get(1)));
+                            if (containsOnlyKnownAlleles) {
+                                Arrays.setAll(splitUnphased, x -> splitUnphased[x].equals(knownAlleles.get(0)) ? "0" : "1");
+                                gt = String.join("/", splitUnphased);
+                            } else {
+                                wrongGTFormat = true;
+                            }            
+                            
                         } else if (splitPhased.length > 1 && splitPhased.length == ploidyLevels.get(projectId)) {
-                            Arrays.setAll(splitPhased, x -> splitPhased[x].equals(knownAlleles.get(0)) ? "0" : "1");
-                            gt = String.join("/", splitPhased);
-                            //add phGT and phID into ai
-                            update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + VariantData.GT_FIELD_PHASED_GT, String.join("|", splitPhased));
-                            update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + VariantData.GT_FIELD_PHASED_ID, splitCallSetDbId[1]);
-                        } else if (gt != null && !body.isExpandHomozygotes()) { //homozygote (one allele)
-                            gt = gt.equals(knownAlleles.get(0)) ? "0/0" : "1/1";
-                        }                        
-                    }
-                    if (gt != null) {
-                        if (gt.equals("1/0")) {
+                            boolean containsOnlyKnownAlleles = Arrays.stream(splitPhased).allMatch(x -> x.equals(knownAlleles.get(0)) || x.equals(knownAlleles.get(1)));
+                            if (containsOnlyKnownAlleles) {
+                                Arrays.setAll(splitPhased, x -> splitPhased[x].equals(knownAlleles.get(0)) ? "0" : "1");
+                                gt = String.join("/", splitPhased);
+                                //add phGT and phID into ai
+                                ai.put(VariantData.GT_FIELD_PHASED_GT, String.join("|", splitPhased));
+                                ai.put(VariantData.GT_FIELD_PHASED_ID, splitCallSetDbId[1]);
+                            } else {
+                                wrongGTFormat = true;
+                            } 
+                            
+                        } else if (!expandHomozygotes) { //homozygote (one allele)
+                            if (c.getGenotypeValue().equals(knownAlleles.get(0))) {
+                                gt = "0/0";
+                            } else if (c.getGenotypeValue().equals(knownAlleles.get(1))) {
+                                gt = "1/1";
+                            } else {
+                                wrongGTFormat = true;
+                            }
+                        } else { //one allele homozygote but expandHomozygotes is true
+                            Status status = new Status();
+                            status.setMessage("Wrong genotypeValue given : only one allele given. Set expandHomozygotes to true.");
+                            response.getMetadata().addStatusItem(status);
+                            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        }
+                        
+                        if (gt != null && gt.equals("1/0")) {
                             gt = "0/1";
                         }
-                        update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.FIELDNAME_GENOTYPECODE, gt);
+                        
+                        if (wrongGTFormat) {
+                            Status status = new Status();
+                            status.setMessage("Wrong genotypeValue given : at least one genotype doesn't correspond to reference alleles " + knownAlleles.toString());
+                            response.getMetadata().addStatusItem(status);
+                            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        }
                     }
-                }
-                
+                }                
                 
                 //add additionalInfo into variantRunData ai
                 if (c.getAdditionalInfo() !=  null && !c.getAdditionalInfo().isEmpty()) {
                     for (String key:c.getAdditionalInfo().keySet()) {
-                        update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + key, c.getAdditionalInfo().get(key));
+                        ai.put(key, c.getAdditionalInfo().get(key));
+                        //update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + key, c.getAdditionalInfo().get(key));
                     }
-                }
+                } 
                 
                 //add genotypeMetadata into variantRunData ai
                 if (c.getGenotypeMetadata() != null) {
-                    for (CallGenotypeMetadata gm:c.getGenotypeMetadata())
-                        update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
+                    for (CallGenotypeMetadata gm:c.getGenotypeMetadata()) {
+                        ai.put(gm.getFieldAbbreviation(), gm.getFieldValue());
+                        //update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1] + "." + SampleGenotype.SECTION_ADDITIONAL_INFO + "." + gm.getFieldAbbreviation(), gm.getFieldValue());
+                    }
                 }
+                
+                Document newSp = new Document();
+                if (gt != null) {
+                    newSp.put(SampleGenotype.FIELDNAME_GENOTYPECODE, gt);
+                }
+                if (!ai.isEmpty()) {
+                    newSp.put(SampleGenotype.SECTION_ADDITIONAL_INFO, ai);
+                }
+                if (newSp.isEmpty()) { 
+                    update.unset(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1]); //remove the sample from VariantRunData
+                } else {
+                    update.set(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + splitCallSetDbId[1], newSp); //replace existing sp by newSp
+                }
+                
                 
                 try {
                     UpdateResult ur = mongoTemplate.updateFirst(runQuery, update, VariantRunData.class, mongoTemplate.getCollectionName(VariantRunData.class));
