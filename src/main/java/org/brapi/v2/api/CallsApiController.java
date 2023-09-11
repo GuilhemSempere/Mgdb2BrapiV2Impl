@@ -51,8 +51,8 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData.VariantRunDataId;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
+import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -189,7 +189,7 @@ public class CallsApiController implements CallsApi {
         ArrayList<String> missingVariantSets = new ArrayList<>();
         for (String vsId:variantSetDbIds) {
             Query q = new Query(new Criteria().andOperator(
-                    Criteria.where("_id." + VariantRunData.VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.valueOf(Helper.getInfoFromId(vsId, 3)[1])),
+                    Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.valueOf(Helper.getInfoFromId(vsId, 3)[1])),
                     Criteria.where("_id." + DBVCFHeader.VcfHeaderId.FIELDNAME_RUN).is(Helper.getInfoFromId(vsId, 3)[2])
             ));
             List<VariantRunData> vrd = mongoTemplate.find(q, VariantRunData.class); 
