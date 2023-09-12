@@ -61,8 +61,10 @@ import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
+import static fr.cirad.mgdb.model.mongo.maintypes.VariantData.FIELDNAME_VERSION;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.Helper;
@@ -70,6 +72,10 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import java.util.LinkedHashSet;
+import java.util.stream.Stream;
+import org.bson.codecs.pojo.annotations.BsonProperty;
+import org.springframework.data.annotation.Id;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
@@ -420,7 +426,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         if (fGotVariantList) {
             varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(Helper.ID_SEPARATOR))).collect(Collectors.toList());
             crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
-            variantCrits.add(Criteria.where("_id.").in(varIDs));
+            variantCrits.add(Criteria.where("_id").in(varIDs));
         }
 
         List<Assembly> assemblies = mongoTemplate.findAll(Assembly.class);
@@ -547,8 +553,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         countThread.start();
 
         Status status = new Status();
+        Set<String> variantSetDbIds = new HashSet<>();
         try {
-            List<? extends AbstractVariantData> varList;
+            List<VariantRunDataWithRuns> varList;
             int nSkipCount = variantsPage * numberOfMarkersPerPage;
             if (sampleIDs.isEmpty()) {
                 varList = new ArrayList<>();	// no more samples remain: we must have gone beyond the last page
@@ -565,19 +572,27 @@ public class AllelematrixApiController implements AllelematrixApi {
 
                     // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
                     // using _order as project ID is a hack, we need this field to exist for resulting records to be deserializable, and luckily enough _order is the same for each variant ID so this still allows grouping to work as we want
-                    GroupOperation group = Aggregation.group(Fields.from(new Field[]{Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order")}))
-                            .addToSet(new Document()
-                                        .append("p", "$_id" + VariantRunDataId.FIELDNAME_PROJECT_ID)
-                                        .append("r", "$_id" + VariantRunDataId.FIELDNAME_RUNNAME)
-                            ).as("runs")
+                    GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
+                            .and("_order", ArrayOperators.First.firstOf("$_order")).addToSet(new Document()
+                                        .append(VariantRunDataId.FIELDNAME_PROJECT_ID, "$_id." + VariantRunDataId.FIELDNAME_PROJECT_ID)
+                                        .append(VariantRunDataId.FIELDNAME_RUNNAME, "$_id." + VariantRunDataId.FIELDNAME_RUNNAME)
+                            ).as("r")
                             .and(VariantRunData.FIELDNAME_KNOWN_ALLELES, ArrayOperators.First.firstOf(VariantRunData.FIELDNAME_KNOWN_ALLELES))
                             .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
                             .and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
 
-                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID));
-                    Aggregation aggregation = Aggregation.newAggregation(match, group, sort, Aggregation.skip(nSkipCount)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
-                    AggregationResults<VariantRunData> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunData.class);
+                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_id.pi"));
+                    Aggregation aggregation = Aggregation.newAggregation(match, project, group, sort, Aggregation.limit(nSkipCount + numberOfMarkersPerPage), Aggregation.skip(nSkipCount)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+                    AggregationResults<Object> results0 = mongoTemplate.aggregate(aggregation, VariantRunData.class, Object.class);
+                    AggregationResults<VariantRunDataWithRuns> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunDataWithRuns.class);
                     varList = results.getMappedResults();
+                    
+                    Set<Run> allRuns = varList.stream()
+                        .flatMap(v -> v.getRuns().stream())
+                        .collect(Collectors.toSet());
+                    final String db = module;
+                    variantSetDbIds = allRuns.stream().map(v -> db + "§" +  v.getProjectId() + "§" + v.getRunName()).collect(Collectors.toSet());
+
                 } else {
                     varList = VariantsApiController.getSortedVariantListChunk(mongoTemplate, nAssemblyId, VariantRunData.class, runQuery, nSkipCount, numberOfMarkersPerPage);
                 }
@@ -661,13 +676,12 @@ public class AllelematrixApiController implements AllelematrixApi {
             }
 
             HashMap<Integer, String> previousPhasingIds = new HashMap<>();
-            List<String> variantIds = new ArrayList<>();
-            Set<String> variantSetDbIds = new HashSet<>();
+            LinkedHashSet<String> variantDbIds = new LinkedHashSet<>(); //to keep variantDbIds order          
 
             variantLoop:
             for (AbstractVariantData v : varList) {
                 VariantRunData vrd = (VariantRunData) v;
-                variantIds.add(module + Helper.ID_SEPARATOR + vrd.getVariantId());
+                variantDbIds.add(module + Helper.ID_SEPARATOR + vrd.getVariantId());
                 Map<String, List<String>> dataMap = new HashMap<>(); // example1: key="GT", value=List<GT> list of genotypes for these variants / example 2: key="DP", value=List<DP> list of DP for these variants
 
                 if (vrd.getRunName() != null) /* FIXME: we lose track of project & run IDs when we $group VRDs by variantID... */ {
@@ -763,7 +777,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 
             if (!varList.isEmpty()) {
                 result.setCallSetDbIds(callSetDbIds);
-                result.setVariantDbIds(variantIds);
+                result.setVariantDbIds(new ArrayList<>(variantDbIds));
                 if (!variantSetDbIds.isEmpty()) {
                     result.setVariantSetDbIds(new ArrayList<>(variantSetDbIds));
                 } else if (fGotVariantSetList) {
@@ -813,6 +827,25 @@ public class AllelematrixApiController implements AllelematrixApi {
         response.getResult().setVariantDbIds(new ArrayList<>());
         response.getResult().setVariantSetDbIds(new ArrayList<>());
         return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
+    }
+    
+    private class VariantRunDataWithRuns extends VariantRunData {
+        public final static String FIELDNAME_RUNS = "r";
+    
+        /**
+         * List of runs where the variant has been used.
+         */
+        @org.springframework.data.mongodb.core.mapping.Field(FIELDNAME_RUNS)
+        private Set<Run> runs = new HashSet<>();
+
+        public Set<Run> getRuns() {
+            return runs;
+        }
+
+        public void setRuns(Set<Run> runs) {
+            this.runs = runs;
+        }
+        
     }
 
 }

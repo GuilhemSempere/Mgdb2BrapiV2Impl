@@ -455,7 +455,7 @@ public class VariantsApiController implements VariantsApi {
         return new ResponseEntity<>(vlr, HttpStatus.OK);
     }
 
-    protected static List<AbstractVariantData> getSortedVariantListChunk(MongoTemplate mongoTemplate, Integer nAssemblyId, Class varClass, Query varQuery, int skip, int limit) {
+    protected static <T extends AbstractVariantData> List<T>  getSortedVariantListChunk(MongoTemplate mongoTemplate, Integer nAssemblyId, Class varClass, Query varQuery, int skip, int limit) {
         String refPosPath = Assembly.getVariantRefPosPath(nAssemblyId);
         varQuery.collation(org.springframework.data.mongodb.core.query.Collation.of("en_US").numericOrderingEnabled());
         varQuery.with(Sort.by(Order.asc(refPosPath + "." + ReferencePosition.FIELDNAME_SEQUENCE), Order.asc(refPosPath + "." + ReferencePosition.FIELDNAME_START_SITE)));
