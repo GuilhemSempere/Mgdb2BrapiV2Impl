@@ -51,6 +51,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
+import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.Helper;
@@ -497,7 +498,7 @@ public class CallsApiController implements CallsApi {
                 } else {
                     callSetsNb = pagination.get(1).getTotalCount();
                     variantsNb = pagination.get(0).getTotalCount();
-                }
+                }               
 
                 //Get abbreviations
                 List<String> variantSetDbIds = resp0.getBody().getResult().getVariantSetDbIds();
@@ -590,6 +591,16 @@ public class CallsApiController implements CallsApi {
                     matricesMap.put(matrix.getDataMatrixAbbreviation(), matrix);
                 }
                 
+                Map<String, Run> samplesRuns = new HashMap<>();
+                //Retrieve samples runs (when filtering on variantDbIds)
+                if (result.getVariantSetDbIds().size() > 1) {
+                    List<Integer> sampleId = resp.getBody().getResult().getCallSetDbIds().stream().map(callSetDbId -> Integer.valueOf(callSetDbId.substring(1 + callSetDbId.indexOf(Helper.ID_SEPARATOR)))).collect(Collectors.toList());
+                    Query query = new Query(Criteria.where("_id").in(sampleId));
+                    List<GenotypingSample> samples = MongoTemplateManager.get(module).find(query, GenotypingSample.class);
+                    final String db = module;
+                    samplesRuns = samples.stream().collect(Collectors.toMap(s -> db + Helper.ID_SEPARATOR + s.getId(), s -> new Run(s.getProjectId(), s.getRun())));	        		        	
+                }
+                
                 outerloop:
                 for (int v = vNo; v < result.getVariantDbIds().size(); v++) {
                     for (int s = 0; s < result.getCallSetDbIds().size(); s++) {
@@ -613,7 +624,12 @@ public class CallsApiController implements CallsApi {
                             call.setVariantDbId(result.getVariantDbIds().get(v));
                             call.setVariantName(result.getVariantDbIds().get(v));
                             call.setCallSetDbId(result.getCallSetDbIds().get(s));
-                            call.setVariantSetDbId(result.getVariantSetDbIds().get(0));
+                            if (result.getVariantSetDbIds().size() > 1) {
+                                Run run = samplesRuns.get(call.getCallSetDbId());
+                                call.setVariantSetDbId(module + Helper.ID_SEPARATOR + run.getProjectId() + Helper.ID_SEPARATOR + run.getRunName());
+                            } else {
+                                call.setVariantSetDbId(result.getVariantSetDbIds().get(0));
+                            }
                             res.addDataItem(call);
                         }
                         
