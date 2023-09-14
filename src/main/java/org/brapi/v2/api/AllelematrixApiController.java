@@ -422,7 +422,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             variantCrits.add(new Criteria().orOperator(vCrits.toArray(new Criteria[vCrits.size()])));
         }
 
-        List<String> varIDs = null;
+        List<String> varIDs = new ArrayList<>();
         if (fGotVariantList) {
             varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(Helper.ID_SEPARATOR))).collect(Collectors.toList());
             crits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
@@ -563,14 +563,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                 countThread.join(100); // give it a chance to execute quickly in case the info is already cached (so we may skip querying for data if requested page number is too high)
                 if (nTotalMarkerCount.get() != -1 && nSkipCount > nTotalMarkerCount.get()) {
                     varList = new ArrayList<>();	// we have gone beyond the last page
-                } else if (fGotVariantList) {	// a list of sampleIDs must exist, even if not passed on (should have been created for pagination in that case)
-                    // use aggregation to keep the order of variantDbIds
+                } else if (fGotVariantList || (fGotVariantSetList && body.getVariantSetDbIds().size() > 1)) {	
+                    //use aggregation to manage pagination in the case of several runs on same variant
                     MatchOperation match = match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
                     ProjectionOperation project = Aggregation.project("_id", VariantRunData.FIELDNAME_KNOWN_ALLELES, VariantRunData.SECTION_ADDITIONAL_INFO)
-                            .and(ArrayOperators.arrayOf(varIDs).indexOf("$_id." + VariantRunDataId.FIELDNAME_VARIANT_ID)).as("_order")
-                            .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES).nested(Fields.from(sampleIDs.stream().map(spId -> Fields.field(spId.toString(), VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + spId.toString())).toArray(Field[]::new)));
+                    // keep the order of variantDbIds
+                    .and(ArrayOperators.arrayOf(varIDs).indexOf("$_id." + VariantRunDataId.FIELDNAME_VARIANT_ID)).as("_order")
+                    // a list of sampleIDs must exist, even if not passed on (should have been created for pagination in that case)
+                    .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES).nested(Fields.from(sampleIDs.stream().map(spId -> Fields.field(spId.toString(), VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + spId.toString())).toArray(Field[]::new)));
 
-                                        // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
+                    // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
                     // using _order as project ID is a hack, we need this field to exist for resulting records to be deserializable, and luckily enough _order is the same for each variant ID so this still allows grouping to work as we want
                     GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
                             .and("_order", ArrayOperators.First.firstOf("$_order"))
