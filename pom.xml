@@ -21,7 +21,7 @@
         </dependency>
         <dependency>
             <groupId>fr.cirad</groupId>
-            <artifactId>mgdb2_export</artifactId>
+            <artifactId>Mgdb2Export</artifactId>
             <version>${mgdb2_export.version}</version>
             <exclusions>
                 <exclusion>
