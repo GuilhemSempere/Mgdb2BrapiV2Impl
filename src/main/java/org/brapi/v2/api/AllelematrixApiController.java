@@ -15,14 +15,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import javax.ejb.ObjectNotFoundException;
 
-import org.brapi.v2.api.cache.BrapiCachedCount;
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
@@ -40,7 +38,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.aggregation.ArrayOperators;
-import org.springframework.data.mongodb.core.aggregation.CountOperation;
 import org.springframework.data.mongodb.core.aggregation.Field;
 import org.springframework.data.mongodb.core.aggregation.Fields;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
@@ -61,7 +58,6 @@ import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
-import static fr.cirad.mgdb.model.mongo.maintypes.VariantData.FIELDNAME_VERSION;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
 import fr.cirad.mgdb.model.mongo.subtypes.Run;
@@ -73,9 +69,6 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 import java.util.LinkedHashSet;
-import java.util.stream.Stream;
-import org.bson.codecs.pojo.annotations.BsonProperty;
-import org.springframework.data.annotation.Id;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
@@ -85,8 +78,8 @@ public class AllelematrixApiController implements AllelematrixApi {
     @Autowired
     AbstractTokenManager tokenManager;
 
-    @Autowired
-    private MongoBrapiCache brapiCache;
+//    @Autowired
+//    private MongoBrapiCache brapiCache;
 
     private List<String> variantIds;
 
@@ -355,8 +348,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 
         if (sampleIDs != null && !sampleIDs.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
             List<GenotypingSample> samples = MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class);
-            if (samples.isEmpty()) //return empty dataMatrices
-            {
+            if (samples.isEmpty()) { //return empty dataMatrices            
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
             } else {
                 Map<String, List<Integer>> variantSetSamples = new HashMap<>();
@@ -383,8 +375,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     fGotVariantSetList = true;
                 }
             }
-            if (sampleIDs.isEmpty()) //return empty dataMatrices
-            {
+            if (sampleIDs.isEmpty()) {//return empty dataMatrices
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
             }
         }
@@ -523,30 +514,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             public void run() {
                 long b4 = System.currentTimeMillis();
                 int countVar = (int) mongoTemplate.count(variantsQuery, VariantData.class);
-                nTotalMarkerCount.set(countVar);
-//                MatchOperation match = Aggregation.match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-//                GroupOperation group = Aggregation.group("$_id." + VariantRunDataId.FIELDNAME_VARIANT_ID);
-//                if (finalGotVariantSetList && crits.size() == 1) {	// we need the overall variant counts in a list of VariantSets: check cache before counting
-//                    int n = 0;            
-//                    try {
-//                        for (String variantSetDbId : body.getVariantSetDbIds())
-//                            n += brapiCache.getVariantSet(mongoTemplate, variantSetDbId).getVariantCount();
-//                        nTotalMarkerCount.set(n);
-//                    } catch (Exception e) {}
-//                }
-//                if (nTotalMarkerCount.get() == -1) {
-//                	String queryKey = AlleleMatrix.class.getSimpleName() + "_" + Helper.convertToMD5((body.getVariantSetDbIds() == null ? "" : new TreeSet<>(body.getVariantSetDbIds()).toString()) + "::"
-//                				+ (body.getPositionRanges() == null ? "" : new TreeSet<>(body.getPositionRanges()).toString()) + "::" + (body.getVariantDbIds() == null ? "" : new TreeSet<>(body.getVariantDbIds()).toString()));
-//                	Long cachedCount = BrapiCachedCount.getCachedCount(mongoTemplate, queryKey, BrapiCachedCount.class);
-//                	if (cachedCount != null)
-//                		nTotalMarkerCount.set(cachedCount);
-//                        else {
-//                            Aggregation aggregation = Aggregation.newAggregation(match, group, new CountOperation("countResult")).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
-//                            AggregationResults<Document> countVar = mongoTemplate.aggregate(aggregation, VariantRunData.class, Document.class);
-//                            nTotalMarkerCount.set(countVar.getUniqueMappedResult() == null ? 0 : countVar.getUniqueMappedResult().getInteger("countResult"));
-//                            BrapiCachedCount.saveCachedCount(mongoTemplate, queryKey, Arrays.asList(nTotalMarkerCount.get()));
-//                        }
-//                }
+                nTotalMarkerCount.set(countVar);  
                 LOG.info("alleleMatrix variant totalCount obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
             }
         };
@@ -579,14 +547,13 @@ public class AllelematrixApiController implements AllelematrixApi {
                             .addToSet(new Document()
                                         .append(VariantRunDataId.FIELDNAME_PROJECT_ID, "$_id." + VariantRunDataId.FIELDNAME_PROJECT_ID)
                                         .append(VariantRunDataId.FIELDNAME_RUNNAME, "$_id." + VariantRunDataId.FIELDNAME_RUNNAME)
-                            ).as("r")
+                            ).as(VariantRunDataWithRuns.FIELDNAME_RUNS)
                             .and(VariantRunData.FIELDNAME_KNOWN_ALLELES, ArrayOperators.First.firstOf(VariantRunData.FIELDNAME_KNOWN_ALLELES))
                             .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
                             .and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
 
-                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_id.pi"));
+                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "$_id" + Run.FIELDNAME_PROJECT_ID));
                     Aggregation aggregation = Aggregation.newAggregation(match, project, group, sort, Aggregation.limit(nSkipCount + numberOfMarkersPerPage), Aggregation.skip(nSkipCount)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
-                    AggregationResults<Object> results0 = mongoTemplate.aggregate(aggregation, VariantRunData.class, Object.class);
                     AggregationResults<VariantRunDataWithRuns> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunDataWithRuns.class);
                     varList = results.getMappedResults();
                     
@@ -832,6 +799,8 @@ public class AllelematrixApiController implements AllelematrixApi {
         return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
     }
     
+    
+    //only used to map the result of the query grouping variantRunData on variant Ids
     private class VariantRunDataWithRuns extends VariantRunData {
         public final static String FIELDNAME_RUNS = "r";
     
