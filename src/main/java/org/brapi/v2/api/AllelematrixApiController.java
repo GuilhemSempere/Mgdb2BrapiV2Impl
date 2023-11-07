@@ -552,7 +552,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                             .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
                             .and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
 
-                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "$_id" + Run.FIELDNAME_PROJECT_ID));
+                    SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_id." + Run.FIELDNAME_PROJECT_ID));
                     Aggregation aggregation = Aggregation.newAggregation(match, project, group, sort, Aggregation.limit(nSkipCount + numberOfMarkersPerPage), Aggregation.skip(nSkipCount)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
                     AggregationResults<VariantRunDataWithRuns> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunDataWithRuns.class);
                     varList = results.getMappedResults();
