@@ -51,6 +51,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 
@@ -406,8 +407,8 @@ public class AllelematrixApiController implements AllelematrixApi {
             List<Criteria> vCrits = new ArrayList<>();
             for (String vsId : body.getVariantSetDbIds()) {
                 String[] info = Helper.getInfoFromId(vsId, 3);
-                vsCrits.add(new Criteria().andOperator(Criteria.where("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
-                vCrits.add(new Criteria().andOperator(Criteria.where(VariantData.FIELDNAME_RUNS + "." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(VariantData.FIELDNAME_RUNS + "." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
+                vsCrits.add(new Criteria().is(new BasicDBObject("_id", new BasicDBObject(VariantRunDataId.FIELDNAME_RUNNAME, info[2]).append(VariantRunDataId.FIELDNAME_PROJECT_ID, Integer.parseInt(info[1])))));
+                vCrits.add(new Criteria().is(new BasicDBObject(VariantData.FIELDNAME_RUNS, new BasicDBObject(Run.FIELDNAME_RUNNAME, info[2]).append(Run.FIELDNAME_PROJECT_ID, Integer.parseInt(info[1])))));
             }
             crits.add(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
             variantCrits.add(new Criteria().orOperator(vCrits.toArray(new Criteria[vCrits.size()])));
@@ -515,7 +516,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                 long b4 = System.currentTimeMillis();
                 int countVar = (int) mongoTemplate.count(variantsQuery, VariantData.class);
                 nTotalMarkerCount.set(countVar);  
-                LOG.info("alleleMatrix variant totalCount obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
+                LOG.info("alleleMatrix variant totalCount (" + countVar + ") obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
             }
         };
         countThread.start();
@@ -769,7 +770,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 
             metadata.addStatusItem(status);
 
-            LOG.warn("alleleMatrix took " + (System.currentTimeMillis() - before) / 1000d + "s");
+            LOG.info("alleleMatrix took " + (System.currentTimeMillis() - before) / 1000d + "s");
             return new ResponseEntity<AlleleMatrixResponse>(response, HttpStatus.OK);
         } catch (Exception e) {
             LOG.error("Couldn't serialize response for content type application/json", e);
