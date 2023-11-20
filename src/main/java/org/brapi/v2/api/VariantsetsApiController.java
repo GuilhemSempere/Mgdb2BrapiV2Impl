@@ -51,6 +51,7 @@ import org.springframework.web.context.ServletContextAware;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCollection;
 
 import fr.cirad.mgdb.exporting.IExportHandler;
@@ -65,6 +66,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
+import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.AlphaNumericComparator;
 import fr.cirad.tools.Helper;
@@ -72,7 +74,6 @@ import fr.cirad.tools.ProgressIndicator;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.samtools.SAMSequenceDictionary;
-import htsjdk.variant.variantcontext.VariantContext.Type;
 import htsjdk.variant.variantcontext.writer.CustomVCFWriter;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import io.swagger.annotations.ApiParam;
@@ -583,17 +584,21 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); add(new Document(VariantData.FIELDNAME_TYPE, Type.SNP.toString())); /*only SNPs are supported*/ }} );
+				
+				BasicDBList vrdQuery = new BasicDBList() {{
+					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId));
+					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); 
+				}};
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList(), new ArrayList<>(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), new ArrayList(), new ArrayList<>(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, module, samplesToExport.stream().map(sp -> sp.getIndividual()).distinct().collect(Collectors.toList()), nQueryChunkSize, varColl, new Document(), null, result, null, progress);
+		        	exportHandler.writeGenotypeFile(os, module, samplesToExport.stream().map(sp -> sp.getIndividual()).distinct().collect(Collectors.toList()), nQueryChunkSize, null, result, null, null, progress);
 		        }
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
@@ -638,17 +643,21 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );
+								
+				BasicDBList vrdQuery = new BasicDBList() {{
+					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId));
+					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); 
+				}};
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList(), new ArrayList<>(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), new ArrayList(), new ArrayList<>(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, module, null /*FIXME*/, nQueryChunkSize, varColl, new Document(), null, result, null, progress);
+		        	exportHandler.writeGenotypeFile(os, module, null /*FIXME*/, nQueryChunkSize, varColl, new BasicDBObject("$and", vrdQuery), null, result, null, progress);
 		        }
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
@@ -693,7 +702,6 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );
 
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
@@ -704,14 +712,19 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		    	VariantContextWriter writer = null;
 		    	List<String> distinctSequenceNames = new ArrayList<String>();
 
-				for (Object chr : mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantRunData.class)).distinct(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE, varQuery, String.class))	// find out distinctSequenceNames by looking at exported variant list
+				for (Object chr : mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).distinct(VariantData.FIELDNAME_REFERENCE_POSITION + "." + ReferencePosition.FIELDNAME_SEQUENCE, new BasicDBObject("$and", new BasicDBList() {{ add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID, projId)); add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME, splitId[2])); }} ), String.class))
 					if (chr != null)
 						distinctSequenceNames.add(chr.toString());
 
 				Collections.sort(distinctSequenceNames, new AlphaNumericComparator());
 				SAMSequenceDictionary dict = exportHandler.createSAMSequenceDictionary(module, distinctSequenceNames);
 				writer = new CustomVCFWriter(null, os, dict, false, false, true);
-				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new ArrayList(), new ArrayList<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, writer);
+				
+				BasicDBList varQuery = new BasicDBList() {{
+					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId));
+					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); 
+				}};
+				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new ArrayList(), new ArrayList<>(), progress, null, varQuery, (long) variantSet.getVariantCount(), null, null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, writer);
 
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
