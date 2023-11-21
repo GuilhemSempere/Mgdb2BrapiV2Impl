@@ -586,7 +586,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); add(new Document(VariantData.FIELDNAME_TYPE, Type.SNP.toString())); /*only SNPs are supported*/ }} );
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList(), new ArrayList<>(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList(), exportId, new ArrayList<>(), samplesToExport, progress);
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
@@ -641,7 +641,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				Document varQuery = new Document("$and", new BasicDBList() {{ add(new Document("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId)); add(new Document("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); }} );
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList(), new ArrayList<>(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), varQuery, variantSet.getVariantCount(), new ArrayList(), exportId, new ArrayList<>(), samplesToExport, progress);
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
@@ -711,7 +711,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				Collections.sort(distinctSequenceNames, new AlphaNumericComparator());
 				SAMSequenceDictionary dict = exportHandler.createSAMSequenceDictionary(module, distinctSequenceNames);
 				writer = new CustomVCFWriter(null, os, dict, false, false, true);
-				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new ArrayList(), new ArrayList<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, writer);
+				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new ArrayList(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, writer);
 
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
