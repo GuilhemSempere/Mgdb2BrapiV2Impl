@@ -73,7 +73,7 @@ public class MongoBrapiCache {
 			variantSet.setVariantSetName(splitId[2]);
 //    	    variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
 			variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class));
-			variantSet.setVariantCount((int) mongoTemplate.count(new Query(Criteria.where(VariantData.FIELDNAME_RUNS).is(new BasicDBObject(Run.FIELDNAME_RUNNAME, splitId[2]).append(Run.FIELDNAME_PROJECT_ID, projId))), VariantData.class));
+			variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(splitId[2]), Criteria.where(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId))), VariantData.class));
 
 			if (variantSet.getCallSetCount() == 0 && variantSet.getVariantCount() == 0)
 				return null;	// this run probably doesn't exist
