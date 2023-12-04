@@ -543,7 +543,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 
                     // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
                     // using _order as project ID is a hack, we need this field to exist for resulting records to be deserializable, and luckily enough _order is the same for each variant ID so this still allows grouping to work as we want
-                    GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id.vi"), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
+                    GroupOperation group = Aggregation.group(Fields.from(new Field[] { Fields.field("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID), Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
                             .and("_order", ArrayOperators.First.firstOf("$_order"))
                             .addToSet(new Document()
                                         .append(VariantRunDataId.FIELDNAME_PROJECT_ID, "$_id." + VariantRunDataId.FIELDNAME_PROJECT_ID)
