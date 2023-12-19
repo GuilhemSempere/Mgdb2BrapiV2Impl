@@ -5,7 +5,7 @@
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <mgdb2_export.version>2.6.2-RELEASE</mgdb2_export.version>
+        <mgdb2_export.version>2.7-RELEASE</mgdb2_export.version>
 	    <project.version>2.0.6-RELEASE</project.version>
     </properties>
     
