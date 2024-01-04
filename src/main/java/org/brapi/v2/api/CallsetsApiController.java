@@ -232,7 +232,7 @@ public class CallsetsApiController implements CallsetsApi {
                                 indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
 
                         // attach individual metadata to callsets
-                        Map<String, Individual> indMap = MgdbDao.getInstance().loadIndividualsWithAllMetadata(db, sCurrentUser, null, indIdToSampleIdMap.keySet());
+                        Map<String, Individual> indMap = MgdbDao.getInstance().loadIndividualsWithAllMetadata(db, sCurrentUser, null, indIdToSampleIdMap.keySet(), null);
 
                                 for (int i=0; i<samples.size(); i++) {
                                         GenotypingSample sample = samples.get(i);

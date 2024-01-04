@@ -149,7 +149,7 @@ public class AttributevaluesApiController implements AttributevaluesApi {
 	                
 	                Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
 	                String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
-	                LinkedHashMap<String, Individual> individuals = MgdbDao.getInstance().loadIndividualsWithAllMetadata(programDbId, sCurrentUser, null, germplasmIdsToReturn);
+	                LinkedHashMap<String, Individual> individuals = MgdbDao.getInstance().loadIndividualsWithAllMetadata(programDbId, sCurrentUser, null, germplasmIdsToReturn, null);
 	                
 	                ArrayList<GermplasmAttributeValue> data = new ArrayList<>();
 	                for (String individualId : individuals.keySet()) {
