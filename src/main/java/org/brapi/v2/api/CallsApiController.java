@@ -483,6 +483,8 @@ public class CallsApiController implements CallsApi {
         variantPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         amsr.addPaginationItem(variantPagination);
 
+        AlleleMatrixPagination callSetsPagination = new AlleleMatrixPagination();
+        AlleleMatrixPagination variantsPagination = new AlleleMatrixPagination();
         int variantsNb = 0;
         int callSetsNb = 0;
         Set<String> abbreviations = new HashSet<>();
@@ -493,12 +495,19 @@ public class CallsApiController implements CallsApi {
                 List<AlleleMatrixPagination> pagination = resp0.getBody().getResult().getPagination();
                 
                 if (pagination.get(0).getDimension().equals(AlleleMatrixPagination.DimensionEnum.CALLSETS)) {
+                    callSetsPagination = pagination.get(0);
+                    variantsPagination = pagination.get(1);
+                    
                     callSetsNb = pagination.get(0).getTotalCount();
                     variantsNb = pagination.get(1).getTotalCount();
+
                 } else {
+                    callSetsPagination = pagination.get(1);
+                    variantsPagination = pagination.get(0);
                     callSetsNb = pagination.get(1).getTotalCount();
                     variantsNb = pagination.get(0).getTotalCount();
-                }               
+                }             
+                
 
                 //Get abbreviations
                 List<String> variantSetDbIds = resp0.getBody().getResult().getVariantSetDbIds();
@@ -541,11 +550,11 @@ public class CallsApiController implements CallsApi {
 
     	CallsListResponseResult res = new CallsListResponseResult();
         metadata.setPagination(new IndexPagination());
-        metadata.getPagination().setPageSize(pageSize);
-        metadata.getPagination().setCurrentPage(page);
-
+        
         int sNo = 0;
         int vNo = 0;        
+        AlleleMatrixSearchRequestPagination pagination = new AlleleMatrixSearchRequestPagination();
+        pagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         if (pageSize < totalCount) {
             //Calculate the Greatest Common Divisor
             int gcd = BigInteger.valueOf(callSetsNb).gcd(BigInteger.valueOf(pageSize)).intValue();
@@ -555,13 +564,19 @@ public class CallsApiController implements CallsApi {
             vNo = page * pageSize / callSetsNb - vPage * vPageSize;
             sNo = page * pageSize % callSetsNb;
 
-            AlleleMatrixSearchRequestPagination pagination = new AlleleMatrixSearchRequestPagination();
-            pagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
             pagination.setPage(vPage);
             pagination.setPageSize(vPageSize);
-            amsr.setPagination(new ArrayList());
-            amsr.addPaginationItem(pagination);
+            metadata.getPagination().setPageSize(pageSize);
+            metadata.getPagination().setCurrentPage(page);
+            
+        } else {
+            pagination.setPage(page);
+            pagination.setPageSize(variantsPagination.getPageSize());
+            metadata.getPagination().setPageSize(callSetsPagination.getTotalCount() == 0 ? callSetsPagination.getPageSize() : callSetsPagination.getTotalCount() * variantsPagination.getPageSize());
+            metadata.getPagination().setCurrentPage(page);            
         }
+        amsr.setPagination(new ArrayList());
+        amsr.addPaginationItem(pagination);
         
         abbreviations.add("GT"); // in order to get GT even if there is no VCFheader
         amsr.setDataMatrixAbbreviations(new ArrayList<>(abbreviations));
@@ -572,7 +587,7 @@ public class CallsApiController implements CallsApi {
             if (resp.getStatusCode().equals(HttpStatus.OK)) {
                 AlleleMatrix result = resp.getBody().getResult();
                 Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
-                
+
                 //Get variants alt and ref alleles
                 String module = null;
                 List<String> variantIds = new ArrayList();
@@ -582,15 +597,15 @@ public class CallsApiController implements CallsApi {
                     }
                     variantIds.add(Helper.getInfoFromId(v, 2)[1]);
                 }
-                   
+
                 Query q = new Query(Criteria.where("_id").in(variantIds));
                 List<VariantData> variants = MongoTemplateManager.get(module).find(q, VariantData.class);
                 Map variantMap = variants.stream().collect(Collectors.toMap(VariantData::getId, item -> item.getKnownAlleles()));
-                     
+
                 for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
                     matricesMap.put(matrix.getDataMatrixAbbreviation(), matrix);
                 }
-                
+
                 Map<String, Run> samplesRuns = new HashMap<>();
                 //Retrieve samples runs (when filtering on variantDbIds)
                 if (result.getVariantSetDbIds().size() > 1) {
@@ -600,11 +615,11 @@ public class CallsApiController implements CallsApi {
                     final String db = module;
                     samplesRuns = samples.stream().collect(Collectors.toMap(s -> db + Helper.ID_SEPARATOR + s.getId(), s -> new Run(s.getProjectId(), s.getRun())));	        		        	
                 }
-                
-                outerloop:
+
+                outerloop:                
                 for (int v = vNo; v < result.getVariantDbIds().size(); v++) {
                     for (int s = 0; s < result.getCallSetDbIds().size(); s++) {
-                        
+
                         if (s >= sNo) {
                             Call call = new Call();
                             List<CallGenotypeMetadata> metadataList = new ArrayList<>();
@@ -632,7 +647,7 @@ public class CallsApiController implements CallsApi {
                             }
                             res.addDataItem(call);
                         }
-                        
+
                         if (res.getData().size() == pageSize) {
                             break outerloop;
                         }
@@ -640,12 +655,12 @@ public class CallsApiController implements CallsApi {
                     }
                     sNo = 0;
                 }
-                
+
                 metadata.getPagination().setTotalCount(totalCount);
                 metadata.getPagination().setTotalPages(totalPages);
                 clr.setResult(res);
                 return new ResponseEntity<>(clr, HttpStatus.OK);
-               
+
             } else {
                 return new ResponseEntity<>(resp.getStatusCode());
             }

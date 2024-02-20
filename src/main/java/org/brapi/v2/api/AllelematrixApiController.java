@@ -193,6 +193,12 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
             }
         }
+        
+        int maxOfTotalCalls = 10000;
+        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxOfTotalCalls) {
+            numberOfCallSetsPerPage = numberOfCallSetsPerPage > maxOfTotalCalls ? maxOfTotalCalls : numberOfCallSetsPerPage; 
+            numberOfMarkersPerPage = maxOfTotalCalls / numberOfCallSetsPerPage;            
+        }
 
         String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
         result.setUnknownString(unknownGtCode);
