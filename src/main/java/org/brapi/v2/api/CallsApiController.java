@@ -61,6 +61,7 @@ import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 import java.math.BigInteger;
 import java.util.logging.Level;
+import javax.servlet.http.HttpServletResponse;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -132,6 +133,29 @@ public class CallsApiController implements CallsApi {
         Set<String> variantIds = new HashSet();
         Set<Integer> callSetIds = new HashSet();
         for (Call c:callsToUpdate) {
+            if (c.getVariantSetDbId() != null && c.getVariantDbId() == null && c.getCallSetDbId() == null) {                
+                if (token == null || tokenManager.getAuthenticationFromToken(token) == null) {
+                    Status status = new Status();
+                    status.setMessage("You must be authenticated to access this resource");
+                    metadata.addStatusItem(status); 
+                    return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+                } else {
+                    module = Helper.getInfoFromId(c.getVariantSetDbId(), 3)[0];   
+                    int projectId = Integer.parseInt(Helper.getInfoFromId(c.getVariantSetDbId(), 3)[1]);
+                    if (tokenManager.canUserWriteToProject(token, module, projectId)) {
+                        Status status = new Status();
+                        status.setMessage("You are allowed to update this variantSet: " + c.getVariantSetDbId());
+                        metadata.addStatusItem(status); 
+                        return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
+                    } else {
+                        Status status = new Status();
+                        status.setMessage("You are not allowed to update this variantSet: " + c.getVariantSetDbId());
+                        metadata.addStatusItem(status); 
+                        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+                    }
+                }
+            }
+            
             if (c.getVariantDbId() == null || c.getVariantSetDbId() == null || c.getCallSetDbId() == null) {
                 Status status = new Status();
                 status.setMessage("You must provide variantDbId, variantSetDbId and callSetDbId for each call");
