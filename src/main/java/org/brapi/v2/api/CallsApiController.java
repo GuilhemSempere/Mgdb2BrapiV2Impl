@@ -60,6 +60,7 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 import java.math.BigInteger;
+import java.util.logging.Level;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -488,6 +489,7 @@ public class CallsApiController implements CallsApi {
         int variantsNb = 0;
         int callSetsNb = 0;
         Set<String> abbreviations = new HashSet<>();
+        List<String> variantDbIds = new ArrayList<>();
         try { //get Pagination information
             amsr.setPreview(Boolean.TRUE);
             ResponseEntity<AlleleMatrixResponse> resp0 = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
@@ -508,6 +510,7 @@ public class CallsApiController implements CallsApi {
                     variantsNb = pagination.get(0).getTotalCount();
                 }             
                 
+                variantDbIds = resp0.getBody().getResult().getVariantDbIds();      
 
                 //Get abbreviations
                 List<String> variantSetDbIds = resp0.getBody().getResult().getVariantSetDbIds();
@@ -548,43 +551,117 @@ public class CallsApiController implements CallsApi {
             return new ResponseEntity<>(clr, HttpStatus.BAD_REQUEST);
         }
 
-    	CallsListResponseResult res = new CallsListResponseResult();
-        metadata.setPagination(new IndexPagination());
-        
-        int sNo = 0;
-        int vNo = 0;        
-        AlleleMatrixSearchRequestPagination pagination = new AlleleMatrixSearchRequestPagination();
-        pagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
-        if (pageSize < totalCount) {
-            //Calculate the Greatest Common Divisor
-            int gcd = BigInteger.valueOf(callSetsNb).gcd(BigInteger.valueOf(pageSize)).intValue();
-            int vPageSize = pageSize / gcd;
-            int vPage = page * gcd / callSetsNb;
+    	//CallsListResponseResult res = new CallsListResponseResult();
+        metadata.setPagination(new IndexPagination());        
+   
+        AlleleMatrixSearchRequestPagination variantRequestPagination = new AlleleMatrixSearchRequestPagination();
+        variantRequestPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
+        AlleleMatrixSearchRequestPagination callSetRequestPagination = new AlleleMatrixSearchRequestPagination();
+        callSetRequestPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS);        
 
-            vNo = page * pageSize / callSetsNb - vPage * vPageSize;
-            sNo = page * pageSize % callSetsNb;
-
-            pagination.setPage(vPage);
-            pagination.setPageSize(vPageSize);
-            metadata.getPagination().setPageSize(pageSize);
-            metadata.getPagination().setCurrentPage(page);
-            
-        } else {
-            pagination.setPage(page);
-            pagination.setPageSize(variantsPagination.getPageSize());
-            metadata.getPagination().setPageSize(callSetsPagination.getTotalCount() == 0 ? callSetsPagination.getPageSize() : callSetsPagination.getTotalCount() * variantsPagination.getPageSize());
-            metadata.getPagination().setCurrentPage(page);            
-        }
-        amsr.setPagination(new ArrayList());
-        amsr.addPaginationItem(pagination);
-        
         abbreviations.add("GT"); // in order to get GT even if there is no VCFheader
         amsr.setDataMatrixAbbreviations(new ArrayList<>(abbreviations));
+        amsr.setPreview(Boolean.FALSE);    
+        amsr.setPagination(new ArrayList<>());
         
+        CallsListResponseResult res = new CallsListResponseResult();
+        if (callSetsNb == 1) {
+            //pagination on variants
+            variantRequestPagination.setPage(page);
+            variantRequestPagination.setPageSize(pageSize);
+            callSetRequestPagination.setPage(0);
+            callSetRequestPagination.setPageSize(callSetsNb); 
+            amsr.addPaginationItem(variantRequestPagination);
+            amsr.addPaginationItem(callSetRequestPagination);
+            try {            
+                res = callSearchMatrix(authorization, amsr, 0, 1, 0, variantsNb - page * pageSize, res);
+            } catch (Exception ex) {
+                log.error(null, ex);
+                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            
+        } else if (variantsNb == 1) {
+            //pagination on callsets
+            variantRequestPagination.setPage(0);
+            variantRequestPagination.setPageSize(variantsNb);
+            callSetRequestPagination.setPage(page);
+            callSetRequestPagination.setPageSize(pageSize);
+            amsr.addPaginationItem(variantRequestPagination);
+            amsr.addPaginationItem(callSetRequestPagination);
+            try {
+                res = callSearchMatrix(authorization, amsr, 0, callSetsNb - page * pageSize, 0, 1, res);
+            } catch (Exception ex) {
+                log.error(null, ex);
+                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            
+        } else if (pageSize < totalCount) {
+            // get data variant per variant in order to manage pagination
+            
+            int startIndex = page * pageSize;
+            int endIndex = (page + 1) * pageSize > totalCount ? totalCount : (page + 1) * pageSize ;
+            int startVarIndex = startIndex / callSetsNb;
+            int startCallSetIndex = startIndex % callSetsNb;
+            int endVarIndex = endIndex / callSetsNb + 1 > variantsNb ? variantsNb : endIndex / callSetsNb + 1;
+            int endCallSetIndex = endIndex % callSetsNb;
+             
+            callSetRequestPagination.setPage(0);
+            callSetRequestPagination.setPageSize(callSetsNb);
+            variantRequestPagination.setPageSize(1);
+            for (int v = startVarIndex; v < endVarIndex; v++) {
+                variantRequestPagination.setPage(v);
+                amsr.addPaginationItem(variantRequestPagination);
+                amsr.addPaginationItem(callSetRequestPagination);
+                int sCallsets = 0;
+                int eCallsets = callSetsNb;
+                if (v == 0) {
+                    sCallsets = startCallSetIndex;
+                } else if (v == endVarIndex - 1) {
+                    eCallsets = endCallSetIndex;
+                }
+                try {                
+                    res = callSearchMatrix(authorization, amsr, sCallsets, eCallsets, 0, 1, res);
+                } catch (Exception ex) {
+                    log.error(null, ex);
+                    return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+            }
+        }    
+        metadata.getPagination().setPageSize(pageSize);
+        metadata.getPagination().setTotalCount(totalCount);
+        metadata.getPagination().setTotalPages(totalPages);
+        metadata.getPagination().setCurrentPage(page);
+        clr.setResult(res);
+        return new ResponseEntity<>(clr, HttpStatus.OK);
+    }
+
+    private VariantRunData convertCallToVrd(Call c, VariantData vd, int projectId, String runName) {
+        VariantRunData vrd = new VariantRunData(new VariantRunDataId(projectId, runName, vd.getId()));
+        vrd.setAdditionalInfo((HashMap<String, Object>) (Map) c.getAdditionalInfo());
+        vrd.setReferencePosition(vd.getReferencePosition());	// in case we have an old-style DB that doesn't support assemblies
+        vrd.setPositions(vd.getPositions());
+        vrd.setKnownAlleles(vd.getKnownAlleles());
+        HashMap<Integer, SampleGenotype> genotypes = new HashMap();
+        SampleGenotype sg = new SampleGenotype();
+        String gt = c.getGenotypeValue().equals("1/0") ? "0/1" : c.getGenotypeValue();
+        sg.setCode(gt);
+        String[] splitCallSetDbId = Helper.getInfoFromId(c.getCallSetDbId(), 2);
+        genotypes.put(Integer.valueOf(splitCallSetDbId[1]), sg);
+        vrd.setSampleGenotypes(genotypes);
+        return vrd;
+    }
+    
+    private CallsListResponseResult callSearchMatrix(String authorization, 
+                                                    AlleleMatrixSearchRequest amsr, 
+                                                    int startCallSetIndex, 
+                                                    int endCallSetIndex, 
+                                                    int startVariantIndex, 
+                                                    int endVariantIndex,
+                                                    CallsListResponseResult res
+                                                    ) throws Exception {
         try {
-            amsr.setPreview(Boolean.FALSE);
             ResponseEntity<AlleleMatrixResponse> resp = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
-            if (resp.getStatusCode().equals(HttpStatus.OK)) {
+            if (resp.getStatusCode().equals(HttpStatus.OK)) {                
                 AlleleMatrix result = resp.getBody().getResult();
                 Map<String, AlleleMatrixDataMatrices> matricesMap = new HashMap<>();
 
@@ -616,72 +693,41 @@ public class CallsApiController implements CallsApi {
                     samplesRuns = samples.stream().collect(Collectors.toMap(s -> db + Helper.ID_SEPARATOR + s.getId(), s -> new Run(s.getProjectId(), s.getRun())));	        		        	
                 }
 
-                outerloop:                
-                for (int v = vNo; v < result.getVariantDbIds().size(); v++) {
-                    for (int s = 0; s < result.getCallSetDbIds().size(); s++) {
-
-                        if (s >= sNo) {
-                            Call call = new Call();
-                            List<CallGenotypeMetadata> metadataList = new ArrayList<>();
-                            for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
-                                if (matrix.getDataMatrixAbbreviation().equals("GT")) {
-                                    call.setGenotypeValue(matrix.getDataMatrix().get(v).get(s));
-                                } else {
-                                    CallGenotypeMetadata gtMetadata = new CallGenotypeMetadata();
-                                    gtMetadata.setDataType(CallGenotypeMetadata.DataTypeEnum.FLOAT);
-                                    gtMetadata.setFieldAbbreviation(matrix.getDataMatrixAbbreviation());
-                                    gtMetadata.setFieldName(matrix.getDataMatrixName());
-                                    gtMetadata.setFieldValue(matrix.getDataMatrix().get(v).get(s));
-                                    metadataList.add(gtMetadata);
-                                }
-                            }
-                            call.setGenotypeMetadata(metadataList);
-                            call.setVariantDbId(result.getVariantDbIds().get(v));
-                            call.setVariantName(result.getVariantDbIds().get(v));
-                            call.setCallSetDbId(result.getCallSetDbIds().get(s));
-                            if (result.getVariantSetDbIds().size() > 1) {
-                                Run run = samplesRuns.get(call.getCallSetDbId());
-                                call.setVariantSetDbId(module + Helper.ID_SEPARATOR + run.getProjectId() + Helper.ID_SEPARATOR + run.getRunName());
+                for (int v = startVariantIndex; v < endVariantIndex; v++) {
+                    for (int s = startCallSetIndex; s < endCallSetIndex; s++) {
+                        Call call = new Call();
+                        List<CallGenotypeMetadata> metadataList = new ArrayList<>();
+                        for (AlleleMatrixDataMatrices matrix:result.getDataMatrices()) {
+                            if (matrix.getDataMatrixAbbreviation().equals("GT")) {
+                                call.setGenotypeValue(matrix.getDataMatrix().get(v).get(s));
                             } else {
-                                call.setVariantSetDbId(result.getVariantSetDbIds().get(0));
+                                CallGenotypeMetadata gtMetadata = new CallGenotypeMetadata();
+                                gtMetadata.setDataType(CallGenotypeMetadata.DataTypeEnum.FLOAT);
+                                gtMetadata.setFieldAbbreviation(matrix.getDataMatrixAbbreviation());
+                                gtMetadata.setFieldName(matrix.getDataMatrixName());
+                                gtMetadata.setFieldValue(matrix.getDataMatrix().get(v).get(s));
+                                metadataList.add(gtMetadata);
                             }
-                            res.addDataItem(call);
                         }
-
-                        if (res.getData().size() == pageSize) {
-                            break outerloop;
+                        call.setGenotypeMetadata(metadataList);
+                        call.setVariantDbId(result.getVariantDbIds().get(v));
+                        call.setVariantName(result.getVariantDbIds().get(v));
+                        call.setCallSetDbId(result.getCallSetDbIds().get(s));
+                        if (result.getVariantSetDbIds().size() > 1) {
+                            Run run = samplesRuns.get(call.getCallSetDbId());
+                            call.setVariantSetDbId(module + Helper.ID_SEPARATOR + run.getProjectId() + Helper.ID_SEPARATOR + run.getRunName());
+                        } else {
+                            call.setVariantSetDbId(result.getVariantSetDbIds().get(0));
                         }
-
+                        res.addDataItem(call);
                     }
-                    sNo = 0;
                 }
-
-                metadata.getPagination().setTotalCount(totalCount);
-                metadata.getPagination().setTotalPages(totalPages);
-                clr.setResult(res);
-                return new ResponseEntity<>(clr, HttpStatus.OK);
-
+                return res;
             } else {
-                return new ResponseEntity<>(resp.getStatusCode());
+                throw new Exception(resp.getStatusCode().toString());
             }
         } catch (InterruptedException ex) {
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    private VariantRunData convertCallToVrd(Call c, VariantData vd, int projectId, String runName) {
-        VariantRunData vrd = new VariantRunData(new VariantRunDataId(projectId, runName, vd.getId()));
-        vrd.setAdditionalInfo((HashMap<String, Object>) (Map) c.getAdditionalInfo());
-        vrd.setReferencePosition(vd.getReferencePosition());	// in case we have an old-style DB that doesn't support assemblies
-        vrd.setPositions(vd.getPositions());
-        vrd.setKnownAlleles(vd.getKnownAlleles());
-        HashMap<Integer, SampleGenotype> genotypes = new HashMap();
-        SampleGenotype sg = new SampleGenotype();
-        String gt = c.getGenotypeValue().equals("1/0") ? "0/1" : c.getGenotypeValue();
-        sg.setCode(gt);
-        String[] splitCallSetDbId = Helper.getInfoFromId(c.getCallSetDbId(), 2);
-        genotypes.put(Integer.valueOf(splitCallSetDbId[1]), sg);
-        vrd.setSampleGenotypes(genotypes);
-        return vrd;
-    }
+            throw ex;
+        }        
+    }    
 }
