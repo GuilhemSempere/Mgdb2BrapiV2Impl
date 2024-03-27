@@ -171,9 +171,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         response.setResult(result);
         response.setMetadata(metadata);
 
-        int numberOfCallSetsPerPage = 1000;
+        int numberOfCallSetsPerPage = 100;
         int callSetsPage = 0;
-        int numberOfMarkersPerPage = 1000;
+        int numberOfMarkersPerPage = 100;
         int variantsPage = 0;
 
         if (body.getPagination() != null && !body.getPagination().isEmpty()) {
@@ -192,6 +192,19 @@ public class AllelematrixApiController implements AllelematrixApi {
                     variantsPage = pagination.getPage();
                 }
             }
+        }
+        
+        int maxOfTotalCalls = 10000;        
+        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxOfTotalCalls) {
+            Status status = new Status();
+            if (numberOfCallSetsPerPage > maxOfTotalCalls) {
+                //return calls per variant
+                numberOfMarkersPerPage = 1;
+            } else {
+                numberOfMarkersPerPage = maxOfTotalCalls / numberOfCallSetsPerPage;         
+            }
+            status.setMessage("VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage + "(VARIANT pageSize * CALLSETS pageSize should not exceeds " + maxOfTotalCalls + ")");
+            metadata.addStatusItem(status);
         }
 
         String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
