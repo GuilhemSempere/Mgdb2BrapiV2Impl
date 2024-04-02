@@ -103,7 +103,7 @@ public class CallsetsApiController implements CallsetsApi {
                                 
                                 if (sampleIds.isEmpty()) {
                                     //return empty result
-                                    cslr.getMetadata().getPagination().setTotalCount(0);
+                                    cslr.getMetadata().getPagination().setTotalCount(0L);
                                     cslr.getMetadata().getPagination().setTotalPages(0);
                                     cslr.setResult(new CallSetsListResponseResult());
                                     return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
@@ -212,7 +212,7 @@ public class CallsetsApiController implements CallsetsApi {
                                 
                                 if (!matchingVariantSetBase && (fFilterOnCallSets || fFilterOnGermplasm)) { //there is no variantSet matching with callsets
                                     //return empty result
-                                    cslr.getMetadata().getPagination().setTotalCount(0);
+                                    cslr.getMetadata().getPagination().setTotalCount(0L);
                                     cslr.getMetadata().getPagination().setTotalPages(0);
                                     cslr.setResult(new CallSetsListResponseResult());
                                     return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
@@ -263,7 +263,7 @@ public class CallsetsApiController implements CallsetsApi {
 	    			cslr.getMetadata().getPagination().setPageSize(result.getData().size());
 	    			cslr.getMetadata().getPagination().setCurrentPage(body.getPage());
 	    			cslr.getMetadata().getPagination().setTotalPages(1);
-	    			cslr.getMetadata().getPagination().setTotalCount(result.getData().size());
+	    			cslr.getMetadata().getPagination().setTotalCount((long) result.getData().size());
 	        	}
                 }
 

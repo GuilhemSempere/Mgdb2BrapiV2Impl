@@ -186,14 +186,14 @@ public class AttributevaluesApiController implements AttributevaluesApi {
 	                    } else {
 	                        pagination.setTotalPages(data.size()/body.getPageSize() + 1);
 	                    }
-	                    pagination.setTotalCount(data.size());
+	                    pagination.setTotalCount((long) data.size());
 	                    
 	                } else {
 	                    result.setData(data);                     
 	                    pagination.setPageSize(result.getData().size());
 	                    pagination.setCurrentPage(0);
 	                    pagination.setTotalPages(1);
-	                    pagination.setTotalCount(result.getData().size());
+	                    pagination.setTotalCount((long) result.getData().size());
 	                    
 	                }
 	                metadata.setPagination(pagination);               

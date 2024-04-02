@@ -263,7 +263,7 @@ public class SamplesApiController implements SamplesApi {
             pagination.setPageSize(result.getData().size());
             pagination.setCurrentPage(body.getPage());
             pagination.setTotalPages(totalPages);
-            pagination.setTotalCount((int) totalCount);
+            pagination.setTotalCount(totalCount);
             slr.getMetadata().setPagination(pagination);
 
             return new ResponseEntity<SampleListResponse>(slr, HttpStatus.OK);
