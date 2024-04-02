@@ -59,9 +59,6 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import java.math.BigInteger;
-import java.util.logging.Level;
-import javax.servlet.http.HttpServletResponse;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -480,7 +477,7 @@ public class CallsApiController implements CallsApi {
         metadata.addStatusItem(status);
         metadata.setPagination(new IndexPagination());
         metadata.getPagination().setCurrentPage(0);
-        metadata.getPagination().setTotalCount(updatedCalls.size());
+        metadata.getPagination().setTotalCount((long) updatedCalls.size());
         int pageSize = 1000;
         metadata.getPagination().setPageSize(pageSize);
         int totalPages = updatedCalls.size() % pageSize > 0 ? updatedCalls.size() / pageSize + 1 : updatedCalls.size() / pageSize;
@@ -652,7 +649,7 @@ public class CallsApiController implements CallsApi {
             }
         }    
         metadata.getPagination().setPageSize(pageSize);
-        metadata.getPagination().setTotalCount(totalCount);
+        metadata.getPagination().setTotalCount((long) totalCount);
         metadata.getPagination().setTotalPages(totalPages);
         metadata.getPagination().setCurrentPage(page);
         clr.setResult(res);
