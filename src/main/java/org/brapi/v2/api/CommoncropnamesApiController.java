@@ -71,7 +71,7 @@ public class CommoncropnamesApiController implements CommoncropnamesApi {
 			pagination.setPageSize(result.getData().size());
 			pagination.setCurrentPage(0);
 			pagination.setTotalPages(1);
-			pagination.setTotalCount(result.getData().size());
+			pagination.setTotalCount((long) result.getData().size());
 			metadata.setPagination(pagination);
 			rlr.setMetadata(metadata);
 			
