@@ -455,7 +455,7 @@ public class CallsApiController implements CallsApi {
         metadata.addStatusItem(status);
         metadata.setPagination(new IndexPagination());
         metadata.getPagination().setCurrentPage(0);
-        metadata.getPagination().setTotalCount(updatedCalls.size());
+        metadata.getPagination().setTotalCount((long) updatedCalls.size());
         int pageSize = 1000;
         metadata.getPagination().setPageSize(pageSize);
         int totalPages = updatedCalls.size() % pageSize > 0 ? updatedCalls.size() / pageSize + 1 : updatedCalls.size() / pageSize;
@@ -531,7 +531,8 @@ public class CallsApiController implements CallsApi {
     	clr.setMetadata(metadata);
 
     	int page = body.getPage() == null ? 0 : body.getPage(), pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
-        int totalCount = variantsNb * callSetsNb, totalPages = (int) Math.ceil((float) totalCount / pageSize);
+        long totalCount = (long) variantsNb * callSetsNb;
+        int totalPages = (int) Math.ceil((float) totalCount / pageSize);
         if (page >= totalPages) {
             Status status = new Status();
             status.setMessage("Requested page number may not exceed " + (totalPages - 1));
