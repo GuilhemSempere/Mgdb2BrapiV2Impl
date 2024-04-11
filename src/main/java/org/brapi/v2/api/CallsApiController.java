@@ -62,6 +62,7 @@ import htsjdk.variant.vcf.VCFHeaderLineType;
 import java.math.BigInteger;
 import java.util.logging.Level;
 import javax.servlet.http.HttpServletResponse;
+import static org.brapi.v2.api.AllelematrixApiController.MAX_TOTAL_CALLS;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -632,26 +633,35 @@ public class CallsApiController implements CallsApi {
             if (endCallSetIndex != 0) {
                 endVarIndex++;
             }
-
             callSetRequestPagination.setPage(0);
             callSetRequestPagination.setPageSize(callSetsNb);
             variantRequestPagination.setPageSize(1);
-            for (int v = startVarIndex; v < endVarIndex; v++) {
-                variantRequestPagination.setPage(v);
-                amsr.addPaginationItem(variantRequestPagination);
-                amsr.addPaginationItem(callSetRequestPagination);
-                int sCallsets = 0;
-                int eCallsets = callSetsNb;
-                if (v == startVarIndex) {
-                    sCallsets = startCallSetIndex;
-                } else if (v == endVarIndex - 1) {
-                    eCallsets = endCallSetIndex;
-                }
-                try {                
-                    res = callSearchMatrix(authorization, amsr, sCallsets, eCallsets, 0, 1, res);
+            
+            if (endVarIndex - startVarIndex == variantsNb && variantsNb * callSetsNb < MAX_TOTAL_CALLS) { // get all variants data in one query
+                try {                    
+                    res = callSearchMatrix(authorization, amsr, startCallSetIndex, endCallSetIndex, startVarIndex, endVarIndex, res);
                 } catch (Exception ex) {
                     log.error(null, ex);
                     return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+            } else { // get data per variant 
+                for (int v = startVarIndex; v < endVarIndex; v++) {
+                    variantRequestPagination.setPage(v);
+                    amsr.addPaginationItem(variantRequestPagination);
+                    amsr.addPaginationItem(callSetRequestPagination);
+                    int sCallsets = 0;
+                    int eCallsets = callSetsNb;
+                    if (v == startVarIndex) {
+                        sCallsets = startCallSetIndex;
+                    } else if (v == endVarIndex - 1) {
+                        eCallsets = endCallSetIndex;
+                    }
+                    try {                
+                        res = callSearchMatrix(authorization, amsr, sCallsets, eCallsets, 0, 1, res);
+                    } catch (Exception ex) {
+                        log.error(null, ex);
+                        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
                 }
             }
         }    

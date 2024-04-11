@@ -76,6 +76,7 @@ import java.util.LinkedHashSet;
 public class AllelematrixApiController implements AllelematrixApi {
 
     static private final org.apache.log4j.Logger LOG = org.apache.log4j.Logger.getLogger(AllelematrixApiController.class);
+    public static final int MAX_TOTAL_CALLS = 10000;
 
     @Autowired
     AbstractTokenManager tokenManager;
@@ -195,16 +196,15 @@ public class AllelematrixApiController implements AllelematrixApi {
             }
         }
         
-        int maxOfTotalCalls = 10000;        
-        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxOfTotalCalls) {
+        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > MAX_TOTAL_CALLS) {
             Status status = new Status();
-            if (numberOfCallSetsPerPage > maxOfTotalCalls) {
+            if (numberOfCallSetsPerPage > MAX_TOTAL_CALLS) {
                 //return calls per variant
                 numberOfMarkersPerPage = 1;
             } else {
-                numberOfMarkersPerPage = maxOfTotalCalls / numberOfCallSetsPerPage;         
+                numberOfMarkersPerPage = MAX_TOTAL_CALLS / numberOfCallSetsPerPage;         
             }
-            status.setMessage("VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage + "(VARIANT pageSize * CALLSETS pageSize should not exceeds " + maxOfTotalCalls + ")");
+            status.setMessage("VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage + "(VARIANT pageSize * CALLSETS pageSize should not exceeds " + MAX_TOTAL_CALLS + ")");
             metadata.addStatusItem(status);
         }
 
