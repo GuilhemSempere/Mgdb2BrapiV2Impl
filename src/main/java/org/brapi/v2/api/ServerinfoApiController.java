@@ -72,7 +72,7 @@ public class ServerinfoApiController implements ServerinfoApi {
 		pagination.setPageSize(0);
 		pagination.setCurrentPage(0);
 		pagination.setTotalPages(1);
-		pagination.setTotalCount(result.getCalls().size());
+		pagination.setTotalCount((long) result.getCalls().size());
 		metadata.setPagination(pagination);
 		cr.setMetadata(metadata);
 		cr.setResult(result);

@@ -444,7 +444,7 @@ public class VariantsApiController implements VariantsApi {
             }
             if (countThread != null) {
                 countThread.join(5000);
-                pagination.setTotalCount((int) totalCount.get());
+                pagination.setTotalCount(totalCount.get());
             }
             metadata.setPagination(pagination);
         } catch (Exception e) {

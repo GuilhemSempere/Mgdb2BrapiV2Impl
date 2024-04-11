@@ -57,6 +57,7 @@ import com.mongodb.client.MongoCursor;
 
 import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
@@ -420,11 +421,19 @@ public class AllelematrixApiController implements AllelematrixApi {
             List<Criteria> vCrits = new ArrayList<>();
             for (String vsId : body.getVariantSetDbIds()) {
                 String[] info = Helper.getInfoFromId(vsId, 3);
-                vsCrits.add(new Criteria().is(new BasicDBObject("_id", new BasicDBObject(VariantRunDataId.FIELDNAME_RUNNAME, info[2]).append(VariantRunDataId.FIELDNAME_PROJECT_ID, Integer.parseInt(info[1])))));
-                vCrits.add(new Criteria().is(new BasicDBObject(VariantData.FIELDNAME_RUNS, new BasicDBObject(Run.FIELDNAME_RUNNAME, info[2]).append(Run.FIELDNAME_PROJECT_ID, Integer.parseInt(info[1])))));
+                int projId = Integer.parseInt(info[1]);
+                GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
+                if (genotypingProject.getRuns().size() < 2)
+                	break;
+                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));
+                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId));
+                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2]));
+                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId));
             }
-            crits.add(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
-            variantCrits.add(new Criteria().orOperator(vCrits.toArray(new Criteria[vCrits.size()])));
+            if (!vsCrits.isEmpty()) {
+	            crits.add(new Criteria().orOperator(new Criteria().andOperator(vsCrits)));
+	            variantCrits.add(new Criteria().orOperator(new Criteria().andOperator(vCrits)));
+            }
         }
 
         List<String> varIDs = new ArrayList<>();
@@ -469,12 +478,14 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
 
             }
-            crits.add(new Criteria().orOperator(rangeCrits.toArray(new Criteria[rangeCrits.size()])));
-            variantCrits.add(new Criteria().orOperator(rangeCrits.toArray(new Criteria[rangeCrits.size()])));
+            if (!rangeCrits.isEmpty()) {
+	            crits.add(new Criteria().orOperator(rangeCrits));
+	            variantCrits.add(new Criteria().orOperator(rangeCrits));
+            }
         }
 
-        Query runQuery = new Query(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
-        Query variantsQuery = new Query(new Criteria().andOperator(variantCrits.toArray(new Criteria[variantCrits.size()])));
+        Query runQuery = crits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(crits));
+        Query variantsQuery = variantCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(variantCrits));
 
         // now deal with samples
         int nTotalSamplesCount = 0;
@@ -523,11 +534,10 @@ public class AllelematrixApiController implements AllelematrixApi {
 
         //count variants
         AtomicLong nTotalMarkerCount = new AtomicLong(-1);
-        final boolean finalGotVariantSetList = fGotVariantSetList;
         Thread countThread = new Thread() {	// count asynchronously for faster response
             public void run() {
                 long b4 = System.currentTimeMillis();
-                int countVar = (int) mongoTemplate.count(variantsQuery, VariantData.class);
+                long countVar = !variantsQuery.getQueryObject().isEmpty() ? mongoTemplate.count(variantsQuery, VariantData.class) : Helper.estimDocCount(mongoTemplate, VariantData.class) /* much faster */;                
                 nTotalMarkerCount.set(countVar);  
                 LOG.info("alleleMatrix variant totalCount (" + countVar + ") obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
             }
@@ -568,6 +578,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 
                     SortOperation sort = sort(Sort.by(Sort.Direction.ASC, "_id." + Run.FIELDNAME_PROJECT_ID));
                     Aggregation aggregation = Aggregation.newAggregation(match, project, group, sort, Aggregation.limit(nSkipCount + numberOfMarkersPerPage), Aggregation.skip(nSkipCount)).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+//                    System.out.println(aggregation);
                     AggregationResults<VariantRunDataWithRuns> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunDataWithRuns.class);
                     varList = results.getMappedResults();
                     
