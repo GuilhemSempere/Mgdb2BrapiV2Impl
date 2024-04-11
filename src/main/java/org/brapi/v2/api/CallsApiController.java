@@ -59,9 +59,6 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import java.math.BigInteger;
-import java.util.logging.Level;
-import javax.servlet.http.HttpServletResponse;
 import static org.brapi.v2.api.AllelematrixApiController.MAX_TOTAL_CALLS;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
@@ -666,7 +663,7 @@ public class CallsApiController implements CallsApi {
             }
         }    
         metadata.getPagination().setPageSize(pageSize);
-        metadata.getPagination().setTotalCount(Long.valueOf(totalCount));
+        metadata.getPagination().setTotalCount((long) totalCount);
         metadata.getPagination().setTotalPages(totalPages);
         metadata.getPagination().setCurrentPage(page);
         clr.setResult(res);
