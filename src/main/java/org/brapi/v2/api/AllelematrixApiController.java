@@ -394,9 +394,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
             }
         }
-
-        MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-
+        
+        MongoTemplate mongoTemplate;
+        try {
+            mongoTemplate = MongoTemplateManager.get(module);
+        } catch (Exception e) {
+            Status status = new Status();
+            status.setMessage("The given database " + module + " does not exist");
+            metadata.addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
         // check permissions
         Collection<Integer> projectIDs = fGotVariantSetList
                 ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(Helper.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet())
@@ -753,7 +760,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             callSetPagination.setPage(callSetsPage);
             callSetPagination.setPageSize(numberOfCallSetsPerPage);
             callSetPagination.setTotalCount(nTotalSamplesCount);
-            int nbOfCallSetPages = nTotalSamplesCount / numberOfCallSetsPerPage;
+            int nbOfCallSetPages = (int) Math.ceil((double)nTotalSamplesCount / numberOfCallSetsPerPage);
             if (nTotalSamplesCount % numberOfCallSetsPerPage > 0) {
                 nbOfCallSetPages++;
             }

@@ -620,16 +620,19 @@ public class CallsApiController implements CallsApi {
                 return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
             }
             
-        } else if (pageSize < totalCount) {
+        } else { //if (pageSize < totalCount) {
             // get data variant per variant in order to manage pagination
             
             int startIndex = page * pageSize;
-            int endIndex = (page + 1) * pageSize > totalCount ? totalCount : (page + 1) * pageSize ;
+            int endIndex = (int) ((page + 1) * pageSize > totalCount ? totalCount : (page + 1) * pageSize);
             int startVarIndex = startIndex / callSetsNb;
-            int startCallSetIndex = startIndex % callSetsNb;
-            int endVarIndex = endIndex / callSetsNb + 1 > variantsNb ? variantsNb : endIndex / callSetsNb + 1;
+            int startCallSetIndex = startIndex % callSetsNb;            
             int endCallSetIndex = endIndex % callSetsNb;
-             
+            int endVarIndex = endIndex / callSetsNb;
+            if (endCallSetIndex != 0) {
+                endVarIndex++;
+            }
+
             callSetRequestPagination.setPage(0);
             callSetRequestPagination.setPageSize(callSetsNb);
             variantRequestPagination.setPageSize(1);
@@ -639,7 +642,7 @@ public class CallsApiController implements CallsApi {
                 amsr.addPaginationItem(callSetRequestPagination);
                 int sCallsets = 0;
                 int eCallsets = callSetsNb;
-                if (v == 0) {
+                if (v == startVarIndex) {
                     sCallsets = startCallSetIndex;
                 } else if (v == endVarIndex - 1) {
                     eCallsets = endCallSetIndex;
@@ -653,7 +656,7 @@ public class CallsApiController implements CallsApi {
             }
         }    
         metadata.getPagination().setPageSize(pageSize);
-        metadata.getPagination().setTotalCount(totalCount);
+        metadata.getPagination().setTotalCount(Long.valueOf(totalCount));
         metadata.getPagination().setTotalPages(totalPages);
         metadata.getPagination().setCurrentPage(page);
         clr.setResult(res);
