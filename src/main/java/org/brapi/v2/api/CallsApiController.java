@@ -618,9 +618,7 @@ public class CallsApiController implements CallsApi {
                 return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
             }
             
-        } else { //if (pageSize < totalCount) {
-            // get data variant per variant in order to manage pagination
-            
+        } else {             
             int startIndex = page * pageSize;
             int endIndex = (int) ((page + 1) * pageSize > totalCount ? totalCount : (page + 1) * pageSize);
             int startVarIndex = startIndex / callSetsNb;
@@ -634,14 +632,14 @@ public class CallsApiController implements CallsApi {
             callSetRequestPagination.setPageSize(callSetsNb);
             variantRequestPagination.setPageSize(1);
             
-            if (endVarIndex - startVarIndex == variantsNb && variantsNb * callSetsNb < MAX_TOTAL_CALLS) { // get all variants data in one query
+            if (endVarIndex - startVarIndex == variantsNb && variantsNb * callSetsNb < MAX_TOTAL_CALLS) { // get all variants data
                 try {                    
                     res = callSearchMatrix(authorization, amsr, startCallSetIndex, endCallSetIndex, startVarIndex, endVarIndex, res);
                 } catch (Exception ex) {
                     log.error(null, ex);
                     return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                 }
-            } else { // get data per variant 
+            } else { // get data variant per variant in order to manage pagination             
                 for (int v = startVarIndex; v < endVarIndex; v++) {
                     variantRequestPagination.setPage(v);
                     amsr.addPaginationItem(variantRequestPagination);
