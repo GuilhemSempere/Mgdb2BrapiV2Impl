@@ -38,7 +38,7 @@ public class ReferencesApiController implements ReferencesApi {
     @Autowired AbstractTokenManager tokenManager;
     
 	@Override
-	public ResponseEntity<ReferenceListResponse> referencesGet(String referenceDbId, String referenceSetDbId, String accession, String md5checksum, Boolean isDerived, Integer minLength, Integer maxLength, Integer page, Integer pageSize, String authorization) {
+	public ResponseEntity<ReferenceListResponse> referencesGet(String referenceDbId, String referenceSetDbId, String accession, String md5checksum, Boolean isDerived, Integer minLength, Integer maxLength, String studyDbId, Integer page, Integer pageSize, String authorization) {
 		ReferencesSearchRequest srr = new ReferencesSearchRequest();
 		srr.setPageSize(pageSize);
 		srr.setPage(pageSize);
@@ -52,6 +52,8 @@ public class ReferencesApiController implements ReferencesApi {
 			srr.setMd5checksums(Arrays.asList(md5checksum));
 		if (accession != null)
 			srr.setAccessions(Arrays.asList(accession));
+                if (studyDbId != null)
+                        srr.setStudyDbIds(Arrays.asList(studyDbId));
 		return searchReferencesPost(srr, authorization);
 	}
 
