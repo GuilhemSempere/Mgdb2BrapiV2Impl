@@ -410,12 +410,12 @@ public class AllelematrixApiController implements AllelematrixApi {
                 String[] info = Helper.getInfoFromId(vsId, 3);
                 int projId = Integer.parseInt(info[1]);
                 GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
+                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId));
+                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId));
                 if (genotypingProject.getRuns().size() < 2)
                 	break;
-                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));
-                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId));
-                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2]));
-                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId));
+                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));                
+                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2]));                
             }
             if (!vsCrits.isEmpty()) {
 	            crits.add(new Criteria().orOperator(new Criteria().andOperator(vsCrits)));
