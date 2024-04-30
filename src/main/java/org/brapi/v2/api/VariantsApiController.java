@@ -63,6 +63,8 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 
 import htsjdk.variant.variantcontext.VariantContext.Type;
 import io.swagger.annotations.ApiParam;
+import org.brapi.v2.model.IndexPagination;
+import org.brapi.v2.model.Metadata;
 import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 
@@ -112,7 +114,7 @@ public class VariantsApiController implements VariantsApi {
 
         VariantListResponseResult result = new VariantListResponseResult();
         VariantListResponse vlr = new VariantListResponse();
-        MetadataTokenPagination metadata = new MetadataTokenPagination();
+        Metadata metadata = new Metadata();
         vlr.setMetadata(metadata);
         vlr.setResult(result);
         Status status = new Status();
@@ -120,7 +122,7 @@ public class VariantsApiController implements VariantsApi {
         if (body.getPageSize() == null || body.getPageSize() > VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE) {
             body.setPageSize(VariantsApi.MAX_SUPPORTED_VARIANT_COUNT_PER_PAGE);
         }
-        int page = body.getPageToken() == null ? 0 : Integer.parseInt(body.getPageToken());
+        int page = body.getPage() == null ? 0 : body.getPage();
 
         Collection<String> variantIDs = null;
         try {
@@ -432,16 +434,10 @@ public class VariantsApiController implements VariantsApi {
                 metadata.addStatusItem(status);
             }
 
-            int nNextPage = page + 1;
-            TokenPagination pagination = new TokenPagination();
+            IndexPagination pagination = new IndexPagination();
             pagination.setPageSize(body.getPageSize());
-            pagination.setCurrentPageToken("" + page);
-            if (!varList.isEmpty()) {
-                pagination.setNextPageToken("" + nNextPage);
-            }
-            if (page > 0) {
-                pagination.setPrevPageToken("" + (page - 1));
-            }
+            pagination.setCurrentPage(page);
+            
             if (countThread != null) {
                 countThread.join(5000);
                 pagination.setTotalCount(totalCount.get());
@@ -464,7 +460,7 @@ public class VariantsApiController implements VariantsApi {
     }
 
     @Override
-    public ResponseEntity<VariantListResponse> variantsGet(String variantDbId, String variantSetDbId, String referenceSetDbId, Integer start, Integer end, String pageToken, Integer pageSize, String authorization) {
+    public ResponseEntity<VariantListResponse> variantsGet(String variantDbId, String variantSetDbId, String referenceSetDbId, Integer start, Integer end, Integer page, Integer pageSize, String authorization) {
         VariantsSearchRequest vsr = new VariantsSearchRequest();
         if (variantDbId != null) {
             vsr.setVariantDbIds(Arrays.asList(variantDbId));
@@ -475,7 +471,7 @@ public class VariantsApiController implements VariantsApi {
         vsr.setReferenceDbId(referenceSetDbId);
         vsr.setStart(start);
         vsr.setEnd(end);
-        vsr.setPageToken(pageToken);
+        vsr.setPage(page);
         vsr.setPageSize(pageSize);
 
         return searchVariantsPost(vsr, authorization);
