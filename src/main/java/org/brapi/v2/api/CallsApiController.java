@@ -597,7 +597,7 @@ public class CallsApiController implements CallsApi {
             amsr.addPaginationItem(variantRequestPagination);
             amsr.addPaginationItem(callSetRequestPagination);
             try {            
-                res = callSearchMatrix(authorization, amsr, 0, 1, 0, variantsNb - page * pageSize, res);
+                res = callSearchMatrix(authorization, amsr, 0, 1, 0, pageSize > variantsNb - page * pageSize ? variantsNb - page * pageSize : pageSize, res);
             } catch (Exception ex) {
                 log.error(null, ex);
                 return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -612,7 +612,7 @@ public class CallsApiController implements CallsApi {
             amsr.addPaginationItem(variantRequestPagination);
             amsr.addPaginationItem(callSetRequestPagination);
             try {
-                res = callSearchMatrix(authorization, amsr, 0, callSetsNb - page * pageSize, 0, 1, res);
+                res = callSearchMatrix(authorization, amsr, 0, pageSize > callSetsNb - page * pageSize ? callSetsNb - page * pageSize : pageSize, 0, 1, res);
             } catch (Exception ex) {
                 log.error(null, ex);
                 return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -627,6 +627,8 @@ public class CallsApiController implements CallsApi {
             int endVarIndex = endIndex / callSetsNb;
             if (endCallSetIndex != 0) {
                 endVarIndex++;
+            } else {
+                endCallSetIndex = startCallSetIndex + callSetsNb;
             }
             callSetRequestPagination.setPage(0);
             callSetRequestPagination.setPageSize(callSetsNb);
