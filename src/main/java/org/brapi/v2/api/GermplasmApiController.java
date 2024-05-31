@@ -288,27 +288,6 @@ public class GermplasmApiController implements GermplasmApi {
                             germplasm.setGermplasmName(ind.getId());
                         }
                         
-                        // Put all other metadata into additionalInfo
-                        // Retrieve all fields of Germplasm class (included inherited fields)
-                        Class<?> currentClass = Germplasm.class;
-                        Set<String> fieldNames = new HashSet<>();
-                        while (currentClass != null) {
-                            Field[] fields = currentClass.getDeclaredFields();
-                            fieldNames.addAll(Arrays.stream(fields)
-                                                    .map(Field::getName)
-                                                    .collect(Collectors.toSet()));
-                            currentClass = currentClass.getSuperclass();
-                        }
-
-                        // Find keys that don't correspond to Germplasm class fields
-                        Map<String, String> addInfo = ind.getAdditionalInfo().keySet().stream()
-                                                        .filter(key -> !fieldNames.contains(key))
-                                                        .collect(Collectors.toMap(
-                                                                key -> key,
-                                                                key -> ind.getAdditionalInfo().get(key).toString()
-                                                        ));
-                        germplasm.setAdditionalInfo(addInfo);  
-                        
                 	result.addDataItem(germplasm);
                 }
             }
