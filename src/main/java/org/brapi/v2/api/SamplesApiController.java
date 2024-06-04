@@ -184,11 +184,11 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferenceId).in(body.getExternalReferenceIds()));
+                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds()));
                 }
 
                 if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferenceSource).in(body.getExternalReferenceSources()));
+                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceSource").in(body.getExternalReferenceSources()));
                 }
 
                 // make sure we don't return individuals that are in projects this user doesn't have access to
