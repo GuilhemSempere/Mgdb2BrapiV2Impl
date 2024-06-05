@@ -760,7 +760,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             callSetPagination.setPage(callSetsPage);
             callSetPagination.setPageSize(numberOfCallSetsPerPage);
             callSetPagination.setTotalCount(nTotalSamplesCount);
-            int nbOfCallSetPages = (int) Math.ceil((double)nTotalSamplesCount / numberOfCallSetsPerPage);
+            int nbOfCallSetPages = (int) nTotalSamplesCount / numberOfCallSetsPerPage;
             if (nTotalSamplesCount % numberOfCallSetsPerPage > 0) {
                 nbOfCallSetPages++;
             }
