@@ -307,7 +307,7 @@ public class SamplesApiController implements SamplesApi {
                                 }
                             }
                             if (getNameFromExtRef) {
-                                sample.setSampleName((String) sample.getAdditionalInfo().get("sampleName"));
+                                sample.setSampleName((String) mgdbSample.getAdditionalInfo().get("sampleName"));
                             }
                            
                         } catch (Exception e) {
