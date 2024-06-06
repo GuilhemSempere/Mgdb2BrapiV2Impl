@@ -162,7 +162,14 @@ public class SamplesApiController implements SamplesApi {
                 
                 List<Criteria> andCrits = new ArrayList<>();
                 if (fGotGermplasmNames) {
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));                    
+                    List<Criteria> orCrits = new ArrayList<>();
+                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+                    orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".germplasmName").in(body.getGermplasmNames()));
+
+                    List<String> indIds = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().orOperator(orCrits)), "_id", Individual.class, String.class);
+
+                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
+                    andCrits.add(new Criteria().orOperator(orCrits));             
                 }
 
                 if (dbIndividualsSpecifiedById != null && dbIndividualsSpecifiedById.get(db) != null) {
@@ -180,7 +187,11 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 if (body.getSampleNames() != null && !body.getSampleNames().isEmpty()) {
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
+                    List<Criteria> orCrits = new ArrayList<>();
+                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
+                    orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".sampleName").in(body.getSampleNames()));
+                    andCrits.add(new Criteria().orOperator(orCrits));
+                    
                 }
 
                 if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {

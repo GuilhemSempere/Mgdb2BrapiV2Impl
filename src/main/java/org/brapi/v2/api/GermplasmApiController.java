@@ -175,15 +175,22 @@ public class GermplasmApiController implements GermplasmApi {
                         return new ResponseEntity<GermplasmListResponse>(glr, HttpStatus.BAD_REQUEST);
                 } else {
                     for (String db : dbsToAccountFor) {
-                        List<Criteria> andCrits = new ArrayList<>();
-                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+                        List<Criteria> orCrits = new ArrayList<>();
+                        orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+                        orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".germplasmName").in(body.getGermplasmNames()));
+                                                
+                        List<String> indIds = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().orOperator(orCrits)), "_id", Individual.class, String.class);
 
                         // make sure we don't return individuals that are in projects this user doesn't have access to
                         Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
                         if (allowedProjects == null)
                                 allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+                        List<Criteria> andCrits = new ArrayList<>();
+                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
+                        Query q = new Query(new Criteria().andOperator(andCrits));
+                        
                         List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
                         individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByName));
                     }
