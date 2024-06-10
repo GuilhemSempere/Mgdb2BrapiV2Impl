@@ -424,22 +424,24 @@ public class AllelematrixApiController implements AllelematrixApi {
         List<Criteria> crits = new ArrayList<>();
         List<Criteria> variantCrits = new ArrayList<>();
         if (fGotVariantSetList) {
-            List<Criteria> vsCrits = new ArrayList<>();
-            List<Criteria> vCrits = new ArrayList<>();
+            List<Criteria> pjVariantRunCrits = new ArrayList<>();
+            List<Criteria> pjVariantCrits = new ArrayList<>();
             for (String vsId : body.getVariantSetDbIds()) {
                 String[] info = Helper.getInfoFromId(vsId, 3);
                 int projId = Integer.parseInt(info[1]);
-                GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
-                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId));
-                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId));
-                if (genotypingProject.getRuns().size() < 2)
-                	break;
-                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));                
-                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2]));                
+                //GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
+                pjVariantRunCrits.add(new Criteria().andOperator(
+                        new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), 
+                        new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])
+                ));
+                pjVariantCrits.add(new Criteria().andOperator(
+                        new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId),                               
+                        new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2])
+                ));                
             }
-            if (!vsCrits.isEmpty()) {
-	            crits.add(new Criteria().orOperator(new Criteria().andOperator(vsCrits)));
-	            variantCrits.add(new Criteria().orOperator(new Criteria().andOperator(vCrits)));
+            if (!pjVariantRunCrits.isEmpty()) {
+                crits.add(new Criteria().orOperator(pjVariantRunCrits));
+                variantCrits.add(new Criteria().orOperator(pjVariantCrits));
             }
         }
 
