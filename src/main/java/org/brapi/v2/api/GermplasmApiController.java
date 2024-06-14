@@ -218,24 +218,25 @@ public class GermplasmApiController implements GermplasmApi {
                             Set<String> individualsWithExtRefs = new HashSet(mongoTemplate.findDistinct(new Query(Criteria.where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId")
                                     .in(body.getExternalReferenceIds())), "_id", Individual.class, String.class));
                             individualsWithExtRefs.addAll(customIndividualsWithExtRefs);
+                            List<String> individualsFoundByExtRef = new ArrayList<>();
                             if (!individualsWithExtRefs.isEmpty()) {
-                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individualsWithExtRefs));
-                            }
+                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individualsWithExtRefs));                            
 
-                            // make sure we don't return individuals that are in projects this user doesn't have access to
-                            Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
-                                    if (allowedProjects == null)
-                                            allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
-                                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                                // make sure we don't return individuals that are in projects this user doesn't have access to
+                                Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+                                if (allowedProjects == null)
+                                        allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
-                                    List<String> individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                                            HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
-                                            if (moduleIndividuals == null)
-                                                    individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByExtRef));
-                                            else
-                                                    moduleIndividuals.retainAll(individualsFoundByExtRef);
+                                individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
                             }
-    			}
+                            HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
+                            if (moduleIndividuals == null)
+                                    individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByExtRef));
+                            else
+                                    moduleIndividuals.retainAll(individualsFoundByExtRef);                                                          
+                        }
+                    }
         	}
 
         	// germplasm id filtering
