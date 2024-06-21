@@ -1,5 +1,6 @@
 package org.brapi.v2.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +42,8 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
+import org.brapi.v2.model.ExternalReferences;
+import org.brapi.v2.model.ExternalReferencesInner;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @Controller
@@ -50,15 +53,14 @@ public class CallsetsApiController implements CallsetsApi {
 
     @Autowired AbstractTokenManager tokenManager;
     
-//    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 //
 //    private final HttpServletRequest request;
 
-//    @org.springframework.beans.factory.annotation.Autowired
-//    public CallsetsApiController(ObjectMapper objectMapper, HttpServletRequest request) {
-//        this.objectMapper = objectMapper;
-//        this.request = request;
-//    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public CallsetsApiController(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
 
     public ResponseEntity<CallSetsListResponse> searchCallsetsPost(	@ApiParam(value = "CallSet Search request")  @Valid @RequestBody CallSetsSearchRequest body,
@@ -242,16 +244,35 @@ public class CallsetsApiController implements CallsetsApi {
                                         callset.setCallSetName(sample.getSampleName());
                                         callset.setSampleDbId(callset.getCallSetDbId());
                                         callset.setVariantSetDbIds(Arrays.asList(db + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun()));
+                                        
+                                        if (sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences) != null) {                                            
+                                            ExternalReferences refs = objectMapper.convertValue(sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences), ExternalReferences.class);
+
+                                            boolean getNameFromExtRef = false;
+                                            if (refs != null && !refs.isEmpty()) {
+                                                callset.setExternalReferences(refs);
+                                                for (ExternalReferencesInner extRef:refs) {
+                                                    if (extRef.getReferenceId().equals(sample.getSampleName())) {
+                                                        getNameFromExtRef = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            if (getNameFromExtRef && sample.getAdditionalInfo().get("sampleName") != null) {
+                                                callset.setCallSetName((String) sample.getAdditionalInfo().get("sampleName"));
+                                            }
+                                        }
+                                        
                                         final Individual ind = indMap.get(sample.getIndividual());
                                         for (String key : ind.getAdditionalInfo().keySet()) {
                                             String sLCkey = key.toLowerCase();
                                             Object val = ind.getAdditionalInfo().get(key);
                                             if (val == null)
                                                 continue;
-
-                                            if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey))
-                                                callset.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key));
-                                        }
+                                            
+                                                if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey))
+                                                callset.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key).toString());
+                                            }
                                         result.addDataItem(callset);
                                 }
                         }

@@ -76,6 +76,7 @@ import java.util.LinkedHashSet;
 public class AllelematrixApiController implements AllelematrixApi {
 
     static private final org.apache.log4j.Logger LOG = org.apache.log4j.Logger.getLogger(AllelematrixApiController.class);
+    public static final int MAX_TOTAL_CALLS = 10000;
 
     @Autowired
     AbstractTokenManager tokenManager;
@@ -172,9 +173,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         response.setResult(result);
         response.setMetadata(metadata);
 
-        int numberOfCallSetsPerPage = 1000;
+        int numberOfCallSetsPerPage = 100;
         int callSetsPage = 0;
-        int numberOfMarkersPerPage = 1000;
+        int numberOfMarkersPerPage = 100;
         int variantsPage = 0;
 
         if (body.getPagination() != null && !body.getPagination().isEmpty()) {
@@ -193,6 +194,18 @@ public class AllelematrixApiController implements AllelematrixApi {
                     variantsPage = pagination.getPage();
                 }
             }
+        }
+        
+        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > MAX_TOTAL_CALLS) {
+            Status status = new Status();
+            if (numberOfCallSetsPerPage > MAX_TOTAL_CALLS) {
+                //return calls per variant
+                numberOfMarkersPerPage = 1;
+            } else {
+                numberOfMarkersPerPage = MAX_TOTAL_CALLS / numberOfCallSetsPerPage;         
+            }
+            status.setMessage("VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage + "(VARIANT pageSize * CALLSETS pageSize should not exceeds " + MAX_TOTAL_CALLS + ")");
+            metadata.addStatusItem(status);
         }
 
         String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
@@ -381,9 +394,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
             }
         }
-
-        MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-
+        
+        MongoTemplate mongoTemplate;
+        try {
+            mongoTemplate = MongoTemplateManager.get(module);
+        } catch (Exception e) {
+            Status status = new Status();
+            status.setMessage("The given database " + module + " does not exist");
+            metadata.addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
         // check permissions
         Collection<Integer> projectIDs = fGotVariantSetList
                 ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(Helper.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet())
@@ -404,22 +424,24 @@ public class AllelematrixApiController implements AllelematrixApi {
         List<Criteria> crits = new ArrayList<>();
         List<Criteria> variantCrits = new ArrayList<>();
         if (fGotVariantSetList) {
-            List<Criteria> vsCrits = new ArrayList<>();
-            List<Criteria> vCrits = new ArrayList<>();
+            List<Criteria> pjVariantRunCrits = new ArrayList<>();
+            List<Criteria> pjVariantCrits = new ArrayList<>();
             for (String vsId : body.getVariantSetDbIds()) {
                 String[] info = Helper.getInfoFromId(vsId, 3);
                 int projId = Integer.parseInt(info[1]);
-                GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
-                if (genotypingProject.getRuns().size() < 2)
-                	break;
-                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2]));
-                vsCrits.add(new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId));
-                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2]));
-                vCrits.add(new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId));
+                //GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
+                pjVariantRunCrits.add(new Criteria().andOperator(
+                        new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), 
+                        new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])
+                ));
+                pjVariantCrits.add(new Criteria().andOperator(
+                        new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId),                               
+                        new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2])
+                ));                
             }
-            if (!vsCrits.isEmpty()) {
-	            crits.add(new Criteria().orOperator(new Criteria().andOperator(vsCrits)));
-	            variantCrits.add(new Criteria().orOperator(new Criteria().andOperator(vCrits)));
+            if (!pjVariantRunCrits.isEmpty()) {
+                crits.add(new Criteria().orOperator(pjVariantRunCrits));
+                variantCrits.add(new Criteria().orOperator(pjVariantCrits));
             }
         }
 
@@ -740,7 +762,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             callSetPagination.setPage(callSetsPage);
             callSetPagination.setPageSize(numberOfCallSetsPerPage);
             callSetPagination.setTotalCount(nTotalSamplesCount);
-            int nbOfCallSetPages = nTotalSamplesCount / numberOfCallSetsPerPage;
+            int nbOfCallSetPages = (int) nTotalSamplesCount / numberOfCallSetsPerPage;
             if (nTotalSamplesCount % numberOfCallSetsPerPage > 0) {
                 nbOfCallSetPages++;
             }

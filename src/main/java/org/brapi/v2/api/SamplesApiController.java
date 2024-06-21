@@ -1,5 +1,6 @@
 package org.brapi.v2.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
 import java.lang.reflect.MalformedParametersException;
+import org.brapi.v2.model.Germplasm;
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @Controller
 //@ApiIgnore
@@ -51,15 +53,14 @@ public class SamplesApiController implements SamplesApi {
     
     @Autowired AbstractTokenManager tokenManager;
     
-//    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 //
 //    private final HttpServletRequest request;
 //
-//    @org.springframework.beans.factory.annotation.Autowired
-//    public SamplesApiController(ObjectMapper objectMapper, HttpServletRequest request) {
-//        this.objectMapper = objectMapper;
-//        this.request = request;
-//    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public SamplesApiController(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
@@ -161,7 +162,14 @@ public class SamplesApiController implements SamplesApi {
                 
                 List<Criteria> andCrits = new ArrayList<>();
                 if (fGotGermplasmNames) {
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));                    
+                    List<Criteria> orCrits = new ArrayList<>();
+                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+                    orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".germplasmName").in(body.getGermplasmNames()));
+
+                    List<String> indIds = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().orOperator(orCrits)), "_id", Individual.class, String.class);
+
+                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
+                    andCrits.add(new Criteria().orOperator(orCrits));             
                 }
 
                 if (dbIndividualsSpecifiedById != null && dbIndividualsSpecifiedById.get(db) != null) {
@@ -179,15 +187,19 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 if (body.getSampleNames() != null && !body.getSampleNames().isEmpty()) {
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
+                    List<Criteria> orCrits = new ArrayList<>();
+                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
+                    orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".sampleName").in(body.getSampleNames()));
+                    andCrits.add(new Criteria().orOperator(orCrits));
+                    
                 }
 
                 if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferenceId).in(body.getExternalReferenceIds()));
+                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds()));
                 }
 
                 if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferenceSource).in(body.getExternalReferenceSources()));
+                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceSource").in(body.getExternalReferenceSources()));
                 }
 
                 // make sure we don't return individuals that are in projects this user doesn't have access to
@@ -290,20 +302,32 @@ public class SamplesApiController implements SamplesApi {
             sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
                 sample.setAdditionalInfo(new HashMap<>());
-                ExternalReferencesInner ref = new ExternalReferencesInner();
-                for (String key:mgdbSample.getAdditionalInfo().keySet()) {
-                    String value = mgdbSample.getAdditionalInfo().get(key).toString();
-                    if (key.equals(BrapiService.BRAPI_FIELD_externalReferenceId))
-                        ref.setReferenceID(value);
-                    else if (key.equals(BrapiService.BRAPI_FIELD_externalReferenceSource))
-                        ref.setReferenceSource(value);                    
-                    else
+                for (String key:mgdbSample.getAdditionalInfo().keySet()) {                    
+                    if (key.equals(BrapiService.BRAPI_FIELD_externalReferences)) {
+                        try {
+                            ExternalReferences refs = objectMapper.convertValue(mgdbSample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences), ExternalReferences.class);
+                            
+                            boolean getNameFromExtRef = false;
+                            if (refs != null && !refs.isEmpty()) {
+                                sample.setExternalReferences(refs);
+                                for (ExternalReferencesInner extRef:sample.getExternalReferences()) {
+                                    if (extRef.getReferenceId().equals(sample.getSampleName())) {
+                                        getNameFromExtRef = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (getNameFromExtRef) {
+                                sample.setSampleName((String) mgdbSample.getAdditionalInfo().get("sampleName"));
+                            }
+                           
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                        }
+                    } else {
+                        String value = mgdbSample.getAdditionalInfo().get(key).toString();                    
                         sample.getAdditionalInfo().put(key, value);
-                }
-                if (ref.getReferenceID() != null) {
-                    ExternalReferences refs = new ExternalReferences();
-                    refs.add(ref);
-                    sample.setExternalReferences(refs); 
+                    }
                 }
             }
             
