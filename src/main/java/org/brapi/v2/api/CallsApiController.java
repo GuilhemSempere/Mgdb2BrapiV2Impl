@@ -140,7 +140,7 @@ public class CallsApiController implements CallsApi {
                 } else {
                     module = Helper.getInfoFromId(c.getVariantSetDbId(), 3)[0];   
                     int projectId = Integer.parseInt(Helper.getInfoFromId(c.getVariantSetDbId(), 3)[1]);
-                    if (tokenManager.canUserWriteToProject(token, module, projectId)) {
+                    if (tokenManager.canUserEditCallsInProject(token, module, projectId)) {
                         Status status = new Status();
                         status.setMessage("You are allowed to update this variantSet: " + c.getVariantSetDbId());
                         metadata.addStatusItem(status); 
@@ -235,7 +235,7 @@ public class CallsApiController implements CallsApi {
 
         List<Integer> forbiddenProjectIDs = new ArrayList<>();
         for (int pj : projectIDs) {
-            if (!tokenManager.canUserWriteToProject(token, module, pj))
+            if (!tokenManager.canUserEditCallsInProject(token, module, pj))
                 forbiddenProjectIDs.add(pj);
         }
         projectIDs.removeAll(forbiddenProjectIDs);
