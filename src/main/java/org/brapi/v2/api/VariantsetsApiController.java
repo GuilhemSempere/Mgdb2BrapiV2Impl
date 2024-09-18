@@ -387,7 +387,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			}
 
         		// start it
-            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
         		tempFileGenerationThread = new PLinkExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
@@ -455,7 +455,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			}
 
         		// start it
-            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
         		tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
@@ -525,7 +525,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			}
 
         		// start it
-            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[0]);
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
 
         		tempFileGenerationThread = new VcfExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
@@ -590,7 +590,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}};
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
 
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
@@ -650,7 +650,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}};
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
 				
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
@@ -658,7 +658,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, module, null /*FIXME*/, nQueryChunkSize, varColl, new BasicDBObject("$and", vrdQuery), null, result, null, progress);
+		        	exportHandler.writeGenotypeFile(os, nQueryChunkSize, varColl, new BasicDBObject("$and", vrdQuery), null, result, null, progress);
 		        }
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
@@ -706,6 +706,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
+				progress.moveToNextStep();
 
 				BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile));
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
@@ -723,7 +724,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId));
 					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); 
 				}};
-				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, new CustomVCFWriter(null, os, dict, false, false, true));			
+				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, new CustomVCFWriter(null, os, dict, false, false, true));			
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;
