@@ -343,7 +343,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			return;
 		}
 		
-		cleanupOldExportData(request);
+		cleanupOldExportData(request.getServletContext());
 		if (dataFormat.equalsIgnoreCase(DataFormatEnum.PLINK.toString())) {
 			PLinkExportHandler exportHandler = (PLinkExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
 			
@@ -366,6 +366,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+        			
+        	        String headerKey = "Content-Disposition";
+        	        String headerValue = String.format("attachment; filename=\"%s\"", exportFile.getName());
+        	        response.setHeader(headerKey, headerValue);
 
         			Scanner scanner = new Scanner(exportFile);
         			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
@@ -429,6 +433,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+        			
+        	        String headerKey = "Content-Disposition";
+        	        String headerValue = String.format("attachment; filename=\"%s\"", exportFile.getName());
+        	        response.setHeader(headerKey, headerValue);
 
         			Scanner scanner = new Scanner(exportFile);
         			int i = 0;
@@ -497,6 +505,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+        			
+        	        String headerKey = "Content-Disposition";
+        	        String headerValue = String.format("attachment; filename=\"%s\"", exportFile.getName());
+        	        response.setHeader(headerKey, headerValue);
 
         			Scanner scanner = new Scanner(exportFile);
         			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
@@ -739,20 +751,15 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	/**
 	 * Cleanup old export data.
 	 *
-	 * @param request the request
 	 * @throws Exception
 	 */
-	private void cleanupOldExportData(HttpServletRequest request) throws Exception
+	public static void cleanupOldExportData(ServletContext sc) throws Exception
 	{
-		if (request.getSession() == null)
-			throw new Exception("Invalid request object");
-
 		long nowMillis = new Date().getTime();
-		File filterOutputLocation = new File(servletContext.getRealPath(File.separator + VariantSet.TMP_OUTPUT_FOLDER));
+		File filterOutputLocation = new File(sc.getRealPath(File.separator + VariantSet.TMP_OUTPUT_FOLDER));
 		if (filterOutputLocation.exists() && filterOutputLocation.isDirectory())
 			for (File f : filterOutputLocation.listFiles())
-				if (!f.isDirectory() && nowMillis - f.lastModified() > EXPORT_FILE_EXPIRATION_DELAY_MILLIS)
-				{
+				if (!f.isDirectory() && nowMillis - f.lastModified() > EXPORT_FILE_EXPIRATION_DELAY_MILLIS) {
 					if (!f.delete())
 						log.warn("Unable to delete " + f.getPath());
 					else
