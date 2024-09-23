@@ -343,7 +343,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			return;
 		}
 		
-		cleanupOldExportData(request);
+		cleanupOldExportData(request.getServletContext());
 		if (dataFormat.equalsIgnoreCase(DataFormatEnum.PLINK.toString())) {
 			PLinkExportHandler exportHandler = (PLinkExportHandler) AbstractIndividualOrientedExportHandler.getIndividualOrientedExportHandlers().get(dataFormat.toUpperCase());
 			
@@ -366,6 +366,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+        			
+        	        String headerKey = "Content-Disposition";
+        	        String headerValue = String.format("attachment; filename=\"%s\"", exportFile.getName());
+        	        response.setHeader(headerKey, headerValue);
 
         			Scanner scanner = new Scanner(exportFile);
         			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
@@ -387,7 +391,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			}
 
         		// start it
-            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
         		tempFileGenerationThread = new PLinkExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
@@ -429,6 +433,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+        			
+        	        String headerKey = "Content-Disposition";
+        	        String headerValue = String.format("attachment; filename=\"%s\"", exportFile.getName());
+        	        response.setHeader(headerKey, headerValue);
 
         			Scanner scanner = new Scanner(exportFile);
         			int i = 0;
@@ -455,7 +463,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			}
 
         		// start it
-            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Reading and re-organizing genotypes"});
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
         		tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
@@ -497,6 +505,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
+        			
+        	        String headerKey = "Content-Disposition";
+        	        String headerValue = String.format("attachment; filename=\"%s\"", exportFile.getName());
+        	        response.setHeader(headerKey, headerValue);
 
         			Scanner scanner = new Scanner(exportFile);
         			while (scanner.hasNextLine()) {	// iterate over lines to replace individual names with callsetDdIDs
@@ -525,7 +537,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
     			}
 
         		// start it
-            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[0]);
+            	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
 
         		tempFileGenerationThread = new VcfExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
@@ -590,7 +602,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}};
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
 
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
@@ -650,7 +662,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}};
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress);
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
 				
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
@@ -658,7 +670,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, module, null /*FIXME*/, nQueryChunkSize, varColl, new BasicDBObject("$and", vrdQuery), null, result, null, progress);
+		        	exportHandler.writeGenotypeFile(os, nQueryChunkSize, varColl, new BasicDBObject("$and", vrdQuery), null, result, null, progress);
 		        }
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
@@ -706,6 +718,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
+				progress.moveToNextStep();
 
 				BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile));
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
@@ -723,7 +736,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, projId));
 					add(new BasicDBObject("_id." + VariantRunDataId.FIELDNAME_RUNNAME, splitId[2])); 
 				}};
-				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, null, new CustomVCFWriter(null, os, dict, false, false, true));			
+				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, new CustomVCFWriter(null, os, dict, false, false, true));			
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;
@@ -738,20 +751,15 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	/**
 	 * Cleanup old export data.
 	 *
-	 * @param request the request
 	 * @throws Exception
 	 */
-	private void cleanupOldExportData(HttpServletRequest request) throws Exception
+	public static void cleanupOldExportData(ServletContext sc) throws Exception
 	{
-		if (request.getSession() == null)
-			throw new Exception("Invalid request object");
-
 		long nowMillis = new Date().getTime();
-		File filterOutputLocation = new File(servletContext.getRealPath(File.separator + VariantSet.TMP_OUTPUT_FOLDER));
+		File filterOutputLocation = new File(sc.getRealPath(File.separator + VariantSet.TMP_OUTPUT_FOLDER));
 		if (filterOutputLocation.exists() && filterOutputLocation.isDirectory())
 			for (File f : filterOutputLocation.listFiles())
-				if (!f.isDirectory() && nowMillis - f.lastModified() > EXPORT_FILE_EXPIRATION_DELAY_MILLIS)
-				{
+				if (!f.isDirectory() && nowMillis - f.lastModified() > EXPORT_FILE_EXPIRATION_DELAY_MILLIS) {
 					if (!f.delete())
 						log.warn("Unable to delete " + f.getPath());
 					else
