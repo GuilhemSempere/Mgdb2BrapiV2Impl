@@ -77,6 +77,8 @@ public class TrialsApiController implements TrialsApi {
 			tsr.setProgramDbIds(Arrays.asList(programDbId));
 		if (trialDbId != null)
 			tsr.setTrialDbIds(Arrays.asList(trialDbId));
+                if (commonCropName != null)
+			tsr.setCommonCropNames(Arrays.asList(commonCropName));
 		return searchTrialsPost(authorization, tsr);
 	}
 
