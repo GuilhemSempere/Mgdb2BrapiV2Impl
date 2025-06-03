@@ -100,7 +100,8 @@ public class ReferencesApiController implements ReferencesApi {
 
 	    	if (fGotReferenceSetIDs) {
 	        	for (String referenceSetId : body.getReferenceSetDbIds()) {
-	        		String[] info = Helper.getInfoFromId(referenceSetId, 3);
+	        		String[] info = Helper.extractModuleAndProjectIDsFromReferenceSetIds(referenceSetId);
+	        		
 	        		if (fGotStudyIDs && !body.getStudyDbIds().contains(info[0] + Helper.ID_SEPARATOR + info[1]))
 	        			continue;	// we have a list of studies to restrict search to, and this referenceSet belongs to a study which is not in that list
 
