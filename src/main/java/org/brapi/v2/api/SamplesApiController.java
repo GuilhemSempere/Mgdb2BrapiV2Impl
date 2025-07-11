@@ -34,7 +34,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.io.brapi.BrapiService;
-import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
@@ -43,7 +42,7 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
 import java.lang.reflect.MalformedParametersException;
-import org.brapi.v2.model.Germplasm;
+
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @Controller
 //@ApiIgnore
@@ -264,7 +263,7 @@ public class SamplesApiController implements SamplesApi {
 
                     nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
-                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds).values()); 
+                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds, null).values()); 
                     allBrapiSamples.addAll(brapiSamples);
                     firstIndex = 0;
                 }
