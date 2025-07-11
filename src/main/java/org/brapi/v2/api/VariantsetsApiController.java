@@ -67,7 +67,6 @@ import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.model.mongo.subtypes.Run;
-import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.AlphaNumericComparator;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.ProgressIndicator;
@@ -596,10 +595,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
 				
-				BasicDBList vrdQuery = new BasicDBList() {{
+				Document vrdQuery = new Document("$and", new BasicDBList() {{
 					add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID, projId));
 					add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME, splitId[2])); 
-				}};
+				}});
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
@@ -655,11 +654,11 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				String[] splitId = variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR);
 	        	int projId = Integer.parseInt(splitId[1]);
 				String module = splitId[0];
-								
-				BasicDBList vrdQuery = new BasicDBList() {{
+
+				Document vrdQuery = new Document("$and", new BasicDBList() {{
 					add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID, projId));
 					add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME, splitId[2])); 
-				}};
+				}});
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
@@ -670,7 +669,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
 		        int nQueryChunkSize = IExportHandler.computeQueryChunkSize(mongoTemplate, variantSet.getVariantCount());
 		        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(exportFile))) {
-		        	exportHandler.writeGenotypeFile(os, nQueryChunkSize, varColl, new BasicDBObject("$and", vrdQuery), null, result, null, progress);
+		        	exportHandler.writeGenotypeFile(os, nQueryChunkSize, varColl, vrdQuery, null, result, null, progress);
 		        }
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
@@ -732,10 +731,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				Collections.sort(distinctSequenceNames, new AlphaNumericComparator());
 				SAMSequenceDictionary dict = exportHandler.createSAMSequenceDictionary(module, distinctSequenceNames);
 				
-				BasicDBList varQuery = new BasicDBList() {{
-                                        add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID, projId));
+				Document varQuery = new Document("$and", new BasicDBList() {{
+                    add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID, projId));
 					add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME, splitId[2])); 
-				}};
+				}});
 				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, samplesToExport, samplesToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, new CustomVCFWriter(null, os, dict, false, false, true));			
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
