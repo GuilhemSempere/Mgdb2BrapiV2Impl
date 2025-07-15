@@ -392,8 +392,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
         		// start it
             	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
-            	
-        		tempFileGenerationThread = new PLinkExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
+
+        		tempFileGenerationThread = new PLinkExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, AbstractTokenManager.getUserNameFromAuthentication(tokenManager.getAuthenticationFromToken(token)), progress);
         		exportThreads.put(exportId, tempFileGenerationThread);
         		tempFileGenerationThread.start();
         	}
@@ -465,7 +465,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
             	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
-        		tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, progress);
+        		tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, AbstractTokenManager.getUserNameFromAuthentication(tokenManager.getAuthenticationFromToken(token)), progress);
         		exportThreads.put(exportId, tempFileGenerationThread);
         		tempFileGenerationThread.start();
         	}
@@ -572,8 +572,9 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		List<GenotypingSample> samplesToExport;
 		ProgressIndicator progress;
 		VariantSet variantSet;
+		String exportingUser;
 		
-		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
@@ -582,6 +583,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			this.exportId = exportID;
 			this.progress = progress;
 			this.variantSet = variantSet;
+			this.exportingUser = exportingUser;
 		}
 		
 		ProgressIndicator getProgress() {
@@ -601,8 +603,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}});
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
-
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, exportingUser, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, null, progress).getGenotypeFiles();
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
@@ -632,8 +633,9 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		List<GenotypingSample> samplesToExport;
 		ProgressIndicator progress;
 		VariantSet variantSet;
+		String exportingUser;
 		
-		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<GenotypingSample> samplesToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
@@ -642,6 +644,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 			this.exportId = exportID;
 			this.progress = progress;
 			this.variantSet = variantSet;
+			this.exportingUser = exportingUser;
 		}
 		
 		ProgressIndicator getProgress() {
@@ -661,7 +664,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}});
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, progress).getGenotypeFiles();
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, exportingUser, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), samplesToExport, null, progress).getGenotypeFiles();
 				
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
