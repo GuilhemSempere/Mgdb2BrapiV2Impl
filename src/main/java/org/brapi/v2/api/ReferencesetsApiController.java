@@ -3,6 +3,7 @@ package org.brapi.v2.api;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import javax.validation.Valid;
 
@@ -12,11 +13,10 @@ import org.brapi.v2.model.ReferenceSet;
 import org.brapi.v2.model.ReferenceSetListResponse;
 import org.brapi.v2.model.ReferenceSetListResponseResult;
 import org.brapi.v2.model.ReferenceSetsSearchRequest;
-import org.brapi.v2.model.Study;
-import org.brapi.v2.model.StudySearchRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -68,38 +68,41 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         try {
         	ReferenceSetListResponse rlr = new ReferenceSetListResponse();
         	ReferenceSetListResponseResult result = new ReferenceSetListResponseResult();
+        	
+        	boolean fGotProgramIdList = body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
+        	boolean fGotTrialIdList = body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
         	boolean fGotStudyIdList = body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty();
         	boolean fGotRefSetIdList = body.getReferenceSetDbIds() != null && !body.getReferenceSetDbIds().isEmpty();
 
-        	StudySearchRequest ssr = new StudySearchRequest();
-        	ssr.setProgramDbIds(body.getProgramDbIds());
-        	ssr.setTrialDbIds(body.getTrialDbIds());
-        	if (fGotRefSetIdList) {
-        		ssr.setStudyDbIds(body.getReferenceSetDbIds().stream().map(refSetId -> {
-        			String[] info = Helper.getInfoFromId(refSetId, 3);
-        			String studyId = info == null ? null : (info[0] + Helper.ID_SEPARATOR + info[1]);
-        			return studyId == null || (fGotStudyIdList && !body.getStudyDbIds().contains(studyId)) ? null : studyId;
-        		}).filter(refSetId -> refSetId != null).toList());
-        	}
-        	else
-        		ssr.setStudyDbIds(body.getStudyDbIds());
-        	
+        	HashSet<String> requestedModules = new HashSet<>();
+        	if (fGotRefSetIdList)
+        		requestedModules.addAll(body.getReferenceSetDbIds().stream().map(refSetId -> Helper.getInfoFromId(refSetId, 2)[0]).toList());
+        	else if (fGotStudyIdList)
+        		requestedModules.addAll(body.getStudyDbIds().stream().map(studyId -> Helper.getInfoFromId(studyId, 2)[0]).toList());
+        	else if (fGotTrialIdList)
+        		requestedModules.addAll(body.getTrialDbIds());
+        	else if (fGotProgramIdList)
+        		requestedModules.addAll(body.getProgramDbIds());
+
         	HashMap<String /*module*/, Collection<Assembly>> assembliesByModule = new HashMap<>();
-        	for (Study study : studiesApiController.searchStudiesPost(ssr, authorization).getBody().getResult().getData()) {
-        		String[] info = Helper.getInfoFromId(study.getStudyDbId(), 2);
-        		Collection<Assembly> moduleAssemblies = assembliesByModule.get(info[0]);
+        	for (String module : requestedModules) {
+        		Collection<Assembly> moduleAssemblies = assembliesByModule.get(module);
     			if (moduleAssemblies == null) {
-    				moduleAssemblies = MongoTemplateManager.get(info[0]).findAll(Assembly.class);
+    				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
+    				if (mongoTemplate == null)
+    					break;
+
+    				moduleAssemblies = mongoTemplate.findAll(Assembly.class);
     				if (moduleAssemblies.isEmpty())
 						moduleAssemblies.add(new Assembly(null)); // default dummy assembly for old-style DBs
-    				assembliesByModule.put(info[0], moduleAssemblies);
+    				assembliesByModule.put(module, moduleAssemblies);
     			}
     			for (Assembly asm : moduleAssemblies) {
-    				String refSetId = study.getStudyDbId() + Helper.ID_SEPARATOR + (asm.getId() == null ? "" : asm.getId());
+    				String refSetId = module + Helper.ID_SEPARATOR + (asm.getId() == null ? "" : asm.getId());
     				if (!fGotRefSetIdList || body.getReferenceSetDbIds().contains(refSetId))
     					result.addDataItem(new ReferenceSet() {{
     		        		setReferenceSetDbId(refSetId);
-			    			setReferenceSetName(study.getStudyName() + " on " + (asm.getName() != null ? asm.getName() : "unnamed assembly"));
+			    			setReferenceSetName(asm.getName() != null ? asm.getName() : "unnamed assembly");
 			    			setAssemblyPUI(asm.getName());
 		    			}});
     			}
