@@ -362,7 +362,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
             	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
         		
         		if (exportFile.exists()) {	// seems complete
-        			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
+        			HashMap<String, String> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
         			
@@ -429,7 +429,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
             	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
         		
         		if (exportFile.exists()) {	// seems complete
-        			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
+        			HashMap<String, String> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
         			
@@ -501,7 +501,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
             	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
         		
         		if (exportFile.exists()) {	// seems complete
-        			HashMap<String, Integer> individualToSampleMap = new HashMap<>();
+        			HashMap<String, String> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
         			

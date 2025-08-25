@@ -148,7 +148,7 @@ public class SamplesApiController implements SamplesApi {
             }
 
 
-            HashMap<String /*module*/, List<Integer>/*sampleIds*/> dbSamplesIds = new HashMap<>();
+            HashMap<String /*module*/, List<String>/*sampleIds*/> dbSamplesIds = new HashMap<>();
             long totalCount = 0;
 
             for (String db : dbsToAccountFor) {
@@ -187,7 +187,7 @@ public class SamplesApiController implements SamplesApi {
 
                 if (body.getSampleNames() != null && !body.getSampleNames().isEmpty()) {
                     List<Criteria> orCrits = new ArrayList<>();
-                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
+                    orCrits.add(Criteria.where("_id").in(body.getSampleNames()));
                     orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".sampleName").in(body.getSampleNames()));
                     andCrits.add(new Criteria().orOperator(orCrits));
                     
@@ -216,7 +216,7 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
-                List<Integer> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, Integer.class);
+                List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, String.class);
                 if (!foundSampleIds.isEmpty()) {
                     totalCount = totalCount + foundSampleIds.size();
                     dbSamplesIds.put(db, foundSampleIds);
@@ -239,7 +239,7 @@ public class SamplesApiController implements SamplesApi {
             int nbOfReturnedElts = 0;
             int previousDbNb = 0;
             for (String db : dbSamplesIds.keySet()) {
-                List<Integer> sampleIds = dbSamplesIds.get(db);
+                List<String> sampleIds = dbSamplesIds.get(db);
 
                 if (nbOfReturnedElts < pageSize) {
 
@@ -297,7 +297,7 @@ public class SamplesApiController implements SamplesApi {
             Sample sample = new Sample();
             sample.sampleDbId(Helper.createId(database, mgdbSample.getId()));
             sample.germplasmDbId(Helper.createId(database, mgdbSample.getIndividual()));
-            sample.setSampleName(mgdbSample.getSampleName());
+            sample.setSampleName(mgdbSample.getId());
             sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
                 sample.setAdditionalInfo(new HashMap<>());

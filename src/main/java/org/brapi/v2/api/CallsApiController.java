@@ -13,22 +13,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import fr.cirad.mgdb.model.mongo.maintypes.CallSet;
 import org.brapi.v2.api.cache.MongoBrapiCache;
-import org.brapi.v2.model.AlleleMatrix;
-import org.brapi.v2.model.AlleleMatrixDataMatrices;
-import org.brapi.v2.model.AlleleMatrixPagination;
-import org.brapi.v2.model.AlleleMatrixResponse;
-import org.brapi.v2.model.AlleleMatrixSearchRequest;
-import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
-import org.brapi.v2.model.Call;
-import org.brapi.v2.model.CallGenotypeMetadata;
-import org.brapi.v2.model.CallsListResponse;
-import org.brapi.v2.model.CallsListResponseResult;
-import org.brapi.v2.model.CallsSearchRequest;
-import org.brapi.v2.model.IndexPagination;
-import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Status;
-import org.brapi.v2.model.VariantSetMetadataFields;
+import org.brapi.v2.model.*;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -189,10 +176,10 @@ public class CallsApiController implements CallsApi {
         
         //check if callSetDbIds, variantDbIds, variantSetDbIds exist
         Query sQuery = new Query(Criteria.where("_id").in(callSetIds));
-        List<GenotypingSample> samples = mongoTemplate.find(sQuery, GenotypingSample.class); 
-        if (samples.size() < callSetIds.size()) { //at least one sample doesn't exist
-            List<Integer> existingSampleIds = samples.stream().map(GenotypingSample::getId).collect(Collectors.toList());
-            callSetIds.removeAll(existingSampleIds);
+        List<fr.cirad.mgdb.model.mongo.maintypes.CallSet> callsets = mongoTemplate.find(sQuery, CallSet.class);
+        if (callsets.size() < callSetIds.size()) { //at least one sample doesn't exist
+            List<Integer> existingCallsetIds = callsets.stream().map(fr.cirad.mgdb.model.mongo.maintypes.CallSet::getId).collect(Collectors.toList());
+            callSetIds.removeAll(existingCallsetIds);
             Status status = new Status();
             status.setMessage("Those callSetDbIds don't exist: " + callSetIds.toString());
             response.getMetadata().addStatusItem(status);

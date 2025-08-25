@@ -186,11 +186,11 @@ public class CallsetsApiController implements CallsetsApi {
                                         int projId = Integer.parseInt(info[1]); 
                                         
                                         if ((fFilterOnCallSets || fFilterOnGermplasm) && sampleCritByModule.containsKey(info[0])) { //variantSet base matches with callSets or germplasm base 
-                                            ArrayList<Criteria> samplesCrit = new ArrayList<>();
-                                            samplesCrit.addAll(sampleCritByModule.get(info[0]));  
-                                            samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId)); 
-                                            samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]));
-                                            Criteria crit = new Criteria().andOperator(samplesCrit.toArray(new Criteria[samplesCrit.size()]));
+                                            ArrayList<Criteria> callsetsCrit = new ArrayList<>();
+                                            callsetsCrit.addAll(sampleCritByModule.get(info[0]));
+                                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId));
+                                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]));
+                                            Criteria crit = new Criteria().andOperator(callsetsCrit.toArray(new Criteria[callsetsCrit.size()]));
                                             
                                             if (vsCritByModule.get(info[0]) == null) {
                                                 vsCritByModule.put(info[0], new ArrayList<>());
@@ -198,7 +198,7 @@ public class CallsetsApiController implements CallsetsApi {
                                             vsCritByModule.get(info[0]).add(crit);
                                             matchingVariantSetBase = true;
                                             
-                                        } else if (!fFilterOnCallSets && !fFilterOnGermplasm) { // get all samples for each accessible variantSets                                                                                 
+                                        } else if (!fFilterOnCallSets && !fFilterOnGermplasm) { // get all callsets for each accessible variantSets
                                             if (tokenManager.canUserReadProject(token, info[0], projId)) {
                                                     ArrayList<Criteria> moduleCrit = vsCritByModule.get(info[0]);
                                                     if (moduleCrit == null) {
@@ -229,51 +229,51 @@ public class CallsetsApiController implements CallsetsApi {
                         MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
                         Map<String, Integer> indIdToSampleIdMap = new HashMap<>();
                         ArrayList<Criteria> critList = sampleCritByModule.get(db);
-                        List<GenotypingSample> samples = mongoTemplate.find(new Query(new Criteria().orOperator(critList.toArray(new Criteria[critList.size()]))), GenotypingSample.class);
-                        for (GenotypingSample sample : samples)
-                                indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
+                        List<fr.cirad.mgdb.model.mongo.maintypes.CallSet> callsets = mongoTemplate.find(new Query(new Criteria().orOperator(critList.toArray(new Criteria[critList.size()]))), fr.cirad.mgdb.model.mongo.maintypes.CallSet.class);
+//                        for (CallSet sample : callsets)
+//                                indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
 
                         // attach individual metadata to callsets
-                        Map<String, Individual> indMap = MgdbDao.getInstance().loadIndividualsWithAllMetadata(db, sCurrentUser, null, indIdToSampleIdMap.keySet(), null);
+                        // Map<String, Individual> indMap = MgdbDao.getInstance().loadIndividualsWithAllMetadata(db, sCurrentUser, null, indIdToSampleIdMap.keySet(), null);
 
-                                for (int i=0; i<samples.size(); i++) {
-                                        GenotypingSample sample = samples.get(i);
+                                for (int i=0; i < callsets.size(); i++) {
+                                        fr.cirad.mgdb.model.mongo.maintypes.CallSet callset = callsets.get(i);
                                         nTotalCallSetsEncountered++;
-                                        CallSet callset = new CallSet();
-                                        callset.setCallSetDbId(db + Helper.ID_SEPARATOR + sample.getId());
-                                        callset.setCallSetName(sample.getSampleName());
-                                        callset.setSampleDbId(callset.getCallSetDbId());
-                                        callset.setVariantSetDbIds(Arrays.asList(db + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun()));
+                                        CallSet brapiCallset = new CallSet();
+                                        brapiCallset.setCallSetDbId(db + Helper.ID_SEPARATOR + callset.getId());
+                                        brapiCallset.setCallSetName(String.valueOf(callset.getId()));
+                                        brapiCallset.setSampleDbId(db + Helper.ID_SEPARATOR + callset.getSampleId());
+                                        brapiCallset.setVariantSetDbIds(Arrays.asList(db + Helper.ID_SEPARATOR + callset.getProjectId() + Helper.ID_SEPARATOR + callset.getRun()));
                                         
-                                        if (sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences) != null) {                                            
-                                            ExternalReferences refs = objectMapper.convertValue(sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences), ExternalReferences.class);
-
-                                            boolean getNameFromExtRef = false;
-                                            if (refs != null && !refs.isEmpty()) {
-                                                callset.setExternalReferences(refs);
-                                                for (ExternalReferencesInner extRef:refs) {
-                                                    if (extRef.getReferenceId().equals(sample.getSampleName())) {
-                                                        getNameFromExtRef = true;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            if (getNameFromExtRef && sample.getAdditionalInfo().get("sampleName") != null) {
-                                                callset.setCallSetName((String) sample.getAdditionalInfo().get("sampleName"));
-                                            }
-                                        }
-                                        
-                                        final Individual ind = indMap.get(sample.getIndividual());
-                                        for (String key : ind.getAdditionalInfo().keySet()) {
-                                            String sLCkey = key.toLowerCase();
-                                            Object val = ind.getAdditionalInfo().get(key);
-                                            if (val == null)
-                                                continue;
-                                            
-                                                if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey))
-                                                callset.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key).toString());
-                                            }
-                                        result.addDataItem(callset);
+//                                        if (sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences) != null) {
+//                                            ExternalReferences refs = objectMapper.convertValue(sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences), ExternalReferences.class);
+//
+//                                            boolean getNameFromExtRef = false;
+//                                            if (refs != null && !refs.isEmpty()) {
+//                                                callset.setExternalReferences(refs);
+//                                                for (ExternalReferencesInner extRef:refs) {
+//                                                    if (extRef.getReferenceId().equals(sample.getSampleName())) {
+//                                                        getNameFromExtRef = true;
+//                                                        break;
+//                                                    }
+//                                                }
+//                                            }
+//                                            if (getNameFromExtRef && sample.getAdditionalInfo().get("sampleName") != null) {
+//                                                callset.setCallSetName((String) sample.getAdditionalInfo().get("sampleName"));
+//                                            }
+//                                        }
+//
+//                                        final Individual ind = indMap.get(sample.getIndividual());
+//                                        for (String key : ind.getAdditionalInfo().keySet()) {
+//                                            String sLCkey = key.toLowerCase();
+//                                            Object val = ind.getAdditionalInfo().get(key);
+//                                            if (val == null)
+//                                                continue;
+//
+//                                                if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey))
+//                                                callset.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key).toString());
+//                                            }
+                                        result.addDataItem(brapiCallset);
                                 }
                         }
 
