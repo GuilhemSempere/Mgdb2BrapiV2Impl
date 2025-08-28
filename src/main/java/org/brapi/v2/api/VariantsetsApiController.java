@@ -23,6 +23,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
+import fr.cirad.mgdb.model.mongo.maintypes.*;
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.CallsListResponse;
 import org.brapi.v2.model.CallsSearchRequest;
@@ -61,10 +62,6 @@ import fr.cirad.mgdb.exporting.individualoriented.PLinkExportHandler;
 import fr.cirad.mgdb.exporting.markeroriented.AbstractMarkerOrientedExportHandler;
 import fr.cirad.mgdb.exporting.markeroriented.VcfExportHandler;
 import fr.cirad.mgdb.exporting.tools.ExportManager;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
-import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.tools.AlphaNumericComparator;
@@ -176,8 +173,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				HashSet<String> addedVariantSets = new HashSet<>();	// will be used to avoid adding the same variantSet several times
 	        	for (String module : samplesByModule.keySet()) {
 	        		MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-	    	        for (GenotypingSample sample : mongoTemplate.find(new Query(Criteria.where("_id").in(samplesByModule.get(module))), GenotypingSample.class)) {
-	    	        	String variantSetDbId = module + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun();
+	    	        for (CallSet cs : mongoTemplate.find(new Query(Criteria.where("_id").in(samplesByModule.get(module))), CallSet.class)) {
+	    	        	String variantSetDbId = module + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
 	    	        	if (!addedVariantSets.contains(variantSetDbId)) {
 	    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
 		    	            result.addDataItem(variantSet);
@@ -359,7 +356,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	PLinkExportThread tempFileGenerationThread = (PLinkExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
-            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
+                List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(CallSet.FIELDNAME_RUN).is(splitId[2]))), CallSet.FIELDNAME_SAMPLE, CallSet.class, String.class);
+            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
         		
         		if (exportFile.exists()) {	// seems complete
         			HashMap<String, String> individualToSampleMap = new HashMap<>();
@@ -426,9 +424,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	FlapjackExportThread tempFileGenerationThread = (FlapjackExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
-            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
-        		
-        		if (exportFile.exists()) {	// seems complete
+                List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(CallSet.FIELDNAME_RUN).is(splitId[2]))), CallSet.FIELDNAME_SAMPLE, CallSet.class, String.class);
+                List<GenotypingSample> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
+
+                if (exportFile.exists()) {	// seems complete
         			HashMap<String, String> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());
@@ -498,9 +497,10 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	VcfExportThread tempFileGenerationThread = (VcfExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
-            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class);
-        		
-        		if (exportFile.exists()) {	// seems complete
+                List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(CallSet.FIELDNAME_RUN).is(splitId[2]))), CallSet.FIELDNAME_SAMPLE, CallSet.class, String.class);
+                List<GenotypingSample> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
+
+                if (exportFile.exists()) {	// seems complete
         			HashMap<String, String> individualToSampleMap = new HashMap<>();
         			for (GenotypingSample sp : runSamples)
         				individualToSampleMap.put(sp.getIndividual(), sp.getId());

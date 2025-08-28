@@ -14,6 +14,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
+import fr.cirad.mgdb.model.mongo.maintypes.CallSet;
 import org.brapi.v2.model.ExternalReferences;
 import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.Germplasm;
@@ -186,12 +187,13 @@ public class GermplasmApiController implements GermplasmApi {
                         if (allowedProjects == null)
                                 allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
                         List<Criteria> andCrits = new ArrayList<>();
-                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
-                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                        List<String> sampleIds = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects)), CallSet.FIELDNAME_SAMPLE,  CallSet.class, String.class);
+                        andCrits.add(Criteria.where(CallSet.FIELDNAME_SAMPLE).in(sampleIds));
+                        andCrits.add(Criteria.where(CallSet.FIELDNAME_INDIVIDUAL).in(indIds));
 
                         Query q = new Query(new Criteria().andOperator(andCrits));
                         
-                        List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                        List<String> individualsFoundByName = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), CallSet.FIELDNAME_INDIVIDUAL, CallSet.class, String.class);
                         individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundByName));
                     }
                 }
@@ -226,9 +228,11 @@ public class GermplasmApiController implements GermplasmApi {
                                 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
                                 if (allowedProjects == null)
                                         allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
-                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
-                                individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                                List<String> sampleIds = mongoTemplate.findDistinct(new Query(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects)), CallSet.FIELDNAME_SAMPLE,  CallSet.class, String.class);
+                                andCrits.add(Criteria.where(CallSet.FIELDNAME_SAMPLE).in(sampleIds));
+
+                                individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), CallSet.FIELDNAME_INDIVIDUAL, CallSet.class, String.class);
                             }
                             HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
                             if (moduleIndividuals == null)
@@ -242,24 +246,26 @@ public class GermplasmApiController implements GermplasmApi {
         	// germplasm id filtering
         	if (dbIndividualsSpecifiedById != null) {
                  for (String db : dbsToAccountFor) {
-                	 if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
-	                	 Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
-	                	 List<Criteria> andCrits = new ArrayList<>();
-	                	 andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals));
-	                	 
-	                	 // make sure we don't return individuals that are in projects this user doesn't have access to
-	                	 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
-		                	if (allowedProjects == null)
-		                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
-		                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                     if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
+                         Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
+                         List<Criteria> andCrits = new ArrayList<>();
+                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals));
 
-	                	 List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-     						HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
-    					 if (moduleIndividuals == null)
-    						 individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
-    					 else
-    						 moduleIndividuals.retainAll(individualsFoundById);
-                	 }
+                         // make sure we don't return individuals that are in projects this user doesn't have access to
+                         Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+                         if (allowedProjects == null)
+                            allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+
+                         List<String> sampleIds = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects)), CallSet.FIELDNAME_SAMPLE,  CallSet.class, String.class);
+                         andCrits.add(Criteria.where(CallSet.FIELDNAME_SAMPLE).in(sampleIds));
+
+                         List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), CallSet.FIELDNAME_INDIVIDUAL, CallSet.class, String.class);
+                            HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
+                         if (moduleIndividuals == null)
+                             individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
+                         else
+                             moduleIndividuals.retainAll(individualsFoundById);
+                     }
                  }
             }
 

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import javax.ejb.ObjectNotFoundException;
 import javax.validation.Valid;
 
+import fr.cirad.mgdb.model.mongo.maintypes.CallSet;
 import org.brapi.v2.model.ExternalReferences;
 import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.IndexPagination;
@@ -212,11 +213,12 @@ public class SamplesApiController implements SamplesApi {
                 }
 
                 if (allowedProjects != null && !allowedProjects.isEmpty()) {
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                    andCrits.add(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
                 }
 
                 Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
-                List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, String.class);
+                List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, CallSet.FIELDNAME_SAMPLE, CallSet.class, String.class);
+
                 if (!foundSampleIds.isEmpty()) {
                     totalCount = totalCount + foundSampleIds.size();
                     dbSamplesIds.put(db, foundSampleIds);
@@ -298,7 +300,7 @@ public class SamplesApiController implements SamplesApi {
             sample.sampleDbId(Helper.createId(database, mgdbSample.getId()));
             sample.germplasmDbId(Helper.createId(database, mgdbSample.getIndividual()));
             sample.setSampleName(mgdbSample.getId());
-            sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
+            //sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
                 sample.setAdditionalInfo(new HashMap<>());
                 for (String key:mgdbSample.getAdditionalInfo().keySet()) {                    

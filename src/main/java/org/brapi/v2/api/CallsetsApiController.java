@@ -127,15 +127,15 @@ public class CallsetsApiController implements CallsetsApi {
 			        	HashSet<Integer> moduleSamples = samplesByModule.get(db);
 			        	Criteria crit = Criteria.where("_id").in(moduleSamples);
 			        	HashMap<Integer, Boolean> projectAccessPermissions = new HashMap<>();
-			        	for (GenotypingSample sample : mongoTemplate.find(new Query(crit), GenotypingSample.class)) {
-			        		Boolean fPjAllowed = projectAccessPermissions.get(sample.getProjectId());
+			        	for (fr.cirad.mgdb.model.mongo.maintypes.CallSet cs : mongoTemplate.find(new Query(crit), fr.cirad.mgdb.model.mongo.maintypes.CallSet.class)) {
+			        		Boolean fPjAllowed = projectAccessPermissions.get(cs.getProjectId());
 			        		if (fPjAllowed == null) {
-			        			fPjAllowed = tokenManager.canUserReadProject(token, db, sample.getProjectId());
-			        			projectAccessPermissions.put(sample.getProjectId(), fPjAllowed);
+			        			fPjAllowed = tokenManager.canUserReadProject(token, db, cs.getProjectId());
+			        			projectAccessPermissions.put(cs.getProjectId(), fPjAllowed);
 			        		}
                                                 if (!fPjAllowed) {
                                                         fTriedToAccessForbiddenData = true;
-                                                        moduleSamples.remove(sample.getId());
+                                                        moduleSamples.remove(cs.getId());
                                                 }
 			        	}
 
@@ -188,8 +188,8 @@ public class CallsetsApiController implements CallsetsApi {
                                         if ((fFilterOnCallSets || fFilterOnGermplasm) && sampleCritByModule.containsKey(info[0])) { //variantSet base matches with callSets or germplasm base 
                                             ArrayList<Criteria> callsetsCrit = new ArrayList<>();
                                             callsetsCrit.addAll(sampleCritByModule.get(info[0]));
-                                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId));
-                                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]));
+                                            callsetsCrit.add(Criteria.where(fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_PROJECT_ID).is(projId));
+                                            callsetsCrit.add(Criteria.where(fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_RUN).is(info[2]));
                                             Criteria crit = new Criteria().andOperator(callsetsCrit.toArray(new Criteria[callsetsCrit.size()]));
                                             
                                             if (vsCritByModule.get(info[0]) == null) {
@@ -205,7 +205,7 @@ public class CallsetsApiController implements CallsetsApi {
                                                             moduleCrit = new ArrayList<>();
                                                             vsCritByModule.put(info[0], moduleCrit);
                                                     }
-                                                    moduleCrit.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
+                                                    moduleCrit.add(new Criteria().andOperator(Criteria.where(fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_RUN).is(info[2])));
                                             } else {
                                                 fTriedToAccessForbiddenData = true;
                                             }

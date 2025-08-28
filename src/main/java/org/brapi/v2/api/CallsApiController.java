@@ -77,8 +77,9 @@ public class CallsApiController implements CallsApi {
         
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
-            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
-            variantSetDbId = info[0] + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun();
+            //GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
+            CallSet cs = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), CallSet.class).iterator().next();
+            variantSetDbId = info[0] + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
         }
 		
         CallsSearchRequest csr = new CallsSearchRequest();
@@ -710,9 +711,9 @@ public class CallsApiController implements CallsApi {
                 if (result.getVariantSetDbIds().size() > 1) {
                     List<Integer> sampleId = resp.getBody().getResult().getCallSetDbIds().stream().map(callSetDbId -> Integer.valueOf(callSetDbId.substring(1 + callSetDbId.indexOf(Helper.ID_SEPARATOR)))).collect(Collectors.toList());
                     Query query = new Query(Criteria.where("_id").in(sampleId));
-                    List<GenotypingSample> samples = MongoTemplateManager.get(module).find(query, GenotypingSample.class);
+                    List<CallSet> callsets = MongoTemplateManager.get(module).find(query, CallSet.class);
                     final String db = module;
-                    samplesRuns = samples.stream().collect(Collectors.toMap(s -> db + Helper.ID_SEPARATOR + s.getId(), s -> new Run(s.getProjectId(), s.getRun())));	        		        	
+                    samplesRuns = callsets.stream().collect(Collectors.toMap(cs -> db + Helper.ID_SEPARATOR + cs.getId(), cs -> new Run(cs.getProjectId(), cs.getRun())));
                 }
 
                 for (int v = startVariantIndex; v < endVariantIndex; v++) {

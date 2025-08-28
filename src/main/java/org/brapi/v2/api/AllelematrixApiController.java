@@ -85,8 +85,9 @@ public class AllelematrixApiController implements AllelematrixApi {
 
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
-            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
-            variantSetDbId = info[0] + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun();
+            //GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
+            CallSet cs = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), CallSet.class).iterator().next();
+            variantSetDbId = info[0] + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
         }
 
         AlleleMatrixSearchRequest request = new AlleleMatrixSearchRequest();
@@ -531,14 +532,14 @@ public class AllelematrixApiController implements AllelematrixApi {
                 List<Criteria> vsCrits = new ArrayList<>();
                 for (String vsId : body.getVariantSetDbIds()) {
                     String[] info = Helper.getInfoFromId(vsId, 3);
-                    vsCrits.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
+                    vsCrits.add(new Criteria().andOperator(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(CallSet.FIELDNAME_RUN).is(info[2])));
                 }
                 callsetsQuery = new Query(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
             } else {
-                callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectIDs));	// we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
+                callsetsQuery = new Query(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).in(projectIDs));	// we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
             }
             //count samples
-            nTotalCallsetsCount = (int) mongoTemplate.count(callsetsQuery, GenotypingSample.class);
+            nTotalCallsetsCount = (int) mongoTemplate.count(callsetsQuery, CallSet.class);
             callsetIds = new ArrayList<>();
             for (CallSet cs : mongoTemplate.find(callsetsQuery.skip(callSetsPage * numberOfCallSetsPerPage).limit(numberOfCallSetsPerPage), CallSet.class)) {
                 callsetIds.add(cs.getId());
@@ -572,7 +573,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         try {
             List<VariantRunDataWithRuns> varList;
             int nSkipCount = variantsPage * numberOfMarkersPerPage;
-            if (sampleIDs.isEmpty()) {
+            if (callsetIds.isEmpty()) {
                 varList = new ArrayList<>();	// no more samples remain: we must have gone beyond the last page
             } else {
                 countThread.join(100); // give it a chance to execute quickly in case the info is already cached (so we may skip querying for data if requested page number is too high)
