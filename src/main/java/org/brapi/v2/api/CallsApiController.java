@@ -621,15 +621,26 @@ public class CallsApiController implements CallsApi {
         } else {             
             int startIndex = page * pageSize;
             int endIndex = (int) ((page + 1) * pageSize > totalCount ? totalCount : (page + 1) * pageSize);
+
+            // Start indices
             int startVarIndex = startIndex / callSetsNb;
-            int startCallSetIndex = startIndex % callSetsNb;            
-            int endCallSetIndex = endIndex % callSetsNb;
+            int startCallSetIndex = startIndex % callSetsNb;
+
+            // End indices
             int endVarIndex = endIndex / callSetsNb;
-            if (endCallSetIndex != 0) {
-                endVarIndex++;
-            } else {
-                endCallSetIndex = startCallSetIndex + callSetsNb;
+            int endCallSetIndex = endIndex % callSetsNb;
+
+            // Adjust if ending exactly at the end of variant line
+            if (endCallSetIndex == 0 && endVarIndex > startVarIndex) {
+                endCallSetIndex = callSetsNb;
+                endVarIndex--;
             }
+
+            // if same line
+            if (startVarIndex == endVarIndex) {
+                endCallSetIndex = Math.min(endCallSetIndex, callSetsNb);
+            }
+
             callSetRequestPagination.setPage(0);
             callSetRequestPagination.setPageSize(callSetsNb);
             variantRequestPagination.setPageSize(1);
@@ -642,7 +653,7 @@ public class CallsApiController implements CallsApi {
                     return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                 }
             } else { // get data variant per variant in order to manage pagination             
-                for (int v = startVarIndex; v < endVarIndex; v++) {
+                for (int v = startVarIndex; v <= endVarIndex; v++) {
                     variantRequestPagination.setPage(v);
                     amsr.addPaginationItem(variantRequestPagination);
                     amsr.addPaginationItem(callSetRequestPagination);
@@ -650,7 +661,8 @@ public class CallsApiController implements CallsApi {
                     int eCallsets = callSetsNb;
                     if (v == startVarIndex) {
                         sCallsets = startCallSetIndex;
-                    } else if (v == endVarIndex - 1) {
+                    }
+                    if (v == endVarIndex) {
                         eCallsets = endCallSetIndex;
                     }
                     try {                
