@@ -194,36 +194,32 @@ public class SamplesApiController implements SamplesApi {
                     
                 }
 
-                if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds()));
-                }
+                if (fGotExtRefs)
+                    andCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds()));
 
-                if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceSource").in(body.getExternalReferenceSources()));
-                }
+                if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())
+                    andCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceSource").in(body.getExternalReferenceSources()));
 
                 // make sure we don't return individuals that are in projects this user doesn't have access to
                 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
-                if (allowedProjects == null) {
+                if (allowedProjects == null)
                     try {
                         allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
                     } catch (ObjectNotFoundException ex) {
                         log.error(ex.getMessage());
                     }
-                }
 
-                if (allowedProjects != null && !allowedProjects.isEmpty()) {
-                    andCrits.add(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
-                }
+                if (allowedProjects != null && !allowedProjects.isEmpty())
+                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
                 Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
-                List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, CallSet.FIELDNAME_SAMPLE, CallSet.class, String.class);
+                List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, String.class);
 
                 if (!foundSampleIds.isEmpty()) {
                     totalCount = totalCount + foundSampleIds.size();
                     dbSamplesIds.put(db, foundSampleIds);
                 }
-            } 
+            }
 
             //convert to brapi format
             List<Sample> allBrapiSamples = new ArrayList<>();

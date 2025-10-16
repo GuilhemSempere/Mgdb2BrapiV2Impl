@@ -110,9 +110,8 @@ public class StudiesApiController implements StudiesApi {
     			else {
                     for (String db : dbsToAccountFor) {
                     	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
-	                   	for (int nProjId : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class)) {// make sure at least one germplasm exists in each project before returning it
-                            List<String> sampleIds = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames())), CallSet.FIELDNAME_SAMPLE, GenotypingSample.class, String.class);
-                            if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(CallSet.FIELDNAME_SAMPLE).in(sampleIds))), CallSet.class) > 0) {
+	                   	for (int nProjId : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class)) { // make sure at least one germplasm is used in each project before returning it
+                            if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()))), GenotypingSample.class) > 0) {
                                 HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);
                                 if (moduleProjects == null) {
                                     moduleProjects = new HashSet<>();
@@ -128,9 +127,8 @@ public class StudiesApiController implements StudiesApi {
         	if (dbIndividualsSpecifiedById != null) {
                  for (String db : dbsToAccountFor) {
                 	 if ((dbsSpecifiedViaProgramsAndTrials == null) || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
-	                	 Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
-                         List<String> sampleIds = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames())), CallSet.FIELDNAME_SAMPLE, GenotypingSample.class, String.class);
-	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(CallSet.FIELDNAME_SAMPLE).in(sampleIds)), CallSet.FIELDNAME_PROJECT_ID, CallSet.class, Integer.class);
+	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames())), GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID, GenotypingSample.class, Integer.class);
+
                 		 if (!projectsInvolvingIndividuals.isEmpty()) {
          					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);
         					if (moduleProjects == null) {

@@ -72,8 +72,7 @@ public class MongoBrapiCache {
 			variantSet.setReferenceSetDbId(variantSet.getStudyDbId());
 			variantSet.setVariantSetDbId(variantSetDbId);
 			variantSet.setVariantSetName(splitId[2]);
-//    	    variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
-			variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(CallSet.FIELDNAME_RUN).is(splitId[2]))), CallSet.class));
+			variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.FIELDNAME_CALLSETS + "." + "_id", GenotypingSample.class, Integer.class).size());
 			variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(splitId[2]), Criteria.where(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId))), VariantData.class));
 
 			if (variantSet.getCallSetCount() == 0 && variantSet.getVariantCount() == 0)
