@@ -59,7 +59,6 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import static org.brapi.v2.api.AllelematrixApiController.MAX_TOTAL_CALLS;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -493,6 +492,12 @@ public class CallsApiController implements CallsApi {
     public ResponseEntity<CallsListResponse> searchCallsPost(String authorization, CallsSearchRequest body) {
         
         CallsListResponse clr = new CallsListResponse();
+        int maxPageSize =  allelematrixApiController.appConfig.getAlleleSearchMaxTotalPageSize();
+
+        int page = body.getPage() == null ? 0 : body.getPage(), pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
+        if (pageSize > maxPageSize) {
+            pageSize = maxPageSize;
+        }
         
         AlleleMatrixSearchRequest amsr = new AlleleMatrixSearchRequest();
         amsr.setCallSetDbIds(body.getCallSetDbIds());
@@ -564,7 +569,6 @@ public class CallsApiController implements CallsApi {
     	Metadata metadata = new Metadata();
     	clr.setMetadata(metadata);
 
-    	int page = body.getPage() == null ? 0 : body.getPage(), pageSize = body.getPageSize() == null ? 1000 : body.getPageSize();
         long totalCount = (long) variantsNb * callSetsNb;
         int totalPages = (int) Math.ceil((float) totalCount / pageSize);
         if (page >= totalPages) {
@@ -645,7 +649,7 @@ public class CallsApiController implements CallsApi {
             callSetRequestPagination.setPageSize(callSetsNb);
             variantRequestPagination.setPageSize(1);
             
-            if (endVarIndex - startVarIndex == variantsNb && variantsNb * callSetsNb < MAX_TOTAL_CALLS) { // get all variants data
+            if (endVarIndex - startVarIndex == variantsNb && variantsNb * callSetsNb < maxPageSize) { // get all variants data
                 try {                    
                     res = callSearchMatrix(authorization, amsr, startCallSetIndex, endCallSetIndex, startVarIndex, endVarIndex, res);
                 } catch (Exception ex) {
