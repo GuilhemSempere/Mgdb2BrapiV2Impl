@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 
 import javax.validation.Valid;
 
-import fr.cirad.mgdb.model.mongo.maintypes.CallSet;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
@@ -37,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -111,7 +111,7 @@ public class StudiesApiController implements StudiesApi {
                     for (String db : dbsToAccountFor) {
                     	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
 	                   	for (int nProjId : mongoTemplate.findDistinct("_id", GenotypingProject.class, Integer.class)) { // make sure at least one germplasm is used in each project before returning it
-                            if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()))), GenotypingSample.class) > 0) {
+                            if (mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(nProjId), Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()))), GenotypingSample.class) > 0) {
                                 HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);
                                 if (moduleProjects == null) {
                                     moduleProjects = new HashSet<>();
@@ -127,7 +127,7 @@ public class StudiesApiController implements StudiesApi {
         	if (dbIndividualsSpecifiedById != null) {
                  for (String db : dbsToAccountFor) {
                 	 if ((dbsSpecifiedViaProgramsAndTrials == null) || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
-	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames())), GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID, GenotypingSample.class, Integer.class);
+	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames())), GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID, GenotypingSample.class, Integer.class);
 
                 		 if (!projectsInvolvingIndividuals.isEmpty()) {
          					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);

@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
@@ -109,7 +110,7 @@ public class CallsetsApiController implements CallsetsApi {
 			        	HashSet<Integer> moduleCallSets = callSetsByModule.get(db);
 			        	Criteria crit = Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(moduleCallSets);
 			        	HashMap<Integer, Boolean> projectAccessPermissions = new HashMap<>();
-			        	for (fr.cirad.mgdb.model.mongo.maintypes.CallSet cs : mongoTemplate.findDistinct(new Query(crit), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, fr.cirad.mgdb.model.mongo.maintypes.CallSet.class)) {
+			        	for (Callset cs : mongoTemplate.findDistinct(new Query(crit), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class)) {
 			        		Boolean fPjAllowed = projectAccessPermissions.get(cs.getProjectId());
 			        		if (fPjAllowed == null) {
 			        			fPjAllowed = tokenManager.canUserReadProject(token, db, cs.getProjectId());
@@ -225,8 +226,8 @@ public class CallsetsApiController implements CallsetsApi {
                         if ((fFilterOnCallSets || fFilterOnSamples || fFilterOnGermplasm) && callSetCritByModule.containsKey(info[0])) { // variantSet base matches with callSets or germplasm base 
                             ArrayList<Criteria> callsetsCrit = new ArrayList<>();
                             callsetsCrit.addAll(callSetCritByModule.get(info[0]));
-                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_PROJECT_ID).is(projId));
-                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_RUN).is(info[2]));
+                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId));
+                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2]));
                             Criteria crit = new Criteria().andOperator(callsetsCrit.toArray(new Criteria[callsetsCrit.size()]));
 	                        List<Criteria> moduleCrit = vsCritByModule.get(info[0]);
 	                        if (moduleCrit == null) {
@@ -243,7 +244,7 @@ public class CallsetsApiController implements CallsetsApi {
                                     moduleCrit = new ArrayList<>();
                                     vsCritByModule.put(info[0], moduleCrit);
                                 }
-                                moduleCrit.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + fr.cirad.mgdb.model.mongo.maintypes.CallSet.FIELDNAME_RUN).is(info[2])));
+                                moduleCrit.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2])));
                             }
                             else
                                 fTriedToAccessForbiddenData = true;
@@ -263,9 +264,9 @@ public class CallsetsApiController implements CallsetsApi {
                 for (String db : callSetCritByModule.keySet()) {
                     MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
                     List<Criteria> critList = callSetCritByModule.get(db);
-                    List<fr.cirad.mgdb.model.mongo.maintypes.CallSet> callsets = mongoTemplate.find(new Query(new Criteria().orOperator(critList)), GenotypingSample.class).stream().map(sp -> sp.getCallSets()).flatMap(Collection::stream).toList();
+                    List<Callset> callsets = mongoTemplate.find(new Query(new Criteria().orOperator(critList)), GenotypingSample.class).stream().map(sp -> sp.getCallSets()).flatMap(Collection::stream).toList();
                     for (int i=0; i < callsets.size(); i++) {
-                        fr.cirad.mgdb.model.mongo.maintypes.CallSet callset = callsets.get(i);
+                        Callset callset = callsets.get(i);
                         nTotalCallSetsEncountered++;
                         CallSet brapiCallset = new CallSet();
                         brapiCallset.setCallSetDbId(db + Helper.ID_SEPARATOR + callset.getId());

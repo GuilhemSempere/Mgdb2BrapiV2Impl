@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import javax.ejb.ObjectNotFoundException;
 import javax.validation.Valid;
 
-import fr.cirad.mgdb.model.mongo.maintypes.CallSet;
 import org.brapi.v2.model.ExternalReferences;
 import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.IndexPagination;
@@ -37,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
@@ -210,7 +210,7 @@ public class SamplesApiController implements SamplesApi {
                     }
 
                 if (allowedProjects != null && !allowedProjects.isEmpty())
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
                 Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
                 List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, String.class);

@@ -38,9 +38,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fr.cirad.io.brapi.BrapiService;
-import fr.cirad.mgdb.model.mongo.maintypes.CallSet;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
@@ -183,7 +183,7 @@ public class GermplasmApiController implements GermplasmApi {
                         if (allowedProjects == null)
                                 allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
                         List<Criteria> andCrits = new ArrayList<>();
-                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
 
                         Query q = new Query(new Criteria().andOperator(andCrits));
@@ -223,7 +223,7 @@ public class GermplasmApiController implements GermplasmApi {
                                 if (allowedProjects == null)
                                         allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
 
-                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
                                 individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
                             }
                             HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
@@ -248,7 +248,7 @@ public class GermplasmApiController implements GermplasmApi {
                          if (allowedProjects == null)
                             allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
 
-                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
                          List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
                             HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
                          if (moduleIndividuals == null)

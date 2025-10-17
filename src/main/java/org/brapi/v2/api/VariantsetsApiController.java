@@ -63,6 +63,7 @@ import fr.cirad.mgdb.exporting.individualoriented.PLinkExportHandler;
 import fr.cirad.mgdb.exporting.markeroriented.AbstractMarkerOrientedExportHandler;
 import fr.cirad.mgdb.exporting.markeroriented.VcfExportHandler;
 import fr.cirad.mgdb.exporting.tools.ExportManager;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition;
 import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.tools.AlphaNumericComparator;
@@ -182,7 +183,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	        	for (String module : callSetsByModule.keySet()) {
 	        		MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
 	        		
-	        		for (CallSet cs : mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(callSetsByModule.get(module))), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, CallSet.class)) {
+	        		for (Callset cs : mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(callSetsByModule.get(module))), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class)) {
 	    	        	String variantSetDbId = module + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
 	    	        	if (!addedVariantSets.contains(variantSetDbId)) {
 	    	        		VariantSet variantSet = cache.getVariantSet(mongoTemplate, variantSetDbId);
@@ -365,8 +366,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	PLinkExportThread tempFileGenerationThread = (PLinkExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
-                List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_RUN).is(splitId[2]))), "_id", GenotypingSample.class, String.class);
-            	List<GenotypingSample> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
+                List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(splitId[2]))), "_id", GenotypingSample.class, String.class);
+            	List<Callset> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
         		
         		if (exportFile.exists()) {	// seems complete
         			HashMap<String, String> individualToSampleMap = new HashMap<>();
@@ -433,8 +434,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	FlapjackExportThread tempFileGenerationThread = (FlapjackExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
-        		List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_RUN).is(splitId[2]))), "_id", GenotypingSample.class, String.class);
-                List<GenotypingSample> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
+        		List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(splitId[2]))), "_id", GenotypingSample.class, String.class);
+                List<Callset> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
 
                 if (exportFile.exists()) {	// seems complete
         			HashMap<String, String> individualToSampleMap = new HashMap<>();
@@ -506,8 +507,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 
         	VcfExportThread tempFileGenerationThread = (VcfExportThread) exportThreads.get(exportId);
         	if (tempFileGenerationThread == null) {	// job is not running: either complete or not started
-        		List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + CallSet.FIELDNAME_RUN).is(splitId[2]))), "_id", GenotypingSample.class, String.class);
-                List<GenotypingSample> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
+        		List<String> sampleIds = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(splitId[2]))), "_id", GenotypingSample.class, String.class);
+                List<Callset> runSamples = mongoTemplate.find(new Query(Criteria.where("_id").in(sampleIds)), GenotypingSample.class);
 
                 if (exportFile.exists()) {	// seems complete
         			HashMap<String, String> individualToSampleMap = new HashMap<>();
@@ -578,12 +579,12 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		File exportFile;
 		MongoCollection<Document> varColl;
 		String exportId;
-		List<CallSet> callSetsToExport;
+		List<Callset> callSetsToExport;
 		ProgressIndicator progress;
 		VariantSet variantSet;
 		String exportingUser;
 		
-		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<CallSet> callSetsToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<Callset> callSetsToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
@@ -612,7 +613,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}});
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, exportingUser, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), callSetsToExport, null, progress).getGenotypeFiles();
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, exportingUser, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap<>(), false, new HashMap<>(), callSetsToExport, null, progress).getGenotypeFiles();
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
 				progress.moveToNextStep();
@@ -639,12 +640,12 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		File exportFile;
 		MongoCollection<Document> varColl;
 		String exportId;
-		List<CallSet> callSetsToExport;
+		List<Callset> callSetsToExport;
 		ProgressIndicator progress;
 		VariantSet variantSet;
 		String exportingUser;
 		
-		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<CallSet> callSetsToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<Callset> callSetsToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
@@ -673,7 +674,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 				}});
 				
 				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
-				result = exportHandler.createExportFiles(module, null /*FIXME*/, exportingUser, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap(), new HashMap<>(), callSetsToExport, null, progress).getGenotypeFiles();
+				result = exportHandler.createExportFiles(module, null /*FIXME*/, exportingUser, varColl.getNamespace().getCollectionName(), vrdQuery, variantSet.getVariantCount(), exportId, new HashMap<>(), false, new HashMap<>(), callSetsToExport, null, progress).getGenotypeFiles();
 				
 				for (String step : exportHandler.getStepList())
 					progress.addStep(step);
@@ -701,11 +702,11 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		File exportFile;
 		MongoCollection<Document> varColl;
 		String exportId;
-		List<CallSet> callSetsToExport;
+		List<Callset> callSetsToExport;
 		ProgressIndicator progress;
 		VariantSet variantSet;
 		
-		VcfExportThread(VcfExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<CallSet> callSetsToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+		VcfExportThread(VcfExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<Callset> callSetsToExport, final ProgressIndicator progress) throws SocketException, UnknownHostException {
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
@@ -747,7 +748,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
                     add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID, projId));
 					add(new BasicDBObject(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME, splitId[2])); 
 				}});
-				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, callSetsToExport, callSetsToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, new CustomVCFWriter(null, os, dict, false, false, true));			
+				exportHandler.writeGenotypeFile(module, null /*FIXME*/, new HashMap<>(), false, new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, callSetsToExport, callSetsToExport.stream().map(gs -> gs.getIndividual()).distinct().sorted(new AlphaNumericComparator<String>()).collect(Collectors.toList()), distinctSequenceNames, dict, new CustomVCFWriter(null, os, dict, false, false, true));			
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;
