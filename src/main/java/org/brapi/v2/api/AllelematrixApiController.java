@@ -684,16 +684,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                     for (String key : matricesMap.keySet())
                         dataMap.put(key, new ArrayList<>());
 
-                    for (Integer spId : callsetIds) {
+                    for (Integer callSetId : callsetIds) {
                         if (nTotalMarkerCount.get() == 0) // Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
                             break variantLoop;
 
-                        SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
+                        SampleGenotype sg = vrd.getSampleGenotypes().get(callSetId);
                         if (sg != null) {
 
                             String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
-                            boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-                            previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);
+                            boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(callSetId));
+                            previousPhasingIds.put(callSetId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);
                             /*FIXME: check that phasing data is correctly exported*/
 
                             Map<String, Object> ai = sg.getAdditionalInfo();
