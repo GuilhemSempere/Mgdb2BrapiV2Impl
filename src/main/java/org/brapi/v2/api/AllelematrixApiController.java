@@ -311,9 +311,8 @@ public class AllelematrixApiController implements AllelematrixApi {
             return returnEmptyMatrix(response, variantsPage, variantsPage, callSetsPage, callSetsPage);
         }
 
-        HashSet<String> sampleIDs = null;
+        HashSet<String> sampleIDs = new HashSet<>();
         if (germplasmIds != null) {
-            sampleIDs = new HashSet<>();
             for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
                 sampleIDs.add(s.getId());
         }
@@ -332,14 +331,14 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
                 givenSampleIds.add(info[1]);
             }
-            if (sampleIDs == null)
+            if (sampleIDs.isEmpty())
                 sampleIDs = givenSampleIds;
             else
                 sampleIDs.retainAll(givenSampleIds);
         }
 
         List<Integer> callsetIds = null;
-        if (sampleIDs != null)
+        if (sampleIDs.isEmpty())
             callsetIds = mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
 
         if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
