@@ -23,13 +23,9 @@ import javax.ejb.ObjectNotFoundException;
 
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
+import fr.cirad.tools.AppConfig;
+import org.brapi.v2.model.*;
 import org.brapi.v2.model.AlleleMatrixDataMatrices.DataTypeEnum;
-import org.brapi.v2.model.AlleleMatrixPagination;
-import org.brapi.v2.model.AlleleMatrixResponse;
-import org.brapi.v2.model.AlleleMatrixSearchRequest;
-import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
-import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Status;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -73,10 +69,12 @@ import htsjdk.variant.vcf.VCFHeaderLineType;
 public class AllelematrixApiController implements AllelematrixApi {
 
     static private final org.apache.log4j.Logger LOG = org.apache.log4j.Logger.getLogger(AllelematrixApiController.class);
-    public static final int MAX_TOTAL_CALLS = 10000;
 
     @Autowired
     AbstractTokenManager tokenManager;
+
+    @Autowired
+    AppConfig appConfig;
 
 //    @Autowired
 //    private MongoBrapiCache brapiCache;
@@ -162,6 +160,7 @@ public class AllelematrixApiController implements AllelematrixApi {
     }
 
     protected ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body, boolean fVcfStyleGenotypes) throws InterruptedException, ObjectNotFoundException {
+        int maxTotalCalls = appConfig.getAlleleSearchMaxTotalPageSize();
         String token = ServerinfoApiController.readToken(authorization);
         long before = System.currentTimeMillis();
         AlleleMatrixResponse response = new AlleleMatrixResponse();
@@ -193,15 +192,19 @@ public class AllelematrixApiController implements AllelematrixApi {
             }
         }
         
-        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > MAX_TOTAL_CALLS) {
+        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxTotalCalls) {
             Status status = new Status();
-            if (numberOfCallSetsPerPage > MAX_TOTAL_CALLS) {
+            String message = "";
+            if (numberOfCallSetsPerPage > maxTotalCalls) {
                 //return calls per variant
                 numberOfMarkersPerPage = 1;
+                message = "CALLSET pageSize out of bounds (>10000), returning calls by variant, VARIANT pageSize set to "+ numberOfMarkersPerPage;
+
             } else {
-                numberOfMarkersPerPage = MAX_TOTAL_CALLS / numberOfCallSetsPerPage;         
+                numberOfMarkersPerPage = maxTotalCalls / numberOfCallSetsPerPage;
+                message = "VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage;
             }
-            status.setMessage("VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage + "(VARIANT pageSize * CALLSETS pageSize should not exceeds " + MAX_TOTAL_CALLS + ")");
+            status.setMessage(message + " (VARIANT pageSize * CALLSETS pageSize should not exceeds " + maxTotalCalls + ")");
             metadata.addStatusItem(status);
         }
 
