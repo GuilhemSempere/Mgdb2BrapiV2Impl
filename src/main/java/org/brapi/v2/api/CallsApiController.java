@@ -1,7 +1,5 @@
 package org.brapi.v2.api;
 
-import static org.brapi.v2.api.AllelematrixApiController.MAX_TOTAL_CALLS;
-
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
