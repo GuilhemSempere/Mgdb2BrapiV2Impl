@@ -118,7 +118,7 @@ public class SamplesApiController implements SamplesApi {
             }
 
             HashMap<String /*module*/, Collection<String>/*germplasmIds*/> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
-            HashMap<String /*module*/, Collection<Long>/*sampleIds*/> dbSamplesSpecifiedById = body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty() ? readSampleIDs(body.getSampleDbIds()) : null;	        	
+            HashMap<String /*module*/, Collection<String>/*sampleIds*/> dbSamplesSpecifiedById = body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty() ? readSampleIDs(body.getSampleDbIds()) : null;
 
             Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
             List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
@@ -180,7 +180,7 @@ public class SamplesApiController implements SamplesApi {
                 }    
 
                 if (dbSamplesSpecifiedById != null && dbSamplesSpecifiedById.get(db) != null) {
-                    Collection<Long> sampleIds = dbSamplesSpecifiedById.get(db);
+                    Collection<String> sampleIds = dbSamplesSpecifiedById.get(db);
                     if (!sampleIds.isEmpty()) {
                         andCrits.add(Criteria.where("_id").in(sampleIds));
                     }
@@ -333,16 +333,16 @@ public class SamplesApiController implements SamplesApi {
         return brapiSamples;
     }
 
-    private HashMap<String, Collection<Long>> readSampleIDs(List<String> sampleDbIds) {
-        HashMap<String, Collection<Long>> dbSampleIDs = new HashMap<>();
+    private HashMap<String, Collection<String>> readSampleIDs(List<String> sampleDbIds) {
+        HashMap<String, Collection<String>> dbSampleIDs = new HashMap<>();
         for (String sId : sampleDbIds) {
             String[] info = Helper.getInfoFromId(sId, 2);
             if (info == null)
                 throw new MalformedParametersException("malformed sampleDbId: " + sId);
 
             String db = info[0];            
-            Long id = Long.parseLong(info[1]);
-            Collection<Long> sampleIDs = dbSampleIDs.get(db);
+            String id = info[1];
+            Collection<String> sampleIDs = dbSampleIDs.get(db);
             if (sampleIDs == null) {
                sampleIDs = new ArrayList<>();
                dbSampleIDs.put(info[0], sampleIDs);
