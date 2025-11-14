@@ -261,7 +261,7 @@ public class SamplesApiController implements SamplesApi {
 
                     nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
-                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds, null, false).values());
+                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesForUser(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds, null, false).values());
                     allBrapiSamples.addAll(brapiSamples);
                     firstIndex = 0;
                 }
