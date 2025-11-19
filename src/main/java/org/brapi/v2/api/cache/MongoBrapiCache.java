@@ -31,6 +31,7 @@ import com.mongodb.client.MongoCursor;
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.tools.AppConfig;
 import fr.cirad.tools.Helper;
@@ -71,8 +72,7 @@ public class MongoBrapiCache {
 			variantSet.setReferenceSetDbId(variantSet.getStudyDbId());
 			variantSet.setVariantSetDbId(variantSetDbId);
 			variantSet.setVariantSetName(splitId[2]);
-//    	    variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(proj.getId())), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class).size());
-			variantSet.setCallSetCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.class));
+			variantSet.setCallSetCount(mongoTemplate.findDistinct(new Query(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(splitId[2]))), GenotypingSample.FIELDNAME_CALLSETS + "." + "_id", GenotypingSample.class, Integer.class).size());
 			variantSet.setVariantCount((int) mongoTemplate.count(new Query(new Criteria().andOperator(Criteria.where(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(splitId[2]), Criteria.where(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId))), VariantData.class));
 
 			if (variantSet.getCallSetCount() == 0 && variantSet.getVariantCount() == 0)
