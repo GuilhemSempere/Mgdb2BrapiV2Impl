@@ -14,7 +14,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
-import org.brapi.v2.model.ExternalReferences;
 import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.GermplasmListResponse;
@@ -41,6 +40,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata.CustomIndividualMetadataId;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
@@ -48,9 +48,6 @@ import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
-import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.Map;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -186,8 +183,8 @@ public class GermplasmApiController implements GermplasmApi {
                         if (allowedProjects == null)
                                 allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
                         List<Criteria> andCrits = new ArrayList<>();
+                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
-                        andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
                         Query q = new Query(new Criteria().andOperator(andCrits));
                         
@@ -215,8 +212,7 @@ public class GermplasmApiController implements GermplasmApi {
                                             )),
                                             "_id.ii", CustomIndividualMetadata.class, String.class);
 
-                            Set<String> individualsWithExtRefs = new HashSet(mongoTemplate.findDistinct(new Query(Criteria.where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId")
-                                    .in(body.getExternalReferenceIds())), "_id", Individual.class, String.class));
+                            Set<String> individualsWithExtRefs = new HashSet<>(mongoTemplate.findDistinct(new Query(Criteria.where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds())), "_id", Individual.class, String.class));
                             individualsWithExtRefs.addAll(customIndividualsWithExtRefs);
                             List<String> individualsFoundByExtRef = new ArrayList<>();
                             if (!individualsWithExtRefs.isEmpty()) {
@@ -226,8 +222,8 @@ public class GermplasmApiController implements GermplasmApi {
                                 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
                                 if (allowedProjects == null)
                                         allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
-                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
+                                andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
                                 individualsFoundByExtRef = mongoTemplate.findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
                             }
                             HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
@@ -242,29 +238,29 @@ public class GermplasmApiController implements GermplasmApi {
         	// germplasm id filtering
         	if (dbIndividualsSpecifiedById != null) {
                  for (String db : dbsToAccountFor) {
-                	 if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
-	                	 Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
-	                	 List<Criteria> andCrits = new ArrayList<>();
-	                	 andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals));
-	                	 
-	                	 // make sure we don't return individuals that are in projects this user doesn't have access to
-	                	 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
-		                	if (allowedProjects == null)
-		                		allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
-		                	andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                     if (dbsSpecifiedViaProgramsAndTrials == null || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
+                         Collection<String> individuals = dbIndividualsSpecifiedById.get(db);
+                         List<Criteria> andCrits = new ArrayList<>();
+                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(individuals));
 
-	                	 List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-     						HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
-    					 if (moduleIndividuals == null)
-    						 individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
-    					 else
-    						 moduleIndividuals.retainAll(individualsFoundById);
-                	 }
+                         // make sure we don't return individuals that are in projects this user doesn't have access to
+                         Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
+                         if (allowedProjects == null)
+                            allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
+
+                         andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
+                         List<String> individualsFoundById = MongoTemplateManager.get(db).findDistinct(new Query(new Criteria().andOperator(andCrits)), GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                            HashSet<String> moduleIndividuals = individualsByModuleFromSpecifiedGermplasm.get(db);
+                         if (moduleIndividuals == null)
+                             individualsByModuleFromSpecifiedGermplasm.put(db, new HashSet<>(individualsFoundById));
+                         else
+                             moduleIndividuals.retainAll(individualsFoundById);
+                     }
                  }
             }
 
             for (String database : dbsToAccountFor) {
-                for (Individual ind : MgdbDao.getInstance().loadIndividualsWithAllMetadata(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null, null).values()) {
+                for (Individual ind : MgdbDao.getInstance().loadIndividualsForUser(database, sCurrentUser, !projectsByModuleFromSpecifiedStudies.isEmpty() ? projectsByModuleFromSpecifiedStudies.get(database) : null, !individualsByModuleFromSpecifiedGermplasm.isEmpty() ? individualsByModuleFromSpecifiedGermplasm.get(database) : null, null).values()) {
                 	
                 	List synonyms = (List) ind.getAdditionalInfo().get("synonyms");
             		if (synonyms != null)

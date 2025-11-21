@@ -1,13 +1,11 @@
 package org.brapi.v2.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import javax.validation.Valid;
 
@@ -15,7 +13,6 @@ import org.brapi.v2.model.CallSet;
 import org.brapi.v2.model.CallSetsListResponse;
 import org.brapi.v2.model.CallSetsListResponseResult;
 import org.brapi.v2.model.CallSetsSearchRequest;
-import org.brapi.v2.model.Germplasm;
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
@@ -27,23 +24,18 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import fr.cirad.io.brapi.BrapiService;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
-import fr.cirad.mgdb.model.mongo.maintypes.Individual;
-import fr.cirad.mgdb.model.mongodao.MgdbDao;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import fr.cirad.web.controller.rest.BrapiRestController;
 import io.swagger.annotations.ApiParam;
-import org.brapi.v2.model.ExternalReferences;
-import org.brapi.v2.model.ExternalReferencesInner;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @Controller
@@ -66,8 +58,8 @@ public class CallsetsApiController implements CallsetsApi {
     public ResponseEntity<CallSetsListResponse> searchCallsetsPost(	@ApiParam(value = "CallSet Search request")  @Valid @RequestBody CallSetsSearchRequest body,
     																@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
     	String token = ServerinfoApiController.readToken(authorization);
-    	Authentication auth = tokenManager.getAuthenticationFromToken(token);
-    	String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
+//    	Authentication auth = tokenManager.getAuthenticationFromToken(token);
+//    	String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
     	
         try {
     		Status status = new Status();
@@ -75,221 +67,228 @@ public class CallsetsApiController implements CallsetsApi {
     		
         	CallSetsListResponse cslr = new CallSetsListResponse();
         	CallSetsListResponseResult result = new CallSetsListResponseResult();
-                Metadata metadata = new Metadata();
-                cslr.setMetadata(metadata);
-                IndexPagination pagination = new IndexPagination();
-                metadata.setPagination(pagination);
+            Metadata metadata = new Metadata();
+            cslr.setMetadata(metadata);
+            IndexPagination pagination = new IndexPagination();
+            metadata.setPagination(pagination);
 			
         	boolean fTriedToAccessForbiddenData = false;
-        	HashMap<String /*module*/, ArrayList<Criteria>> sampleCritByModule = new HashMap<>();
+        	HashMap<String /*module*/, List<Criteria>> callSetCritByModule = new HashMap<>();
         	
-        	boolean fFilterOnCallSets = (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) || (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty());
+        	boolean fFilterOnCallSets = (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty());
+        	boolean fFilterOnSamples = (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty());
         	boolean fFilterOnGermplasm = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty();
         	boolean fFilterOnVariantSets = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
         	
-                if (!fFilterOnCallSets && !fFilterOnVariantSets && !fFilterOnGermplasm) {
-                        status.setMessage("Some callSetDbIds, germplasmDbIds or variantSetDbIds must be specified as parameter!");
-                        metadata.addStatusItem(status);
-                        httpCode = HttpStatus.BAD_REQUEST;
-                } else {
+            if (!fFilterOnCallSets && !fFilterOnSamples && !fFilterOnVariantSets && !fFilterOnGermplasm) {
+                status.setMessage("Some callSetDbIds, sampleDbIds, germplasmDbIds or variantSetDbIds must be specified as parameter!");
+                metadata.addStatusItem(status);
+                httpCode = HttpStatus.BAD_REQUEST;
+            }
+            else {
 	        	if (fFilterOnCallSets) {
-                                List<String> sampleIds = new ArrayList();                                
-                                if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
-                                    sampleIds = body.getCallSetDbIds();
-                                    if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
-                                        sampleIds.retainAll(body.getSampleDbIds());  //keep the intersection
-                                    }
-                                } else if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
-                                    sampleIds = body.getSampleDbIds();
-                                }
-                                
-                                if (sampleIds.isEmpty()) {
-                                    //return empty result
-                                    cslr.getMetadata().getPagination().setTotalCount(0L);
-                                    cslr.getMetadata().getPagination().setTotalPages(0);
-                                    cslr.setResult(new CallSetsListResponseResult());
-                                    return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
-                                }
-                            
-		        	HashMap<String /*module*/, HashSet<Integer> /*samples, null means all*/> samplesByModule = new HashMap<>();
-                                for (String csId : sampleIds) {
-                                        String[] info = Helper.getInfoFromId(csId, 2);
-                                        HashSet<Integer> moduleSamples = samplesByModule.get(info[0]);
-                                        if (moduleSamples == null) {
-                                                moduleSamples = new HashSet<>();
-                                                samplesByModule.put(info[0], moduleSamples);
-                                        }
-                                        moduleSamples.add(Integer.parseInt(info[1]));
-                                }
+	        		if (body.getCallSetDbIds().isEmpty()) { //return empty result
+	                    cslr.getMetadata().getPagination().setTotalCount(0L);
+	                    cslr.getMetadata().getPagination().setTotalPages(0);
+	                    cslr.setResult(new CallSetsListResponseResult());
+	                    return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
+	                }
+	                        
+		        	HashMap<String /*module*/, HashSet<Integer> /*callsets, null means all*/> callSetsByModule = new HashMap<>();
+                    for (String csId : body.getCallSetDbIds()) {
+                        String[] info = Helper.getInfoFromId(csId, 2);
+                        HashSet<Integer> moduleCallSets = callSetsByModule.get(info[0]);
+                        if (moduleCallSets == null) {
+                            moduleCallSets = new HashSet<>();
+                            callSetsByModule.put(info[0], moduleCallSets);
+                        }
+                        moduleCallSets.add(Integer.parseInt(info[1]));
+                    }
 					
-		        	for (String db : samplesByModule.keySet()) { // make sure we filter out any samples that are from projects the user is not allowed to see
+		        	for (String db : callSetsByModule.keySet()) { // make sure we filter out any samples that are from projects the user is not allowed to see
 			        	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
-			        	HashSet<Integer> moduleSamples = samplesByModule.get(db);
-			        	Criteria crit = Criteria.where("_id").in(moduleSamples);
+			        	HashSet<Integer> moduleCallSets = callSetsByModule.get(db);
+			        	Criteria crit = Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(moduleCallSets);
 			        	HashMap<Integer, Boolean> projectAccessPermissions = new HashMap<>();
-			        	for (GenotypingSample sample : mongoTemplate.find(new Query(crit), GenotypingSample.class)) {
-			        		Boolean fPjAllowed = projectAccessPermissions.get(sample.getProjectId());
+			        	for (Callset cs : mongoTemplate.findDistinct(new Query(crit), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class)) {
+			        		Boolean fPjAllowed = projectAccessPermissions.get(cs.getProjectId());
 			        		if (fPjAllowed == null) {
-			        			fPjAllowed = tokenManager.canUserReadProject(token, db, sample.getProjectId());
-			        			projectAccessPermissions.put(sample.getProjectId(), fPjAllowed);
+			        			fPjAllowed = tokenManager.canUserReadProject(token, db, cs.getProjectId());
+			        			projectAccessPermissions.put(cs.getProjectId(), fPjAllowed);
 			        		}
-                                                if (!fPjAllowed) {
-                                                        fTriedToAccessForbiddenData = true;
-                                                        moduleSamples.remove(sample.getId());
-                                                }
+	                        if (!fPjAllowed) {
+	                            fTriedToAccessForbiddenData = true;
+	                            moduleCallSets.remove(cs.getId());
+	                        }
 			        	}
-
-			        	if (moduleSamples.size() > 0) {
-			        		ArrayList<Criteria> moduleCrit = sampleCritByModule.get(db);
+	
+			        	if (moduleCallSets.size() > 0) {
+			        		List<Criteria> moduleCrit = callSetCritByModule.get(db);
 			        		if (moduleCrit == null) {
 			        			moduleCrit = new ArrayList<>();
-			        			sampleCritByModule.put(db, moduleCrit);
+			        			callSetCritByModule.put(db, moduleCrit);
 			        		}
 			        		moduleCrit.add(crit);
 			        	}
 		        	}
 	        	}
-
-	        	if (fFilterOnGermplasm) {
-                                HashMap<String /*module*/, ArrayList<Criteria>> germplasmCritByModule = new HashMap<>();
-	        		HashMap<String, Collection<String>> dbIndividuals = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
-                                for (String db : dbIndividuals.keySet()) {	// make sure at least one germplasm exists in each db before returning it
-                                    if ((fFilterOnCallSets && sampleCritByModule.containsKey(db))) { //germplasm base matches with callSets base, no need to check user access 
-                                        ArrayList<Criteria> samplesCrit = new ArrayList<>();
-                                        samplesCrit.addAll(sampleCritByModule.get(db));  
-                                        samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividuals.get(db))); 
-                                        Criteria crit = new Criteria().andOperator(samplesCrit.toArray(new Criteria[samplesCrit.size()]));
-
-                                        if (germplasmCritByModule.get(db) == null) {
-                                            germplasmCritByModule.put(db, new ArrayList<>());
-                                        }
-                                        germplasmCritByModule.get(db).add(crit);
-                                    } else if (!fFilterOnCallSets) {
-                                        if (tokenManager.canUserReadDB(token, db)) {
-                                                ArrayList<Criteria> moduleCrit = germplasmCritByModule.get(db);
-                                                if (moduleCrit == null) {
-                                                        moduleCrit = new ArrayList<>();
-                                                        germplasmCritByModule.put(db, moduleCrit);
-                                                }
-                                                moduleCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividuals.get(db)));
-                                        }
-                                    }
-                                }
-                                sampleCritByModule = germplasmCritByModule;
+        	
+	        	if (fFilterOnSamples) {
+	                if (body.getSampleDbIds().isEmpty()) { //return empty result
+	                    cslr.getMetadata().getPagination().setTotalCount(0L);
+	                    cslr.getMetadata().getPagination().setTotalPages(0);
+	                    cslr.setResult(new CallSetsListResponseResult());
+	                    return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
+	                }
+	            
+			    	HashMap<String /*module*/, HashSet<String> /*samples, null means all*/> samplesByModule = new HashMap<>();
+	                for (String spId : body.getSampleDbIds()) {
+	                    String[] info = Helper.getInfoFromId(spId, 2);
+	                    HashSet<String> moduleSamples = samplesByModule.get(info[0]);
+	                    if (moduleSamples == null) {
+	                        moduleSamples = new HashSet<>();
+	                        samplesByModule.put(info[0], moduleSamples);
+	                    }
+	                    moduleSamples.add(info[1]);
+	                }
+					
+			    	for (String db : samplesByModule.keySet()) { // make sure we filter out any samples that are from projects the user is not allowed to see
+			        	MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
+			        	HashSet<String> moduleSamples = samplesByModule.get(db);
+			        	Criteria crit = Criteria.where("_id").in(moduleSamples);
+			        	HashMap<Integer, Boolean> projectAccessPermissions = new HashMap<>();
+			        	for (GenotypingSample sp : mongoTemplate.find(new Query(crit), GenotypingSample.class)) {
+			        		boolean fAllowedToSeeSample = false;
+				        	for (int callSetProjectId : sp.getCallSets().stream().map(cs -> cs.getProjectId()).toList()) {
+				        		Boolean fPjAllowed = projectAccessPermissions.get(callSetProjectId);
+				        		if (fPjAllowed == null) {
+				        			fPjAllowed = tokenManager.canUserReadProject(token, db, callSetProjectId);
+				        			projectAccessPermissions.put(callSetProjectId, fPjAllowed);
+				        		}
+				        		if (fPjAllowed) {
+				        			fAllowedToSeeSample = true;
+				        			break;
+				        		}
+				        	}
+	                        if (!fAllowedToSeeSample) {
+	                            fTriedToAccessForbiddenData = true;
+	                            moduleSamples.remove(sp.getId());
+	                        }
+			        	}
+			
+			        	if (moduleSamples.size() > 0) {
+			        		List<Criteria> moduleCrit = callSetCritByModule.get(db);
+			        		if (moduleCrit == null) {
+			        			moduleCrit = new ArrayList<>();
+			        			callSetCritByModule.put(db, moduleCrit);
+			        		}
+			        		moduleCrit.add(crit);
+			        	}
+			    	}
 	        	}
 
-		        if (fFilterOnVariantSets) {
-                            HashMap<String /*module*/, ArrayList<Criteria>> vsCritByModule = new HashMap<>();
-                            boolean matchingVariantSetBase = false;
-                                for (String variantSetDbId : body.getVariantSetDbIds()) {
-                                        String[] info = Helper.getInfoFromId(variantSetDbId, 3);
-                                        int projId = Integer.parseInt(info[1]); 
-                                        
-                                        if ((fFilterOnCallSets || fFilterOnGermplasm) && sampleCritByModule.containsKey(info[0])) { //variantSet base matches with callSets or germplasm base 
-                                            ArrayList<Criteria> samplesCrit = new ArrayList<>();
-                                            samplesCrit.addAll(sampleCritByModule.get(info[0]));  
-                                            samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId)); 
-                                            samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2]));
-                                            Criteria crit = new Criteria().andOperator(samplesCrit.toArray(new Criteria[samplesCrit.size()]));
-                                            
-                                            if (vsCritByModule.get(info[0]) == null) {
-                                                vsCritByModule.put(info[0], new ArrayList<>());
-                                            }
-                                            vsCritByModule.get(info[0]).add(crit);
-                                            matchingVariantSetBase = true;
-                                            
-                                        } else if (!fFilterOnCallSets && !fFilterOnGermplasm) { // get all samples for each accessible variantSets                                                                                 
-                                            if (tokenManager.canUserReadProject(token, info[0], projId)) {
-                                                    ArrayList<Criteria> moduleCrit = vsCritByModule.get(info[0]);
-                                                    if (moduleCrit == null) {
-                                                            moduleCrit = new ArrayList<>();
-                                                            vsCritByModule.put(info[0], moduleCrit);
-                                                    }
-                                                    moduleCrit.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
-                                            } else {
-                                                fTriedToAccessForbiddenData = true;
-                                            }
-                                        }
+	        	if (fFilterOnGermplasm) {
+	                HashMap<String /*module*/, List<Criteria>> germplasmCritByModule = new HashMap<>();
+	        		HashMap<String, Collection<String>> dbIndividuals = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
+	                for (String db : dbIndividuals.keySet()) {	// make sure at least one germplasm exists in each db before returning it
+	                    if (((fFilterOnCallSets || fFilterOnSamples) && callSetCritByModule.containsKey(db))) { //germplasm base matches with callSets base, no need to check user access 
+	                        ArrayList<Criteria> samplesCrit = new ArrayList<>();
+	                        samplesCrit.addAll(callSetCritByModule.get(db));  
+	                        samplesCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividuals.get(db))); 
+	                        Criteria crit = new Criteria().andOperator(samplesCrit);
+	                        List<Criteria> moduleCrit = germplasmCritByModule.get(db);
+	                        if (moduleCrit == null) {
+	                        	moduleCrit = new ArrayList<>();
+	                            germplasmCritByModule.put(db, moduleCrit);
+	                        }
+	                        moduleCrit.add(crit);
+	                    } else if (!fFilterOnCallSets) {
+	                        if (tokenManager.canUserReadDB(token, db)) {
+                                List<Criteria> moduleCrit = germplasmCritByModule.get(db);
+                                if (moduleCrit == null) {
+                                    moduleCrit = new ArrayList<>();
+                                    germplasmCritByModule.put(db, moduleCrit);
                                 }
-                                
-                                if (!matchingVariantSetBase && (fFilterOnCallSets || fFilterOnGermplasm)) { //there is no variantSet matching with callsets
-                                    //return empty result
-                                    cslr.getMetadata().getPagination().setTotalCount(0L);
-                                    cslr.getMetadata().getPagination().setTotalPages(0);
-                                    cslr.setResult(new CallSetsListResponseResult());
-                                    return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
-                                }
-                                
-                                sampleCritByModule = vsCritByModule;
-                        }
+                                moduleCrit.add(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividuals.get(db)));
+	                        }
+	                    }
+	                }
+	                callSetCritByModule = germplasmCritByModule;
+	        	}
+
+	        	if (fFilterOnVariantSets) {
+                    HashMap<String /*module*/, List<Criteria>> vsCritByModule = new HashMap<>();
+                    boolean matchingVariantSetBase = false;
+                    for (String variantSetDbId : body.getVariantSetDbIds()) {
+                        String[] info = Helper.getInfoFromId(variantSetDbId, 3);
+                        int projId = Integer.parseInt(info[1]); 
                         
-                        int nTotalCallSetsEncountered = 0;
-                        String lowerCaseIdFieldName = BrapiService.BRAPI_FIELD_germplasmDbId.toLowerCase();
-                        for (String db : sampleCritByModule.keySet()) {
-                        MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
-                        Map<String, Integer> indIdToSampleIdMap = new HashMap<>();
-                        ArrayList<Criteria> critList = sampleCritByModule.get(db);
-                        List<GenotypingSample> samples = mongoTemplate.find(new Query(new Criteria().orOperator(critList.toArray(new Criteria[critList.size()]))), GenotypingSample.class);
-                        for (GenotypingSample sample : samples)
-                                indIdToSampleIdMap.put(sample.getIndividual(), sample.getId());
+                        if ((fFilterOnCallSets || fFilterOnSamples || fFilterOnGermplasm) && callSetCritByModule.containsKey(info[0])) { // variantSet base matches with callSets or germplasm base 
+                            ArrayList<Criteria> callsetsCrit = new ArrayList<>();
+                            callsetsCrit.addAll(callSetCritByModule.get(info[0]));
+                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId));
+                            callsetsCrit.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2]));
+                            Criteria crit = new Criteria().andOperator(callsetsCrit.toArray(new Criteria[callsetsCrit.size()]));
+	                        List<Criteria> moduleCrit = vsCritByModule.get(info[0]);
+	                        if (moduleCrit == null) {
+	                        	moduleCrit = new ArrayList<>();
+	                        	vsCritByModule.put(info[0], moduleCrit);
+	                        }
+	                        moduleCrit.add(crit);
 
-                        // attach individual metadata to callsets
-                        Map<String, Individual> indMap = MgdbDao.getInstance().loadIndividualsWithAllMetadata(db, sCurrentUser, null, indIdToSampleIdMap.keySet(), null);
-
-                                for (int i=0; i<samples.size(); i++) {
-                                        GenotypingSample sample = samples.get(i);
-                                        nTotalCallSetsEncountered++;
-                                        CallSet callset = new CallSet();
-                                        callset.setCallSetDbId(db + Helper.ID_SEPARATOR + sample.getId());
-                                        callset.setCallSetName(sample.getSampleName());
-                                        callset.setSampleDbId(callset.getCallSetDbId());
-                                        callset.setVariantSetDbIds(Arrays.asList(db + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun()));
-                                        
-                                        if (sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences) != null) {                                            
-                                            ExternalReferences refs = objectMapper.convertValue(sample.getAdditionalInfo().get(BrapiService.BRAPI_FIELD_externalReferences), ExternalReferences.class);
-
-                                            boolean getNameFromExtRef = false;
-                                            if (refs != null && !refs.isEmpty()) {
-                                                callset.setExternalReferences(refs);
-                                                for (ExternalReferencesInner extRef:refs) {
-                                                    if (extRef.getReferenceId().equals(sample.getSampleName())) {
-                                                        getNameFromExtRef = true;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            if (getNameFromExtRef && sample.getAdditionalInfo().get("sampleName") != null) {
-                                                callset.setCallSetName((String) sample.getAdditionalInfo().get("sampleName"));
-                                            }
-                                        }
-                                        
-                                        final Individual ind = indMap.get(sample.getIndividual());
-                                        for (String key : ind.getAdditionalInfo().keySet()) {
-                                            String sLCkey = key.toLowerCase();
-                                            Object val = ind.getAdditionalInfo().get(key);
-                                            if (val == null)
-                                                continue;
-                                            
-                                                if (!Germplasm.germplasmFields.containsKey(sLCkey) && !BrapiRestController.extRefList.contains(key) && !lowerCaseIdFieldName.equals(sLCkey))
-                                                callset.putAdditionalInfoItem(key, ind.getAdditionalInfo().get(key).toString());
-                                            }
-                                        result.addDataItem(callset);
+                            matchingVariantSetBase = true;
+                        } else if (!fFilterOnCallSets && !fFilterOnGermplasm) { // get all callsets for each accessible variantSets
+                            if (tokenManager.canUserReadProject(token, info[0], projId)) {
+                                List<Criteria> moduleCrit = vsCritByModule.get(info[0]);
+                                if (moduleCrit == null) {
+                                    moduleCrit = new ArrayList<>();
+                                    vsCritByModule.put(info[0], moduleCrit);
                                 }
+                                moduleCrit.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(projId), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2])));
+                            }
+                            else
+                                fTriedToAccessForbiddenData = true;
                         }
+                    }
+                    
+                    if (!matchingVariantSetBase && (fFilterOnCallSets || fFilterOnGermplasm)) { // there is no variantSet matching with callsets: return empty result
+                        cslr.getMetadata().getPagination().setTotalCount(0L);
+                        cslr.getMetadata().getPagination().setTotalPages(0);
+                        cslr.setResult(new CallSetsListResponseResult());
+                        return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
+                    }
+                    callSetCritByModule = vsCritByModule;
+                }
+                
+                int nTotalCallSetsEncountered = 0;
+                for (String db : callSetCritByModule.keySet()) {
+                    MongoTemplate mongoTemplate = MongoTemplateManager.get(db);
+                    List<Criteria> critList = callSetCritByModule.get(db);
+                    List<Callset> callsets = mongoTemplate.find(new Query(new Criteria().orOperator(critList)), GenotypingSample.class).stream().map(sp -> sp.getCallSets()).flatMap(Collection::stream).toList();
+                    for (int i=0; i < callsets.size(); i++) {
+                        Callset callset = callsets.get(i);
+                        nTotalCallSetsEncountered++;
+                        CallSet brapiCallset = new CallSet();
+                        brapiCallset.setCallSetDbId(db + Helper.ID_SEPARATOR + callset.getId());
+                        brapiCallset.setCallSetName(String.valueOf(callset.getId()));
+                        brapiCallset.setSampleDbId(db + Helper.ID_SEPARATOR + callset.getSampleId());
+                        brapiCallset.setVariantSetDbIds(Arrays.asList(db + Helper.ID_SEPARATOR + callset.getProjectId() + Helper.ID_SEPARATOR + callset.getRun()));
+                        result.addDataItem(brapiCallset);
+                    }
+                }
 
-	        	if (nTotalCallSetsEncountered == 0 && fTriedToAccessForbiddenData) {
+	        	if (nTotalCallSetsEncountered == 0 && fTriedToAccessForbiddenData)
 	        		httpCode = HttpStatus.FORBIDDEN;
-                        } else {
-	    			
+	            else {
 	    			cslr.getMetadata().getPagination().setPageSize(result.getData().size());
 	    			cslr.getMetadata().getPagination().setCurrentPage(body.getPage());
 	    			cslr.getMetadata().getPagination().setTotalPages(1);
 	    			cslr.getMetadata().getPagination().setTotalCount((long) result.getData().size());
 	        	}
-                }
+            }
 
-                cslr.setResult(result);
-                return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
+            cslr.setResult(result);
+            return new ResponseEntity<>(cslr, httpCode == null ? HttpStatus.OK : httpCode);
 
         } catch (Exception e) {
             log.error("Couldn't serialize response for content type application/json", e);

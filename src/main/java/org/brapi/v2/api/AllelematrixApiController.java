@@ -9,9 +9,9 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,16 +21,11 @@ import java.util.stream.Collectors;
 
 import javax.ejb.ObjectNotFoundException;
 
-import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
+import fr.cirad.tools.AppConfig;
+import org.brapi.v2.model.*;
 import org.brapi.v2.model.AlleleMatrixDataMatrices.DataTypeEnum;
-import org.brapi.v2.model.AlleleMatrixPagination;
-import org.brapi.v2.model.AlleleMatrixResponse;
-import org.brapi.v2.model.AlleleMatrixSearchRequest;
-import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
-import org.brapi.v2.model.Metadata;
-import org.brapi.v2.model.Status;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -51,17 +46,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
-import com.mongodb.BasicDBObject;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 
 import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.mgdb.model.mongo.maintypes.DBVCFHeader;
-import fr.cirad.mgdb.model.mongo.maintypes.GenotypingProject;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.AbstractVariantData;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongo.subtypes.Run;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
@@ -70,16 +64,17 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import java.util.LinkedHashSet;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
 
     static private final org.apache.log4j.Logger LOG = org.apache.log4j.Logger.getLogger(AllelematrixApiController.class);
-    public static final int MAX_TOTAL_CALLS = 10000;
 
     @Autowired
     AbstractTokenManager tokenManager;
+
+    @Autowired
+    AppConfig appConfig;
 
 //    @Autowired
 //    private MongoBrapiCache brapiCache;
@@ -93,12 +88,12 @@ public class AllelematrixApiController implements AllelematrixApi {
     @Override
     public ResponseEntity<AlleleMatrixResponse> allelematrixGet(Integer dimensionVariantPage, Integer dimensionVariantPageSize, Integer dimensionCallSetPage, Integer dimensionCallSetPageSize,
             Boolean preview, String dataMatrixAbbreviations, String positionRange, String germplasmDbId, String germplasmName, String germplasmPUI, String callSetDbId,
-            String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String authorization) throws InterruptedException {
+            String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String authorization) throws InterruptedException, ObjectNotFoundException {
 
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
-            GenotypingSample sample = MongoTemplateManager.get(info[0]).find(new Query(Criteria.where("_id").is(Integer.parseInt(info[1]))), GenotypingSample.class).iterator().next();
-            variantSetDbId = info[0] + Helper.ID_SEPARATOR + sample.getProjectId() + Helper.ID_SEPARATOR + sample.getRun();
+            Callset cs = MongoTemplateManager.get(info[0]).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").is(Integer.parseInt(info[1]))), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class).iterator().next();
+            variantSetDbId = info[0] + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
         }
 
         AlleleMatrixSearchRequest request = new AlleleMatrixSearchRequest();
@@ -160,11 +155,12 @@ public class AllelematrixApiController implements AllelematrixApi {
     }
 
     @Override
-    public ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body) throws InterruptedException {
+    public ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body) throws InterruptedException, ObjectNotFoundException {
         return searchAllelematrixPost(authorization, body, true);
     }
 
-    protected ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body, boolean fVcfStyleGenotypes) throws InterruptedException {
+    protected ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body, boolean fVcfStyleGenotypes) throws InterruptedException, ObjectNotFoundException {
+        int maxTotalCalls = appConfig.getAlleleSearchMaxTotalPageSize();
         String token = ServerinfoApiController.readToken(authorization);
         long before = System.currentTimeMillis();
         AlleleMatrixResponse response = new AlleleMatrixResponse();
@@ -196,15 +192,19 @@ public class AllelematrixApiController implements AllelematrixApi {
             }
         }
         
-        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > MAX_TOTAL_CALLS) {
+        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxTotalCalls) {
             Status status = new Status();
-            if (numberOfCallSetsPerPage > MAX_TOTAL_CALLS) {
+            String message = "";
+            if (numberOfCallSetsPerPage > maxTotalCalls) {
                 //return calls per variant
                 numberOfMarkersPerPage = 1;
+                message = "CALLSET pageSize out of bounds (>10000), returning calls by variant, VARIANT pageSize set to "+ numberOfMarkersPerPage;
+
             } else {
-                numberOfMarkersPerPage = MAX_TOTAL_CALLS / numberOfCallSetsPerPage;         
+                numberOfMarkersPerPage = maxTotalCalls / numberOfCallSetsPerPage;
+                message = "VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage;
             }
-            status.setMessage("VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage + "(VARIANT pageSize * CALLSETS pageSize should not exceeds " + MAX_TOTAL_CALLS + ")");
+            status.setMessage(message + " (VARIANT pageSize * CALLSETS pageSize should not exceeds " + maxTotalCalls + ")");
             metadata.addStatusItem(status);
         }
 
@@ -285,6 +285,14 @@ public class AllelematrixApiController implements AllelematrixApi {
                 java.util.logging.Logger.getLogger(AllelematrixApiController.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
+        
+        MongoTemplate mongoTemplate = module == null ? null : MongoTemplateManager.get(module);
+        if (module != null && mongoTemplate == null) {
+            Status status = new Status();
+            status.setMessage("Database " + module + " does not exist");
+            metadata.addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
 
         if (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty()) {
             if (module == null) {
@@ -292,52 +300,28 @@ public class AllelematrixApiController implements AllelematrixApi {
                 status.setMessage("When using germplasmName filter, you have to specify at least a variantSetDbId or a variantDbId");
                 metadata.addStatusItem(status);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            } else {
-                Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
-                List<String> germplasmIdsByNames = MongoTemplateManager.get(module).findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                if (germplasmIds == null) {
-                    germplasmIds = germplasmIdsByNames;
-                } else {
-                    germplasmIds.retainAll(germplasmIdsByNames);
-                }
             }
+
+            Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+            List<String> germplasmIdsByNames = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+            if (germplasmIds == null)
+                germplasmIds = germplasmIdsByNames;
+            else
+                germplasmIds.retainAll(germplasmIdsByNames);
         }
 
         if (germplasmIds != null && germplasmIds.isEmpty()) { //if no germplasm were found based on germplasmDbId and/or germplasmName, no data to return
             return returnEmptyMatrix(response, variantsPage, variantsPage, callSetsPage, callSetsPage);
         }
 
-        List<Integer> sampleIDs = null;
+        HashSet<String> sampleIDs = new HashSet<>();
         if (germplasmIds != null) {
-            sampleIDs = new ArrayList<>();
-            for (GenotypingSample s : MongoTemplateManager.get(module).find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class)) {
+            for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
                 sampleIDs.add(s.getId());
-            }
-        }
-
-        List<Integer> callSetIds = new ArrayList<>();
-        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
-            for (String callSetDbId : body.getCallSetDbIds()) {
-                String[] info = Helper.getInfoFromId(callSetDbId, 2);
-                if (module == null) {
-                    module = info[0];
-                } else if (!module.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                callSetIds.add(Integer.parseInt(info[1]));
-            }
-            if (sampleIDs == null) {
-                sampleIDs = callSetIds;
-            } else {
-                sampleIDs.retainAll(callSetIds);
-            }
         }
 
         if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
-            List<Integer> givenSampleIds = new ArrayList<>();
+        	HashSet<String> givenSampleIds = new HashSet<>();
             for (String sampleDbId : body.getSampleDbIds()) {
                 String[] info = Helper.getInfoFromId(sampleDbId, 2);
                 if (module == null) {
@@ -348,62 +332,74 @@ public class AllelematrixApiController implements AllelematrixApi {
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
-                givenSampleIds.add(Integer.parseInt(info[1]));
+                givenSampleIds.add(info[1]);
             }
-            if (sampleIDs == null) {
+            if (sampleIDs.isEmpty())
                 sampleIDs = givenSampleIds;
-            } else {
+            else
                 sampleIDs.retainAll(givenSampleIds);
-            }
         }
 
-        if (fGotSampleFilter && sampleIDs.isEmpty()) {
-            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //intersection of sample, callset, germplasm filters returned no sampleDbId
-        }
+        List<Integer> callsetIds = null;
+        if (sampleIDs.isEmpty())
+            callsetIds = mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
 
-        if (sampleIDs != null && !sampleIDs.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
-            List<GenotypingSample> samples = MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class);
-            if (samples.isEmpty()) { //return empty dataMatrices            
-                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
-            } else {
-                Map<String, List<Integer>> variantSetSamples = new HashMap<>();
-                for (GenotypingSample sp : MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class)) {
-                    String variantSetDbId = module + Helper.ID_SEPARATOR + sp.getProjectId() + Helper.ID_SEPARATOR + sp.getRun();
-                    if (variantSetSamples.get(variantSetDbId) == null) {
-                        variantSetSamples.put(variantSetDbId, new ArrayList<>());
-                        variantSetSamples.get(variantSetDbId).add(sp.getId());
-                    } else {
-//                        List<Integer> s = variantSetSamples.get(variantSetDbId);
-//                        s.add(sp.getId());
-                        variantSetSamples.get(variantSetDbId).add(sp.getId());
-                    }
+        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
+            List<Integer> givenCallsetIds = new ArrayList<>();
+            for (String callsetId : body.getCallSetDbIds()) {
+                String[] info = Helper.getInfoFromId(callsetId, 2);
+                if (module == null)
+                    module = info[0];
+                else if (!module.equals(info[0])) {
+                    Status status = new Status();
+                    status.setMessage("You may specify VariantSets / Variants / CallSets / Samples only belonging to the same program / trial!");
+                    metadata.addStatusItem(status);
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
-                if (fGotVariantSetList) { //we keep only sampleIDs corresponding to the given variantSets
-                    sampleIDs = new ArrayList<>();
-                    for (String vs : variantSetSamples.keySet()) {
-                        if (body.getVariantSetDbIds().contains(vs)) {
-                            sampleIDs.addAll(variantSetSamples.get(vs));
-                        }
+                givenCallsetIds.add(Integer.parseInt(info[1]));
+            }
+            if (callsetIds == null)
+                callsetIds = givenCallsetIds;
+            else
+                callsetIds.retainAll(givenCallsetIds);
+        }
+
+//        if (fGotSampleFilter && sampleIDs.isEmpty()) {
+//            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //intersection of sample, callset, germplasm filters returned no sampleDbId
+//        }
+
+        if (callsetIds != null && !callsetIds.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
+        	List<Callset> callsets = mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class);
+            if (callsets.isEmpty()) { // return empty dataMatrices
+                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
+            }
+            else {
+                Map<String, List<Integer>> callSetsByVariantSet = new HashMap<>();
+                for (Callset cs : callsets) {
+                    String variantSetDbId = module + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
+                    List<Integer> variantSetCallSets = callSetsByVariantSet.get(variantSetDbId);
+                    if (variantSetCallSets == null) {
+                    	variantSetCallSets = new ArrayList<>();
+                        callSetsByVariantSet.put(variantSetDbId, variantSetCallSets);
                     }
-                } else {
-                    body.setVariantSetDbIds(new ArrayList<>(variantSetSamples.keySet()));
+                    variantSetCallSets.add(cs.getId());
+                }
+                if (fGotVariantSetList) { //we keep only callsetIds corresponding to the given variantSets
+                    callsetIds = new ArrayList<>();
+                    for (String vs : callSetsByVariantSet.keySet())
+                        if (body.getVariantSetDbIds().contains(vs))
+                            callsetIds.addAll(callSetsByVariantSet.get(vs));
+                } 
+                else {
+                    body.setVariantSetDbIds(new ArrayList<>(callSetsByVariantSet.keySet()));
                     fGotVariantSetList = true;
                 }
             }
-            if (sampleIDs.isEmpty()) {//return empty dataMatrices
+            if (callsetIds.isEmpty()) {//return empty dataMatrices
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
             }
         }
-        
-        MongoTemplate mongoTemplate;
-        try {
-            mongoTemplate = MongoTemplateManager.get(module);
-        } catch (Exception e) {
-            Status status = new Status();
-            status.setMessage("The given database " + module + " does not exist");
-            metadata.addStatusItem(status);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
+
         // check permissions
         Collection<Integer> projectIDs = fGotVariantSetList
                 ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(Helper.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet())
@@ -431,13 +427,13 @@ public class AllelematrixApiController implements AllelematrixApi {
                 int projId = Integer.parseInt(info[1]);
                 //GenotypingProject genotypingProject = mongoTemplate.findById(Integer.valueOf(projId), GenotypingProject.class);
                 pjVariantRunCrits.add(new Criteria().andOperator(
-                        new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId), 
+                        new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId),
                         new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])
                 ));
                 pjVariantCrits.add(new Criteria().andOperator(
-                        new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId),                               
+                        new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId),
                         new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2])
-                ));                
+                ));
             }
             if (!pjVariantRunCrits.isEmpty()) {
                 crits.add(new Criteria().orOperator(pjVariantRunCrits));
@@ -496,39 +492,33 @@ public class AllelematrixApiController implements AllelematrixApi {
         Query runQuery = crits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(crits));
         Query variantsQuery = variantCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(variantCrits));
 
-        // now deal with samples
-        int nTotalSamplesCount = 0;
-        if (sampleIDs != null && !sampleIDs.isEmpty()) {	// project necessary fields to get only the required genotypes
-            if (!callSetIds.isEmpty()) {
-                final List<Integer> sIds = callSetIds;
-                sampleIDs.sort(Comparator.comparing(v -> sIds.indexOf(v)));  //sort samples in the same order as callSetDbIds
-            }
-
-            nTotalSamplesCount = sampleIDs.size();
-            if (callSetsPage * numberOfCallSetsPerPage >= sampleIDs.size()) {
-                sampleIDs = new ArrayList<>();
+        // now deal with Callsets
+        int nTotalCallsetsCount = 0;
+        if (callsetIds != null && !callsetIds.isEmpty()) {	// project necessary fields to get only the required genotypes
+            nTotalCallsetsCount = callsetIds.size();
+            if (callSetsPage * numberOfCallSetsPerPage >= callsetIds.size()) {
+                callsetIds = new ArrayList<>();
             } else {
-                Integer endOfList = (callSetsPage + 1) * numberOfCallSetsPerPage >= sampleIDs.size() ? sampleIDs.size() : (callSetsPage + 1) * numberOfCallSetsPerPage;
-                sampleIDs = sampleIDs.subList(callSetsPage * numberOfCallSetsPerPage, endOfList);
+                Integer endOfList = (callSetsPage + 1) * numberOfCallSetsPerPage >= callsetIds.size() ? callsetIds.size() : (callSetsPage + 1) * numberOfCallSetsPerPage;
+                callsetIds = callsetIds.subList(callSetsPage * numberOfCallSetsPerPage, endOfList);
             }
         } else {	// find out which samples are involved and keep track of corresponding individuals
-            Query sampleQuery;
+            Query callsetsQuery;
             if (fGotVariantSetList) {
                 List<Criteria> vsCrits = new ArrayList<>();
                 for (String vsId : body.getVariantSetDbIds()) {
                     String[] info = Helper.getInfoFromId(vsId, 3);
-                    vsCrits.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(GenotypingSample.FIELDNAME_RUN).is(info[2])));
+                    vsCrits.add(new Criteria().andOperator(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])), Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2])));
                 }
-                sampleQuery = new Query(new Criteria().orOperator(vsCrits.toArray(new Criteria[vsCrits.size()])));
-            } else {
-                sampleQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(projectIDs));	// we only had a list of variants as input so all we can filter on is the list of projects thery are involved in
+                callsetsQuery = new Query(new Criteria().orOperator(vsCrits));
             }
-            //count samples
-            nTotalSamplesCount = (int) mongoTemplate.count(sampleQuery, GenotypingSample.class);
-            sampleIDs = new ArrayList<>();
-            for (GenotypingSample gs : mongoTemplate.find(sampleQuery.skip(callSetsPage * numberOfCallSetsPerPage).limit(numberOfCallSetsPerPage), GenotypingSample.class)) {
-                sampleIDs.add(gs.getId());
-            }
+            else
+                callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(projectIDs));	// we only had a list of variants as input so all we can filter on is the list of projects they are involved in
+
+            List<Integer> allCallSetIDs = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "." + "_id", GenotypingSample.class, Integer.class);
+            nTotalCallsetsCount = allCallSetIDs.size();
+            int fromIndex = callSetsPage * numberOfCallSetsPerPage;
+            callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfCallSetsPerPage, allCallSetIDs.size()));
         }
 
         if (!fVcfStyleGenotypes && !body.isPreview()) {
@@ -536,9 +526,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         }
 
         List<String> callSetDbIds = new ArrayList<>();
-        for (Integer spId : sampleIDs) {
-            callSetDbIds.add(module + Helper.ID_SEPARATOR + spId);
-            runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + spId);
+        for (Integer csId : callsetIds) {
+            callSetDbIds.add(module + Helper.ID_SEPARATOR + csId);
+            runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + csId);
         }
 
         //count variants
@@ -546,8 +536,8 @@ public class AllelematrixApiController implements AllelematrixApi {
         Thread countThread = new Thread() {	// count asynchronously for faster response
             public void run() {
                 long b4 = System.currentTimeMillis();
-                long countVar = !variantsQuery.getQueryObject().isEmpty() ? mongoTemplate.count(variantsQuery, VariantData.class) : Helper.estimDocCount(mongoTemplate, VariantData.class) /* much faster */;                
-                nTotalMarkerCount.set(countVar);  
+                long countVar = !variantsQuery.getQueryObject().isEmpty() ? mongoTemplate.count(variantsQuery, VariantData.class) : Helper.estimDocCount(mongoTemplate, VariantData.class) /* much faster */;
+                nTotalMarkerCount.set(countVar);
                 LOG.info("alleleMatrix variant totalCount (" + countVar + ") obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
             }
         };
@@ -558,20 +548,20 @@ public class AllelematrixApiController implements AllelematrixApi {
         try {
             List<VariantRunDataWithRuns> varList;
             int nSkipCount = variantsPage * numberOfMarkersPerPage;
-            if (sampleIDs.isEmpty()) {
+            if (callsetIds.isEmpty()) {
                 varList = new ArrayList<>();	// no more samples remain: we must have gone beyond the last page
             } else {
                 countThread.join(100); // give it a chance to execute quickly in case the info is already cached (so we may skip querying for data if requested page number is too high)
                 if (nTotalMarkerCount.get() != -1 && nSkipCount > nTotalMarkerCount.get()) {
                     varList = new ArrayList<>();	// we have gone beyond the last page
-                } else if (fGotVariantList || (fGotVariantSetList && body.getVariantSetDbIds().size() > 1)) {	
+                } else if (fGotVariantList || (fGotVariantSetList && body.getVariantSetDbIds().size() > 1)) {
                     //use aggregation to manage pagination in the case of several runs on same variant
                     MatchOperation match = match(new Criteria().andOperator(crits.toArray(new Criteria[crits.size()])));
                     ProjectionOperation project = Aggregation.project("_id", VariantRunData.FIELDNAME_KNOWN_ALLELES, VariantRunData.SECTION_ADDITIONAL_INFO)
                     // keep the order of variantDbIds
                     .and(ArrayOperators.arrayOf(varIDs).indexOf("$_id." + VariantRunDataId.FIELDNAME_VARIANT_ID)).as("_order")
-                    // a list of sampleIDs must exist, even if not passed on (should have been created for pagination in that case)
-                    .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES).nested(Fields.from(sampleIDs.stream().map(spId -> Fields.field(spId.toString(), VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + spId.toString())).toArray(Field[]::new)));
+                    // a list of callsetIds must exist, even if not passed on (should have been created for pagination in that case)
+                    .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES).nested(Fields.from(callsetIds.stream().map(csId -> Fields.field(csId.toString(), VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + csId.toString())).toArray(Field[]::new)));
 
                     // group VRD records by variant ID so that $skip remains accurate in DBs containing several runs
                     // using _order as project ID is a hack, we need this field to exist for resulting records to be deserializable, and luckily enough _order is the same for each variant ID so this still allows grouping to work as we want
@@ -590,7 +580,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 //                    System.out.println(aggregation);
                     AggregationResults<VariantRunDataWithRuns> results = mongoTemplate.aggregate(aggregation, VariantRunData.class, VariantRunDataWithRuns.class);
                     varList = results.getMappedResults();
-                    
+
                     Set<Run> allRuns = varList.stream()
                         .flatMap(v -> v.getRuns().stream())
                         .collect(Collectors.toSet());
@@ -651,7 +641,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                                 //                                    }
                                 //                                }
                                 //                            }
-                                //                        } else { 
+                                //                        } else {
                                 AlleleMatrixDataMatrices matrix = new AlleleMatrixDataMatrices();
                                 matrix.setDataMatrix(new ArrayList<>());
                                 matrix.setDataMatrixAbbreviation(vcfMetadata.get(key).getID());
@@ -680,7 +670,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             }
 
             HashMap<Integer, String> previousPhasingIds = new HashMap<>();
-            LinkedHashSet<String> variantDbIds = new LinkedHashSet<>(); //to keep variantDbIds order          
+            LinkedHashSet<String> variantDbIds = new LinkedHashSet<>(); //to keep variantDbIds order
 
             variantLoop:
             for (AbstractVariantData v : varList) {
@@ -691,60 +681,55 @@ public class AllelematrixApiController implements AllelematrixApi {
                 if (vrd.getRunName() != null) /* FIXME: we lose track of project & run IDs when we $group VRDs by variantID... */ {
                     variantSetDbIds.add(module + Helper.ID_SEPARATOR + Integer.toString(vrd.getId().getProjectId()) + Helper.ID_SEPARATOR + vrd.getRunName());
                 }
-                
+
                 if (!body.isPreview()) {  //we don't fill dataMatrices if preview=true
-                    for (String key : matricesMap.keySet()) {
+                    for (String key : matricesMap.keySet())
                         dataMap.put(key, new ArrayList<>());
-                    }
 
-                    for (Integer spId : sampleIDs) {
+                    for (Integer callSetId : callsetIds) {
                         if (nTotalMarkerCount.get() == 0) // Count does not use numericOrdering so is always correct. Find uses numericOrdering so may accidentally match unwanted sequence names
-                        {
                             break variantLoop;
-                        }
 
-                        SampleGenotype sg = vrd.getSampleGenotypes().get(spId);
-                        if (sg != null) {                           
+                        SampleGenotype sg = vrd.getSampleGenotypes().get(callSetId);
+                        if (sg != null) {
 
                             String currentPhId = (String) sg.getAdditionalInfo().get(VariantData.GT_FIELD_PHASED_ID);
-                            boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(spId));
-                            previousPhasingIds.put(spId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);
+                            boolean fPhased = currentPhId != null && currentPhId.equals(previousPhasingIds.get(callSetId));
+                            previousPhasingIds.put(callSetId, currentPhId == null ? vrd.getId().getVariantId() : currentPhId);
                             /*FIXME: check that phasing data is correctly exported*/
 
                             Map<String, Object> ai = sg.getAdditionalInfo();
                             for (String key : matricesMap.keySet()) {
                                 if (!key.equals("GT")) {  //adding additionalInfo
-                                    if (ai.get(key) != null) {
+                                    if (ai.get(key) != null)
                                         dataMap.get(key).add(ai.get(key).toString());
-                                    } else {
+                                    else
                                         dataMap.get(key).add(unknownGtCode);
-                                    }
-                                } else {  //adding genotypes
+                                }
+                                else {  //adding genotypes
                                     String gtCode = sg.getCode();
-                                    if (gtCode == null || gtCode.length() == 0) {
+                                    if (gtCode == null || gtCode.length() == 0)
                                         dataMap.get(key).add(unknownGtCode);
-                                    } else {
+                                    else {
                                         List<String> alleles = fVcfStyleGenotypes ? Helper.split(gtCode, "/") : vrd.getAllelesFromGenotypeCode(gtCode);
 
-                                        if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1) {
+                                        if (!Boolean.TRUE.equals(body.isExpandHomozygotes()) && new HashSet<String>(alleles).size() == 1)
                                             dataMap.get(key).add(alleles.get(0));
-                                        } else {
+                                        else
                                             dataMap.get(key).add(String.join(fPhased ? phasedSeparator : unPhasedSeparator, alleles));
-                                        }
                                     }
                                 }
                             }
-                        } else {
+                        }
+                        else
                             for (String key : matricesMap.keySet()) {
                                 dataMap.get(key).add(unknownGtCode);
-                            }
                         }
                     }
 
                     //Filling metadataMatrices with data (additionalInfo of VariantRunData will be displayed only if the key has been described in DBVCFheader)
-                    for (String key : matricesMap.keySet()) {
+                    for (String key : matricesMap.keySet())
                         matricesMap.get(key).getDataMatrix().add(dataMap.get(key));
-                    }
                 }
             }
 
@@ -761,9 +746,9 @@ public class AllelematrixApiController implements AllelematrixApi {
             callSetPagination.setDimension(AlleleMatrixPagination.DimensionEnum.CALLSETS);
             callSetPagination.setPage(callSetsPage);
             callSetPagination.setPageSize(numberOfCallSetsPerPage);
-            callSetPagination.setTotalCount(nTotalSamplesCount);
-            int nbOfCallSetPages = (int) nTotalSamplesCount / numberOfCallSetsPerPage;
-            if (nTotalSamplesCount % numberOfCallSetsPerPage > 0) {
+            callSetPagination.setTotalCount(nTotalCallsetsCount);
+            int nbOfCallSetPages = (int) nTotalCallsetsCount / numberOfCallSetsPerPage;
+            if (nTotalCallsetsCount % numberOfCallSetsPerPage > 0) {
                 nbOfCallSetPages++;
             }
             callSetPagination.setTotalPages(nbOfCallSetPages);

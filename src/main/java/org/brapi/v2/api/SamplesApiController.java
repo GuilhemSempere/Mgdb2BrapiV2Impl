@@ -34,16 +34,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 import fr.cirad.io.brapi.BrapiService;
-import fr.cirad.mgdb.exporting.IExportHandler;
 import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.Individual;
+import fr.cirad.mgdb.model.mongo.subtypes.Callset;
 import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import io.swagger.annotations.ApiParam;
 import java.lang.reflect.MalformedParametersException;
-import org.brapi.v2.model.Germplasm;
+
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
 @Controller
 //@ApiIgnore
@@ -118,7 +118,7 @@ public class SamplesApiController implements SamplesApi {
             }
 
             HashMap<String /*module*/, Collection<String>/*germplasmIds*/> dbIndividualsSpecifiedById = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty() ? GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds()) : null;	        	
-            HashMap<String /*module*/, Collection<Long>/*sampleIds*/> dbSamplesSpecifiedById = body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty() ? readSampleIDs(body.getSampleDbIds()) : null;	        	
+            HashMap<String /*module*/, Collection<String>/*sampleIds*/> dbSamplesSpecifiedById = body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty() ? readSampleIDs(body.getSampleDbIds()) : null;
 
             Set<String> dbsSpecifiedViaProgramsAndTrials = fGotTrialIDs && fGotProgramIDs ? body.getTrialDbIds().stream().distinct().filter(body.getProgramDbIds()::contains).collect(Collectors.toSet()) /*intersection*/ : fGotTrialIDs ? new HashSet<>(body.getTrialDbIds()) : (fGotProgramIDs ? new HashSet<>(body.getProgramDbIds()) : null);
             List<Set<String>> moduleSetsToIntersect = new ArrayList<>();
@@ -149,7 +149,7 @@ public class SamplesApiController implements SamplesApi {
             }
 
 
-            HashMap<String /*module*/, List<Integer>/*sampleIds*/> dbSamplesIds = new HashMap<>();
+            HashMap<String /*module*/, List<String>/*sampleIds*/> dbSamplesIds = new HashMap<>();
             long totalCount = 0;
 
             for (String db : dbsToAccountFor) {
@@ -180,7 +180,7 @@ public class SamplesApiController implements SamplesApi {
                 }    
 
                 if (dbSamplesSpecifiedById != null && dbSamplesSpecifiedById.get(db) != null) {
-                    Collection<Long> sampleIds = dbSamplesSpecifiedById.get(db);
+                    Collection<String> sampleIds = dbSamplesSpecifiedById.get(db);
                     if (!sampleIds.isEmpty()) {
                         andCrits.add(Criteria.where("_id").in(sampleIds));
                     }
@@ -188,41 +188,38 @@ public class SamplesApiController implements SamplesApi {
 
                 if (body.getSampleNames() != null && !body.getSampleNames().isEmpty()) {
                     List<Criteria> orCrits = new ArrayList<>();
-                    orCrits.add(Criteria.where(GenotypingSample.FIELDNAME_NAME).in(body.getSampleNames()));
+                    orCrits.add(Criteria.where("_id").in(body.getSampleNames()));
                     orCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + ".sampleName").in(body.getSampleNames()));
                     andCrits.add(new Criteria().orOperator(orCrits));
                     
                 }
 
-                if (body.getExternalReferenceIds() != null && !body.getExternalReferenceIds().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds()));
-                }
+                if (fGotExtRefs)
+                    andCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceId").in(body.getExternalReferenceIds()));
 
-                if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())  {
-                    andCrits.add(new Criteria().where(Individual.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceSource").in(body.getExternalReferenceSources()));
-                }
+                if (body.getExternalReferenceSources() != null && !body.getExternalReferenceSources().isEmpty())
+                    andCrits.add(Criteria.where(GenotypingSample.SECTION_ADDITIONAL_INFO + "." + BrapiService.BRAPI_FIELD_externalReferences + ".referenceSource").in(body.getExternalReferenceSources()));
 
                 // make sure we don't return individuals that are in projects this user doesn't have access to
                 Collection<Integer> allowedProjects = projectsByModuleFromSpecifiedStudies.get(db);
-                if (allowedProjects == null) {
+                if (allowedProjects == null)
                     try {
                         allowedProjects = MgdbDao.getUserReadableProjectsIds(tokenManager, auth == null ? null : auth.getAuthorities(), db, true);
                     } catch (ObjectNotFoundException ex) {
                         log.error(ex.getMessage());
                     }
-                }
 
-                if (allowedProjects != null && !allowedProjects.isEmpty()) {
-                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_PROJECT_ID).in(allowedProjects));
-                }
+                if (allowedProjects != null && !allowedProjects.isEmpty())
+                    andCrits.add(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(allowedProjects));
 
                 Query q = !andCrits.isEmpty() ? new Query(new Criteria().andOperator(andCrits)) : new Query();
-                List<Integer> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, Integer.class);
+                List<String> foundSampleIds = MongoTemplateManager.get(db).findDistinct(q, "_id", GenotypingSample.class, String.class);
+
                 if (!foundSampleIds.isEmpty()) {
                     totalCount = totalCount + foundSampleIds.size();
                     dbSamplesIds.put(db, foundSampleIds);
                 }
-            } 
+            }
 
             //convert to brapi format
             List<Sample> allBrapiSamples = new ArrayList<>();
@@ -240,7 +237,7 @@ public class SamplesApiController implements SamplesApi {
             int nbOfReturnedElts = 0;
             int previousDbNb = 0;
             for (String db : dbSamplesIds.keySet()) {
-                List<Integer> sampleIds = dbSamplesIds.get(db);
+                List<String> sampleIds = dbSamplesIds.get(db);
 
                 if (nbOfReturnedElts < pageSize) {
 
@@ -264,7 +261,7 @@ public class SamplesApiController implements SamplesApi {
 
                     nbOfReturnedElts = nbOfReturnedElts + sampleIds.size();
 
-                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesWithAllMetadata(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds).values()); 
+                    List<Sample> brapiSamples = convertGenotypingSampleToBrapiSample(db, MgdbDao.getInstance().loadSamplesForUser(db, AbstractTokenManager.getUserNameFromAuthentication(auth), null, sampleIds, null, false).values());
                     allBrapiSamples.addAll(brapiSamples);
                     firstIndex = 0;
                 }
@@ -298,8 +295,8 @@ public class SamplesApiController implements SamplesApi {
             Sample sample = new Sample();
             sample.sampleDbId(Helper.createId(database, mgdbSample.getId()));
             sample.germplasmDbId(Helper.createId(database, mgdbSample.getIndividual()));
-            sample.setSampleName(mgdbSample.getSampleName());
-            sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
+            sample.setSampleName(mgdbSample.getId());
+            //sample.studyDbId(database + Helper.ID_SEPARATOR + mgdbSample.getProjectId());
             if (mgdbSample.getAdditionalInfo() != null) {
                 sample.setAdditionalInfo(new HashMap<>());
                 for (String key:mgdbSample.getAdditionalInfo().keySet()) {                    
@@ -336,16 +333,16 @@ public class SamplesApiController implements SamplesApi {
         return brapiSamples;
     }
 
-    private HashMap<String, Collection<Long>> readSampleIDs(List<String> sampleDbIds) {
-        HashMap<String, Collection<Long>> dbSampleIDs = new HashMap<>();
+    private HashMap<String, Collection<String>> readSampleIDs(List<String> sampleDbIds) {
+        HashMap<String, Collection<String>> dbSampleIDs = new HashMap<>();
         for (String sId : sampleDbIds) {
             String[] info = Helper.getInfoFromId(sId, 2);
             if (info == null)
                 throw new MalformedParametersException("malformed sampleDbId: " + sId);
 
             String db = info[0];            
-            Long id = Long.parseLong(info[1]);
-            Collection<Long> sampleIDs = dbSampleIDs.get(db);
+            String id = info[1];
+            Collection<String> sampleIDs = dbSampleIDs.get(db);
             if (sampleIDs == null) {
                sampleIDs = new ArrayList<>();
                dbSampleIDs.put(info[0], sampleIDs);
