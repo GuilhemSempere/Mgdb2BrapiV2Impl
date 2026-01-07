@@ -5,7 +5,7 @@
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-	    <project.version>2.1.0-RELEASE</project.version>
+	    <project.version>2.1.1-RELEASE</project.version>
     </properties>
     
 	<groupId>fr.cirad</groupId>
@@ -20,18 +20,18 @@
         <dependency>
   			<groupId>fr.cirad</groupId>
 			<artifactId>Mgdb2BrapiImpl</artifactId>
-			<version>1.2.0-RELEASE</version>
+			<version>1.2.1-RELEASE</version>
         </dependency>
         <dependency>
             <groupId>fr.cirad</groupId>
             <artifactId>Mgdb2Export</artifactId>
-            <version>2.10-RELEASE</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>commons-logging</groupId>
-                    <artifactId>commons-logging</artifactId>
-                </exclusion>
-            </exclusions>
+            <version>2.11-RELEASE</version>
+<!--            <exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>commons-logging</groupId>-->
+<!--                    <artifactId>commons-logging</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
         </dependency>
         
  		<dependency>
@@ -64,10 +64,10 @@
 		    <artifactId>validation-api</artifactId>
 		    <version>1.1.0.Final</version>
 		</dependency>
-                <dependency>
+        <dependency>
             <groupId>fr.cirad</groupId>
             <artifactId>Mgdb2BrapiModel</artifactId>
-            <version>1.0.7-RELEASE</version>
+            <version>1.0.8-RELEASE</version>
             <type>jar</type>
         </dependency>
     </dependencies>
