@@ -127,7 +127,7 @@ public class StudiesApiController implements StudiesApi {
         	if (dbIndividualsSpecifiedById != null) {
                  for (String db : dbsToAccountFor) {
                 	 if ((dbsSpecifiedViaProgramsAndTrials == null) || body.getTrialDbIds().contains(db) || body.getProgramDbIds().contains(db)) {
-	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames())), GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID, GenotypingSample.class, Integer.class);
+	                	 List<Integer> projectsInvolvingIndividuals = MongoTemplateManager.get(db).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(dbIndividualsSpecifiedById.get(db))), GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID, GenotypingSample.class, Integer.class);
 
                 		 if (!projectsInvolvingIndividuals.isEmpty()) {
          					HashSet<Integer> moduleProjects = projectsByModuleFromSpecifiedGermplasm.get(db);
