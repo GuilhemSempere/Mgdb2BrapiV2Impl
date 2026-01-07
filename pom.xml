@@ -26,12 +26,6 @@
             <groupId>fr.cirad</groupId>
             <artifactId>Mgdb2Export</artifactId>
             <version>2.11-RELEASE</version>
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>commons-logging</groupId>-->
-<!--                    <artifactId>commons-logging</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
         </dependency>
         
  		<dependency>
