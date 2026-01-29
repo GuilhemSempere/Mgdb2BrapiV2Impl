@@ -285,6 +285,38 @@ public class AllelematrixApiController implements AllelematrixApi {
                 java.util.logging.Logger.getLogger(AllelematrixApiController.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
+
+        HashSet<String> givenSampleIds = new HashSet<>();
+        if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
+            for (String sampleDbId : body.getSampleDbIds()) {
+                String[] info = Helper.getInfoFromId(sampleDbId, 2);
+                if (module == null) {
+                    module = info[0];
+                } else if (!module.equals(info[0])) {
+                    Status status = new Status();
+                    status.setMessage("You may specify VariantSets / Variants / CallSets / sampleDbIds only belonging to the same program / trial!");
+                    metadata.addStatusItem(status);
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+                givenSampleIds.add(info[1]);
+            }
+        }
+
+        List<Integer> givenCallsetIds = new ArrayList<>();
+        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
+            for (String callsetId : body.getCallSetDbIds()) {
+                String[] info = Helper.getInfoFromId(callsetId, 2);
+                if (module == null) {
+                    module = info[0];
+                } else if (!module.equals(info[0])) {
+                    Status status = new Status();
+                    status.setMessage("You may specify VariantSets / Variants / CallSets / Samples only belonging to the same program / trial!");
+                    metadata.addStatusItem(status);
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+                givenCallsetIds.add(Integer.parseInt(info[1]));
+            }
+        }
         
         MongoTemplate mongoTemplate = module == null ? null : MongoTemplateManager.get(module);
         if (module != null && mongoTemplate == null) {
@@ -320,45 +352,22 @@ public class AllelematrixApiController implements AllelematrixApi {
                 sampleIDs.add(s.getId());
         }
 
-        if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
-        	HashSet<String> givenSampleIds = new HashSet<>();
-            for (String sampleDbId : body.getSampleDbIds()) {
-                String[] info = Helper.getInfoFromId(sampleDbId, 2);
-                if (module == null) {
-                    module = info[0];
-                } else if (!module.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / sampleDbIds only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                givenSampleIds.add(info[1]);
-            }
+        if (!givenSampleIds.isEmpty()) {
             if (sampleIDs.isEmpty())
                 sampleIDs = givenSampleIds;
             else
                 sampleIDs.retainAll(givenSampleIds);
+            if (sampleIDs.isEmpty()) { //if no sample found based on sampleDbIds and/or germplasmDbIds, no data to return
+                return returnEmptyMatrix(response, variantsPage, variantsPage, callSetsPage, callSetsPage);
+            }
         }
 
-        List<Integer> callsetIds = null;
-        if (sampleIDs.isEmpty())
+        List<Integer> callsetIds = new ArrayList<>();
+        if (!sampleIDs.isEmpty())
             callsetIds = mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
 
-        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
-            List<Integer> givenCallsetIds = new ArrayList<>();
-            for (String callsetId : body.getCallSetDbIds()) {
-                String[] info = Helper.getInfoFromId(callsetId, 2);
-                if (module == null)
-                    module = info[0];
-                else if (!module.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / Samples only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                givenCallsetIds.add(Integer.parseInt(info[1]));
-            }
-            if (callsetIds == null)
+        if (!givenCallsetIds.isEmpty()) {
+            if (callsetIds.isEmpty())
                 callsetIds = givenCallsetIds;
             else
                 callsetIds.retainAll(givenCallsetIds);
@@ -368,7 +377,7 @@ public class AllelematrixApiController implements AllelematrixApi {
 //            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //intersection of sample, callset, germplasm filters returned no sampleDbId
 //        }
 
-        if (callsetIds != null && !callsetIds.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
+        if (!callsetIds.isEmpty()) { // identify the runs those samples are involved in, update run list if necessary
         	List<Callset> callsets = mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class);
             if (callsets.isEmpty()) { // return empty dataMatrices
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
@@ -389,15 +398,17 @@ public class AllelematrixApiController implements AllelematrixApi {
                     for (String vs : callSetsByVariantSet.keySet())
                         if (body.getVariantSetDbIds().contains(vs))
                             callsetIds.addAll(callSetsByVariantSet.get(vs));
+                    if (callsetIds.isEmpty()) {
+                        return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
+                    }
                 } 
                 else {
                     body.setVariantSetDbIds(new ArrayList<>(callSetsByVariantSet.keySet()));
                     fGotVariantSetList = true;
                 }
             }
-            if (callsetIds.isEmpty()) {//return empty dataMatrices
-                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
-            }
+        } else if (fGotSampleFilter) {// found no callsets based on germplasm, sample, callset filter so return empty dataMatrices
+            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage); //if no samples were found based on germplasm or sample or callset id, no data to return
         }
 
         // check permissions
