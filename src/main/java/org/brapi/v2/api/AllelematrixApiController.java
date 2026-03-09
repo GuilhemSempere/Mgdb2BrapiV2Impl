@@ -6,6 +6,7 @@ import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_STA
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
 
+import java.lang.reflect.MalformedParametersException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -80,6 +81,7 @@ import fr.cirad.tools.query.GroupedExecutor.TaskWrapper;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import org.springframework.web.server.ResponseStatusException;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {
@@ -103,7 +105,7 @@ public class AllelematrixApiController implements AllelematrixApi {
     @Override
     public ResponseEntity<AlleleMatrixResponse> allelematrixGet(Integer dimensionVariantPage, Integer dimensionVariantPageSize, Integer dimensionCallSetPage, Integer dimensionCallSetPageSize,
                                                                 Boolean preview, String dataMatrixAbbreviations, String positionRange, String germplasmDbId, String germplasmName, String germplasmPUI, String callSetDbId,
-                                                                String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String authorization) throws InterruptedException, ObjectNotFoundException {
+                                                                String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased, String authorization) throws InterruptedException, ObjectNotFoundException, MalformedParametersException {
 
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
@@ -181,408 +183,416 @@ public class AllelematrixApiController implements AllelematrixApi {
         response.setResult(result);
         response.setMetadata(metadata);
 
-        // -------------------------------------------------------------------------
-        // Parse pagination parameters
-        // -------------------------------------------------------------------------
-        int numberOfCallSetsPerPage = 100;
-        int callSetsPage = 0;
-        int numberOfMarkersPerPage = 100;
-        int variantsPage = 0;
+        try {
+            // -------------------------------------------------------------------------
+            // Parse pagination parameters
+            // -------------------------------------------------------------------------
+            int numberOfCallSetsPerPage = 100;
+            int callSetsPage = 0;
+            int numberOfMarkersPerPage = 100;
+            int variantsPage = 0;
 
-        if (body.getPagination() != null && !body.getPagination().isEmpty()) {
-            for (AlleleMatrixSearchRequestPagination pagination : body.getPagination()) {
-                if (pagination.getDimension() == null) {
-                    Status status = new Status();
-                    status.setMessage("Invalid pagination dimension specified, only 'VARIANTS' and 'CALLSETS' are accepted!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS) {
-                    numberOfCallSetsPerPage = pagination.getPageSize();
-                    callSetsPage = pagination.getPage();
-                } else if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS) {
-                    numberOfMarkersPerPage = pagination.getPageSize();
-                    variantsPage = pagination.getPage();
-                }
-            }
-        }
-
-        if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxTotalCalls) {
-            Status status = new Status();
-            String message = "";
-            if (numberOfCallSetsPerPage > maxTotalCalls) {
-                numberOfMarkersPerPage = 1;
-                message = "CALLSET pageSize out of bounds (>" + maxTotalCalls + "), returning calls by variant, VARIANT pageSize set to " + numberOfMarkersPerPage;
-            } else {
-                numberOfMarkersPerPage = maxTotalCalls / numberOfCallSetsPerPage;
-                message = "VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage;
-            }
-            status.setMessage(message + " (VARIANT pageSize * CALLSETS pageSize should not exceed " + maxTotalCalls + ")");
-            metadata.addStatusItem(status);
-        }
-
-        String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
-        result.setUnknownString(unknownGtCode);
-        String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
-        result.setSepPhased(phasedSeparator);
-        String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();
-        result.setSepUnphased(unPhasedSeparator);
-
-        // -------------------------------------------------------------------------
-        // Validate that at least one filter is provided
-        // -------------------------------------------------------------------------
-        boolean fGotVariantSetList = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
-        boolean fGotVariantList = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
-        boolean fGotSampleFilter = ((body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty())
-                || (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty())
-                || (body.getGermplasmPUIs() != null && !body.getGermplasmPUIs().isEmpty())
-                || (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty())
-                || (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()));
-
-        if (!fGotVariantSetList && !fGotVariantList && !fGotSampleFilter) {
-            Status status = new Status();
-            status.setMessage("You must specify at least one of those filters : callSetDbId, sampleDbId, germplasmDbId, variantDbId, or variantSetDbId!");
-            metadata.addStatusItem(status);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-
-        // -------------------------------------------------------------------------
-        // Resolve module (database) from the provided filter IDs — all must agree
-        // -------------------------------------------------------------------------
-        String module = null;
-
-        if (fGotVariantSetList) {
-            for (String variantSetDbId : body.getVariantSetDbIds()) {
-                if (module == null) {
-                    module = Helper.getInfoFromId(variantSetDbId, 3)[0];
-                } else if (!module.equals(Helper.getInfoFromId(variantSetDbId, 3)[0])) {
-                    Status status = new Status();
-                    status.setMessage("You must specify VariantSets belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    response.setMetadata(metadata);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            if (body.getPagination() != null && !body.getPagination().isEmpty()) {
+                for (AlleleMatrixSearchRequestPagination pagination : body.getPagination()) {
+                    if (pagination.getDimension() == null) {
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "Invalid pagination dimension specified, only 'VARIANTS' and 'CALLSETS' are accepted!"
+                        );
+                    }
+                    if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS) {
+                        numberOfCallSetsPerPage = pagination.getPageSize();
+                        callSetsPage = pagination.getPage();
+                    } else if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS) {
+                        numberOfMarkersPerPage = pagination.getPageSize();
+                        variantsPage = pagination.getPage();
+                    }
                 }
             }
-        }
 
-        if (fGotVariantList) {
-            for (String variantDbId : body.getVariantDbIds()) {
-                if (module == null) {
-                    module = Helper.getInfoFromId(variantDbId, 2)[0];
-                } else if (!module.equals(Helper.getInfoFromId(variantDbId, 2)[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    response.setMetadata(metadata);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            if (numberOfCallSetsPerPage * numberOfMarkersPerPage > maxTotalCalls) {
+                Status status = new Status();
+                String message = "";
+                if (numberOfCallSetsPerPage > maxTotalCalls) {
+                    numberOfMarkersPerPage = 1;
+                    message = "CALLSET pageSize out of bounds (>" + maxTotalCalls + "), returning calls by variant, VARIANT pageSize set to " + numberOfMarkersPerPage;
+                } else {
+                    numberOfMarkersPerPage = maxTotalCalls / numberOfCallSetsPerPage;
+                    message = "VARIANT pageSize out of bounds, set to " + numberOfMarkersPerPage;
+                }
+                status.setMessage(message + " (VARIANT pageSize * CALLSETS pageSize should not exceed " + maxTotalCalls + ")");
+                metadata.addStatusItem(status);
+            }
+
+            String unknownGtCode = body.getUnknownString() == null ? "." : body.getUnknownString();
+            result.setUnknownString(unknownGtCode);
+            String phasedSeparator = body.getSepPhased() == null ? "|" : body.getSepPhased();
+            result.setSepPhased(phasedSeparator);
+            String unPhasedSeparator = body.getSepUnphased() == null ? "/" : body.getSepUnphased();
+            result.setSepUnphased(unPhasedSeparator);
+
+            // -------------------------------------------------------------------------
+            // Validate that at least one filter is provided
+            // -------------------------------------------------------------------------
+            boolean fGotVariantSetList = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
+            boolean fGotVariantList = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
+            boolean fGotSampleFilter = ((body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty())
+                    || (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty())
+                    || (body.getGermplasmPUIs() != null && !body.getGermplasmPUIs().isEmpty())
+                    || (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty())
+                    || (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()));
+
+            if (!fGotVariantSetList && !fGotVariantList && !fGotSampleFilter) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "You must specify at least one of those filters : callSetDbId, sampleDbId, germplasmDbId, variantDbId, or variantSetDbId!"
+                );
+            }
+
+            // -------------------------------------------------------------------------
+            // Resolve module (database) from the provided filter IDs — all must agree
+            // -------------------------------------------------------------------------
+            String module = null;
+
+            if (fGotVariantSetList) {
+                for (String variantSetDbId : body.getVariantSetDbIds()) {
+                    String[] info = Helper.getInfoFromId(variantSetDbId, 3);
+                    if (info == null) {
+                        throw new MalformedParametersException("malformed variantSetDbId: " + variantSetDbId);
+                    }
+                    if (module == null) {
+                        module = info[0];
+                    } else if (!module.equals(info[0])) {
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST, "You must specify VariantSets belonging to the same program / trial!"
+                        );
+                    }
                 }
             }
-        }
 
-        // -------------------------------------------------------------------------
-        // Resolve germplasm → individual IDs
-        // -------------------------------------------------------------------------
-        List<String> germplasmIds = null;
-        if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
-            germplasmIds = new ArrayList<>();
-            try {
+            if (fGotVariantList) {
+                for (String variantDbId : body.getVariantDbIds()) {
+                    String[] info = Helper.getInfoFromId(variantDbId, 2);
+                    if (info == null) {
+                        throw new MalformedParametersException("malformed variantDbId: " + variantDbId);
+                    }
+                    if (module == null) {
+                        module = info[0];
+                    } else if (!module.equals(info[0])) {
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "You may specify VariantSets / Variants only belonging to the same program / trial!"
+                        );
+                    }
+                }
+            }
+
+            // -------------------------------------------------------------------------
+            // Resolve germplasm → individual IDs
+            // -------------------------------------------------------------------------
+            List<String> germplasmIds = null;
+            if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
+                germplasmIds = new ArrayList<>();
                 Map<String, Collection<String>> gMap = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
                 if (gMap.size() > 1) {
-                    Status status = new Status();
-                    status.setMessage("You can't specify germplasm ids from different programs");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "You can't specify germplasm ids from different programs"
+                    );
                 }
                 if (module == null) {
                     module = gMap.keySet().iterator().next();
                 } else if (!module.equals(gMap.keySet().iterator().next())) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / Germplasm only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "You may specify VariantSets / Variants / CallSets / Germplasm only belonging to the same program / trial!"
+                    );
                 }
                 germplasmIds.addAll(gMap.get(module));
-            } catch (Exception ex) {
-                java.util.logging.Logger.getLogger(AllelematrixApiController.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }
 
-        HashSet<String> givenSampleIds = new HashSet<>();
-        if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
-            for (String sampleDbId : body.getSampleDbIds()) {
-                String[] info = Helper.getInfoFromId(sampleDbId, 2);
-                if (module == null) {
-                    module = info[0];
-                } else if (!module.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / sampleDbIds only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                givenSampleIds.add(info[1]);
-            }
-        }
-
-        List<Integer> givenCallsetIds = new ArrayList<>();
-        if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
-            for (String callsetId : body.getCallSetDbIds()) {
-                String[] info = Helper.getInfoFromId(callsetId, 2);
-                if (module == null) {
-                    module = info[0];
-                } else if (!module.equals(info[0])) {
-                    Status status = new Status();
-                    status.setMessage("You may specify VariantSets / Variants / CallSets / Samples only belonging to the same program / trial!");
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                givenCallsetIds.add(Integer.parseInt(info[1]));
-            }
-        }
-
-        MongoTemplate mongoTemplate = module == null ? null : MongoTemplateManager.get(module);
-        if (module != null && mongoTemplate == null) {
-            Status status = new Status();
-            status.setMessage("Database " + module + " does not exist");
-            metadata.addStatusItem(status);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-
-        if (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty()) {
-            if (module == null) {
-                Status status = new Status();
-                status.setMessage("When using germplasmName filter, you have to specify at least a variantSetDbId or a variantDbId");
-                metadata.addStatusItem(status);
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
-            List<String> germplasmIdsByNames = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-            if (germplasmIds == null)
-                germplasmIds = germplasmIdsByNames;
-            else
-                germplasmIds.retainAll(germplasmIdsByNames);
-        }
-
-        if (germplasmIds != null && germplasmIds.isEmpty())
-            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
-
-        // -------------------------------------------------------------------------
-        // Resolve germplasm → sample IDs → callset IDs
-        // -------------------------------------------------------------------------
-        HashSet<String> sampleIDs = new HashSet<>();
-        if (germplasmIds != null) {
-            for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
-                sampleIDs.add(s.getId());
-        }
-
-        if (!givenSampleIds.isEmpty()) {
-            if (sampleIDs.isEmpty())
-                sampleIDs = givenSampleIds;
-            else
-                sampleIDs.retainAll(givenSampleIds);
-            if (sampleIDs.isEmpty())
-                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
-        }
-
-        List<Integer> callsetIds = new ArrayList<>();
-        if (!sampleIDs.isEmpty())
-            callsetIds = mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
-
-        if (!givenCallsetIds.isEmpty()) {
-            if (callsetIds.isEmpty())
-                callsetIds = givenCallsetIds;
-            else
-                callsetIds.retainAll(givenCallsetIds);
-        }
-
-        if (!callsetIds.isEmpty()) {
-            List<Callset> callsets = mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class);
-            if (callsets.isEmpty()) {
-                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
-            } else {
-                Map<String, List<Integer>> callSetsByVariantSet = new HashMap<>();
-                for (Callset cs : callsets) {
-                    String variantSetDbId = module + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
-                    List<Integer> variantSetCallSets = callSetsByVariantSet.get(variantSetDbId);
-                    if (variantSetCallSets == null) {
-                        variantSetCallSets = new ArrayList<>();
-                        callSetsByVariantSet.put(variantSetDbId, variantSetCallSets);
+            HashSet<String> givenSampleIds = new HashSet<>();
+            if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
+                for (String sampleDbId : body.getSampleDbIds()) {
+                    String[] info = Helper.getInfoFromId(sampleDbId, 2);
+                    if (info == null) {
+                        throw new MalformedParametersException("malformed sampleDbId: " + sampleDbId);
                     }
-                    variantSetCallSets.add(cs.getId());
+                    if (module == null) {
+                        module = info[0];
+                    } else if (!module.equals(info[0])) {
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "You may specify VariantSets / Variants / CallSets / Germplasm only belonging to the same program / trial!"
+                        );
+                    }
+                    givenSampleIds.add(info[1]);
                 }
-                if (fGotVariantSetList) {
-                    callsetIds = new ArrayList<>();
-                    for (String vs : callSetsByVariantSet.keySet())
-                        if (body.getVariantSetDbIds().contains(vs))
-                            callsetIds.addAll(callSetsByVariantSet.get(vs));
-                    if (callsetIds.isEmpty())
-                        return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
+            }
+
+            List<Integer> givenCallsetIds = new ArrayList<>();
+            if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
+                for (String callsetId : body.getCallSetDbIds()) {
+                    String[] info = Helper.getInfoFromId(callsetId, 2);
+                    if (info == null) {
+                        throw new MalformedParametersException("malformed callsetDbId: " + callsetId);
+                    }
+                    if (module == null) {
+                        module = info[0];
+                    } else if (!module.equals(info[0])) {
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "You may specify VariantSets / Variants / CallSets / Samples only belonging to the same program / trial!"
+                        );
+                    }
+                    givenCallsetIds.add(Integer.parseInt(info[1]));
+                }
+            }
+
+            MongoTemplate mongoTemplate = module == null ? null : MongoTemplateManager.get(module);
+            if (module != null && mongoTemplate == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Database " + module + " does not exist"
+                );
+            }
+
+            if (body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty()) {
+                if (module == null) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "When using germplasmName filter, you have to specify at least a variantSetDbId or a variantDbId"
+                    );
+                }
+                Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
+                List<String> germplasmIdsByNames = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                if (germplasmIds == null)
+                    germplasmIds = germplasmIdsByNames;
+                else
+                    germplasmIds.retainAll(germplasmIdsByNames);
+            }
+
+            if (germplasmIds != null && germplasmIds.isEmpty())
+                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
+
+            // -------------------------------------------------------------------------
+            // Resolve germplasm → sample IDs → callset IDs
+            // -------------------------------------------------------------------------
+            HashSet<String> sampleIDs = new HashSet<>();
+            if (germplasmIds != null) {
+                for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
+                    sampleIDs.add(s.getId());
+            }
+
+            if (!givenSampleIds.isEmpty()) {
+                if (sampleIDs.isEmpty())
+                    sampleIDs = givenSampleIds;
+                else
+                    sampleIDs.retainAll(givenSampleIds);
+                if (sampleIDs.isEmpty())
+                    return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
+            }
+
+            List<Integer> callsetIds = new ArrayList<>();
+            if (!sampleIDs.isEmpty())
+                callsetIds = mongoTemplate.findDistinct(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+
+            if (!givenCallsetIds.isEmpty()) {
+                if (callsetIds.isEmpty())
+                    callsetIds = givenCallsetIds;
+                else
+                    callsetIds.retainAll(givenCallsetIds);
+            }
+
+            if (!callsetIds.isEmpty()) {
+                List<Callset> callsets = mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class);
+                if (callsets.isEmpty()) {
+                    return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
                 } else {
-                    body.setVariantSetDbIds(new ArrayList<>(callSetsByVariantSet.keySet()));
-                    fGotVariantSetList = true;
-                }
-            }
-        } else if (fGotSampleFilter) {
-            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
-        }
-
-        // -------------------------------------------------------------------------
-        // Check permissions
-        // -------------------------------------------------------------------------
-        Collection<Integer> projectIDs = fGotVariantSetList
-                ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(Helper.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet())
-                : mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(Helper.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
-        List<Integer> forbiddenProjectIDs = new ArrayList<>();
-        for (int pj : projectIDs)
-            try {
-                if (!tokenManager.canUserReadProject(token, module, pj))
-                    forbiddenProjectIDs.add(pj);
-            } catch (ObjectNotFoundException ignored) {
-            }
-        projectIDs.removeAll(forbiddenProjectIDs);
-        if (projectIDs.isEmpty() && !forbiddenProjectIDs.isEmpty())
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-
-        // -------------------------------------------------------------------------
-        // Build query criteria for VariantRunData and VariantData collections
-        // -------------------------------------------------------------------------
-        List<Criteria> vrdCrits = new ArrayList<>();
-        List<Criteria> variantCrits = new ArrayList<>();
-        if (fGotVariantSetList) {
-            GenotypingProject[] allGenotypingProjects = mongoTemplate.find(new Query(), GenotypingProject.class).toArray(new GenotypingProject[0]);
-            if (allGenotypingProjects.length > 1 || allGenotypingProjects[0].getRuns().size() > 1) {
-                List<Criteria> pjVariantRunCrits = new ArrayList<>();
-                List<Criteria> pjVariantCrits = new ArrayList<>();
-                for (String vsId : body.getVariantSetDbIds()) {
-                    String[] info = Helper.getInfoFromId(vsId, 3);
-                    int projId = Integer.parseInt(info[1]);
-                    pjVariantRunCrits.add(new Criteria().andOperator(
-                            new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId),
-                            new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
-                    pjVariantCrits.add(new Criteria().andOperator(
-                            new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId),
-                            new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2])));
-                }
-                if (!pjVariantRunCrits.isEmpty()) {
-                    vrdCrits.add(new Criteria().orOperator(pjVariantRunCrits));
-                    variantCrits.add(new Criteria().orOperator(pjVariantCrits));
-                }
-            } else if (!body.getVariantSetDbIds().contains(module + Helper.ID_SEPARATOR + allGenotypingProjects[0].getId() + Helper.ID_SEPARATOR + allGenotypingProjects[0].getRuns().get(0)))
-                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
-        }
-
-        List<String> varIDs = new ArrayList<>();
-        if (fGotVariantList) {
-            varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(Helper.ID_SEPARATOR))).collect(Collectors.toList());
-            vrdCrits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
-            variantCrits.add(Criteria.where("_id").in(varIDs));
-        }
-
-        List<Assembly> assemblies = mongoTemplate.findAll(Assembly.class);
-        Integer nAssemblyId = assemblies.size() == 0 ? null : assemblies.get(0).getId();
-        String refPosPathWithTrailingDot = Assembly.getVariantRefPosPath(nAssemblyId) + ".";
-
-        if (body.getPositionRanges() != null) {
-            List<Criteria> rangeCrits = new ArrayList<>();
-            for (String positionRange : body.getPositionRanges()) {
-                try {
-                    String[] pr = positionRange.split(":");
-                    if (pr.length > 2)
-                        throw new Exception("Only one colon is supported in positionRange strings");
-                    Criteria posCrits = Criteria.where(refPosPathWithTrailingDot + FIELDNAME_SEQUENCE).is(pr[0]);
-                    if (pr.length == 2) {
-                        String[] range = pr[1].split("-");
-                        if (!range[0].isEmpty() && !pr[1].startsWith("-")) {
-                            int start = Integer.parseInt(range[0]);
-                            posCrits.orOperator(Arrays.asList(
-                                    Criteria.where(refPosPathWithTrailingDot + FIELDNAME_START_SITE).gte(start),
-                                    Criteria.where(refPosPathWithTrailingDot + FIELDNAME_END_SITE).gte(start)));
+                    Map<String, List<Integer>> callSetsByVariantSet = new HashMap<>();
+                    for (Callset cs : callsets) {
+                        String variantSetDbId = module + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
+                        List<Integer> variantSetCallSets = callSetsByVariantSet.get(variantSetDbId);
+                        if (variantSetCallSets == null) {
+                            variantSetCallSets = new ArrayList<>();
+                            callSetsByVariantSet.put(variantSetDbId, variantSetCallSets);
                         }
-                        if (!range[range.length - 1].isEmpty() && !pr[1].endsWith("-"))
-                            posCrits.and(refPosPathWithTrailingDot + FIELDNAME_START_SITE).lte(Integer.parseInt(range[range.length - 1]));
+                        variantSetCallSets.add(cs.getId());
                     }
-                    rangeCrits.add(posCrits);
-                } catch (Exception e) {
-                    Status status = new Status();
-                    status.setMessage("Can't read positionRange: " + positionRange);
-                    metadata.addStatusItem(status);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    if (fGotVariantSetList) {
+                        callsetIds = new ArrayList<>();
+                        for (String vs : callSetsByVariantSet.keySet())
+                            if (body.getVariantSetDbIds().contains(vs))
+                                callsetIds.addAll(callSetsByVariantSet.get(vs));
+                        if (callsetIds.isEmpty())
+                            return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
+                    } else {
+                        body.setVariantSetDbIds(new ArrayList<>(callSetsByVariantSet.keySet()));
+                        fGotVariantSetList = true;
+                    }
                 }
+            } else if (fGotSampleFilter) {
+                return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
             }
-            if (!rangeCrits.isEmpty()) {
-                vrdCrits.add(new Criteria().orOperator(rangeCrits));
-                variantCrits.add(new Criteria().orOperator(rangeCrits));
-            }
-        }
 
-        Query runQuery = vrdCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(vrdCrits));
-        Query variantsQuery = variantCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(variantCrits));
+            // -------------------------------------------------------------------------
+            // Check permissions
+            // -------------------------------------------------------------------------
+            Collection<Integer> projectIDs = fGotVariantSetList
+                    ? body.getVariantSetDbIds().stream().map(vsId -> Integer.parseInt(Helper.getInfoFromId(vsId, 3)[1])).collect(Collectors.toSet())
+                    : mongoTemplate.findDistinct(new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(Helper.ID_SEPARATOR))).collect(Collectors.toList()))), "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID, VariantRunData.class, Integer.class);
+            List<Integer> forbiddenProjectIDs = new ArrayList<>();
+            for (int pj : projectIDs)
+                try {
+                    if (!tokenManager.canUserReadProject(token, module, pj))
+                        forbiddenProjectIDs.add(pj);
+                } catch (ObjectNotFoundException ignored) {
+                }
+            projectIDs.removeAll(forbiddenProjectIDs);
+            if (projectIDs.isEmpty() && !forbiddenProjectIDs.isEmpty())
+                return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 
-        // -------------------------------------------------------------------------
-        // Callset pagination
-        // -------------------------------------------------------------------------
-        int nTotalCallsetsCount = 0;
-        if (callsetIds != null && !callsetIds.isEmpty()) {
-            nTotalCallsetsCount = callsetIds.size();
-            if (callSetsPage * numberOfCallSetsPerPage >= callsetIds.size()) {
-                callsetIds = new ArrayList<>();
-            } else {
-                Integer endOfList = (callSetsPage + 1) * numberOfCallSetsPerPage >= callsetIds.size() ? callsetIds.size() : (callSetsPage + 1) * numberOfCallSetsPerPage;
-                callsetIds = callsetIds.subList(callSetsPage * numberOfCallSetsPerPage, endOfList);
-            }
-        } else {
-            Query callsetsQuery;
+            // -------------------------------------------------------------------------
+            // Build query criteria for VariantRunData and VariantData collections
+            // -------------------------------------------------------------------------
+            List<Criteria> vrdCrits = new ArrayList<>();
+            List<Criteria> variantCrits = new ArrayList<>();
             if (fGotVariantSetList) {
-                List<Criteria> vsCrits = new ArrayList<>();
-                for (String vsId : body.getVariantSetDbIds()) {
-                    String[] info = Helper.getInfoFromId(vsId, 3);
-                    vsCrits.add(new Criteria().andOperator(
-                            Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])),
-                            Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2])));
-                }
-                callsetsQuery = new Query(new Criteria().orOperator(vsCrits));
-            } else
-                callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(projectIDs));
-
-            List<Integer> allCallSetIDs = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
-            nTotalCallsetsCount = allCallSetIDs.size();
-            int fromIndex = callSetsPage * numberOfCallSetsPerPage;
-            callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfCallSetsPerPage, allCallSetIDs.size()));
-        }
-
-        if (!fVcfStyleGenotypes && !body.isPreview())
-            runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
-
-        List<String> callSetDbIds = new ArrayList<>();
-        for (Integer csId : callsetIds) {
-            callSetDbIds.add(module + Helper.ID_SEPARATOR + csId);
-            runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + csId);
-        }
-
-        // -------------------------------------------------------------------------
-        // Start async variant count — runs concurrently with the data fetch below
-        // -------------------------------------------------------------------------
-        AtomicLong nTotalMarkerCount = new AtomicLong(-1);
-        Thread countThread = new Thread() {
-            public void run() {
-                long b4 = System.currentTimeMillis();
-                Long countVar = countCache.get(variantsQuery.getQueryObject().toString());
-                if (countVar == null) {
-                    countVar = !variantsQuery.getQueryObject().isEmpty() ? mongoTemplate.count(variantsQuery, VariantData.class) : Helper.estimDocCount(mongoTemplate, VariantData.class);
-                    countCache.put(variantsQuery.getQueryObject().toString(), countVar);
-                }
-                nTotalMarkerCount.set(countVar);
-                LOG.info("alleleMatrix variant totalCount (" + countVar + ") obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
+                GenotypingProject[] allGenotypingProjects = mongoTemplate.find(new Query(), GenotypingProject.class).toArray(new GenotypingProject[0]);
+                if (allGenotypingProjects.length > 1 || allGenotypingProjects[0].getRuns().size() > 1) {
+                    List<Criteria> pjVariantRunCrits = new ArrayList<>();
+                    List<Criteria> pjVariantCrits = new ArrayList<>();
+                    for (String vsId : body.getVariantSetDbIds()) {
+                        String[] info = Helper.getInfoFromId(vsId, 3);
+                        int projId = Integer.parseInt(info[1]);
+                        pjVariantRunCrits.add(new Criteria().andOperator(
+                                new Criteria("_id." + VariantRunDataId.FIELDNAME_PROJECT_ID).is(projId),
+                                new Criteria("_id." + VariantRunDataId.FIELDNAME_RUNNAME).is(info[2])));
+                        pjVariantCrits.add(new Criteria().andOperator(
+                                new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_PROJECT_ID).is(projId),
+                                new Criteria(VariantData.FIELDNAME_RUNS + "." + Run.FIELDNAME_RUNNAME).is(info[2])));
+                    }
+                    if (!pjVariantRunCrits.isEmpty()) {
+                        vrdCrits.add(new Criteria().orOperator(pjVariantRunCrits));
+                        variantCrits.add(new Criteria().orOperator(pjVariantCrits));
+                    }
+                } else if (!body.getVariantSetDbIds().contains(module + Helper.ID_SEPARATOR + allGenotypingProjects[0].getId() + Helper.ID_SEPARATOR + allGenotypingProjects[0].getRuns().get(0)))
+                    return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, callSetsPage, numberOfCallSetsPerPage);
             }
-        };
-        countThread.start();
 
-        // module is reassigned above so capture it as final for use in lambdas and inner classes
-        final String finalModule = module;
+            List<String> varIDs = new ArrayList<>();
+            if (fGotVariantList) {
+                varIDs = body.getVariantDbIds().stream().map(varDbId -> varDbId.substring(1 + varDbId.indexOf(Helper.ID_SEPARATOR))).collect(Collectors.toList());
+                vrdCrits.add(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(varIDs));
+                variantCrits.add(Criteria.where("_id").in(varIDs));
+            }
 
-        Status status = new Status();
-        Set<String> variantSetDbIds = new HashSet<>();
+            List<Assembly> assemblies = mongoTemplate.findAll(Assembly.class);
+            Integer nAssemblyId = assemblies.size() == 0 ? null : assemblies.get(0).getId();
+            String refPosPathWithTrailingDot = Assembly.getVariantRefPosPath(nAssemblyId) + ".";
 
-        try {
+            if (body.getPositionRanges() != null) {
+                List<Criteria> rangeCrits = new ArrayList<>();
+                for (String positionRange : body.getPositionRanges()) {
+                    try {
+                        String[] pr = positionRange.split(":");
+                        if (pr.length > 2)
+                            throw new Exception("Only one colon is supported in positionRange strings");
+                        Criteria posCrits = Criteria.where(refPosPathWithTrailingDot + FIELDNAME_SEQUENCE).is(pr[0]);
+                        if (pr.length == 2) {
+                            String[] range = pr[1].split("-");
+                            if (!range[0].isEmpty() && !pr[1].startsWith("-")) {
+                                int start = Integer.parseInt(range[0]);
+                                posCrits.orOperator(Arrays.asList(
+                                        Criteria.where(refPosPathWithTrailingDot + FIELDNAME_START_SITE).gte(start),
+                                        Criteria.where(refPosPathWithTrailingDot + FIELDNAME_END_SITE).gte(start)));
+                            }
+                            if (!range[range.length - 1].isEmpty() && !pr[1].endsWith("-"))
+                                posCrits.and(refPosPathWithTrailingDot + FIELDNAME_START_SITE).lte(Integer.parseInt(range[range.length - 1]));
+                        }
+                        rangeCrits.add(posCrits);
+                    } catch (Exception e) {
+                        Status status = new Status();
+                        status.setMessage("Can't read positionRange: " + positionRange);
+                        metadata.addStatusItem(status);
+                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    }
+                }
+                if (!rangeCrits.isEmpty()) {
+                    vrdCrits.add(new Criteria().orOperator(rangeCrits));
+                    variantCrits.add(new Criteria().orOperator(rangeCrits));
+                }
+            }
+
+            Query runQuery = vrdCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(vrdCrits));
+            Query variantsQuery = variantCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(variantCrits));
+
+            // -------------------------------------------------------------------------
+            // Callset pagination
+            // -------------------------------------------------------------------------
+            int nTotalCallsetsCount = 0;
+            if (callsetIds != null && !callsetIds.isEmpty()) {
+                nTotalCallsetsCount = callsetIds.size();
+                if (callSetsPage * numberOfCallSetsPerPage >= callsetIds.size()) {
+                    callsetIds = new ArrayList<>();
+                } else {
+                    Integer endOfList = (callSetsPage + 1) * numberOfCallSetsPerPage >= callsetIds.size() ? callsetIds.size() : (callSetsPage + 1) * numberOfCallSetsPerPage;
+                    callsetIds = callsetIds.subList(callSetsPage * numberOfCallSetsPerPage, endOfList);
+                }
+            } else {
+                Query callsetsQuery;
+                if (fGotVariantSetList) {
+                    List<Criteria> vsCrits = new ArrayList<>();
+                    for (String vsId : body.getVariantSetDbIds()) {
+                        String[] info = Helper.getInfoFromId(vsId, 3);
+                        vsCrits.add(new Criteria().andOperator(
+                                Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])),
+                                Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2])));
+                    }
+                    callsetsQuery = new Query(new Criteria().orOperator(vsCrits));
+                } else
+                    callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(projectIDs));
+
+                List<Integer> allCallSetIDs = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                nTotalCallsetsCount = allCallSetIDs.size();
+                int fromIndex = callSetsPage * numberOfCallSetsPerPage;
+                callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfCallSetsPerPage, allCallSetIDs.size()));
+            }
+
+            if (!fVcfStyleGenotypes && !body.isPreview())
+                runQuery.fields().include(VariantRunData.FIELDNAME_KNOWN_ALLELES);
+
+            List<String> callSetDbIds = new ArrayList<>();
+            for (Integer csId : callsetIds) {
+                callSetDbIds.add(module + Helper.ID_SEPARATOR + csId);
+                runQuery.fields().include(VariantRunData.FIELDNAME_SAMPLEGENOTYPES + "." + csId);
+            }
+
+            // -------------------------------------------------------------------------
+            // Start async variant count — runs concurrently with the data fetch below
+            // -------------------------------------------------------------------------
+            AtomicLong nTotalMarkerCount = new AtomicLong(-1);
+            Thread countThread = new Thread() {
+                public void run() {
+                    long b4 = System.currentTimeMillis();
+                    Long countVar = countCache.get(variantsQuery.getQueryObject().toString());
+                    if (countVar == null) {
+                        countVar = !variantsQuery.getQueryObject().isEmpty() ? mongoTemplate.count(variantsQuery, VariantData.class) : Helper.estimDocCount(mongoTemplate, VariantData.class);
+                        countCache.put(variantsQuery.getQueryObject().toString(), countVar);
+                    }
+                    nTotalMarkerCount.set(countVar);
+                    LOG.info("alleleMatrix variant totalCount (" + countVar + ") obtained in " + (System.currentTimeMillis() - b4) / 1000f + "s");
+                }
+            };
+            countThread.start();
+
+            // module is reassigned above so capture it as final for use in lambdas and inner classes
+            final String finalModule = module;
+
+            Status status = new Status();
+            Set<String> variantSetDbIds = new HashSet<>();
+
+
             int nSkipCount = variantsPage * numberOfMarkersPerPage;
 
             if (callsetIds.isEmpty()) {
@@ -885,6 +895,11 @@ public class AllelematrixApiController implements AllelematrixApi {
                     numberOfMarkersPerPage, variantsPage, nTotalCallsetsCount, numberOfCallSetsPerPage,
                     callSetsPage, nSkipCount, new ArrayList<>(variantDbIds), result.getDataMatrices());
 
+        } catch (MalformedParametersException | ResponseStatusException e) {
+            Status status = new Status();
+            status.setMessage(e.getMessage());
+            metadata.addStatusItem(status);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             LOG.error("Couldn't serialize response for content type application/json", e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
