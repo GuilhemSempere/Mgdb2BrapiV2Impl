@@ -21,7 +21,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import javax.ejb.ObjectNotFoundException;
@@ -52,6 +51,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -81,7 +81,6 @@ import fr.cirad.tools.query.GroupedExecutor.TaskWrapper;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import org.springframework.web.server.ResponseStatusException;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {

@@ -72,9 +72,9 @@ public class GermplasmApiController implements GermplasmApi {
     	HashMap<String, Collection<String>> dbIndividuals = new HashMap<>();
         for (String gpId : germplasmDbIds) {
             String[] info = Helper.getInfoFromId(gpId, 2); 
-            if (info == null) {
+            if (info == null)
                 throw new MalformedParametersException("malformed germplasmDbId: " + gpId);
-            } else {
+            else {
 	       	 Collection<String> individuals = dbIndividuals.get(info[0]);
 	       	 if (individuals == null) {
 	       		 individuals = new ArrayList<>();
