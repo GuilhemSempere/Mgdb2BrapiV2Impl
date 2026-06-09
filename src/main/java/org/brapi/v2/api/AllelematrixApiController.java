@@ -718,7 +718,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                                         dataMap.get(key).add(unknownGtCode);
                                 }
                                 else {  //adding genotypes
-                                    String gtCode = sg.getCode();
+                                    String gtCode = (String) sg.getCode();
                                     if (gtCode == null || gtCode.length() == 0)
                                         dataMap.get(key).add(unknownGtCode);
                                     else {
