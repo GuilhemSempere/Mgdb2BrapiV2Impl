@@ -68,7 +68,7 @@ public class GermplasmApiController implements GermplasmApi {
         this.request = request;
     }
     
-    public static HashMap<String, Collection<String>> readGermplasmIDs(Collection<String> germplasmDbIds) throws Exception {
+    public static HashMap<String, Collection<String>> readGermplasmIDs(Collection<String> germplasmDbIds) throws MalformedParametersException {
     	HashMap<String, Collection<String>> dbIndividuals = new HashMap<>();
         for (String gpId : germplasmDbIds) {
             String[] info = Helper.getInfoFromId(gpId, 2); 
