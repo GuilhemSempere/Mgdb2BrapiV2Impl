@@ -86,7 +86,8 @@ public class CallsApiController implements CallsApi {
             String sepPhased, 
             String sepUnphased,
             Integer page, 
-            Integer pageSize, 
+            Integer pageSize,
+            AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregationEnum,
             String authorization) {
         
         if (variantSetDbId == null && callSetDbId != null) {
@@ -102,6 +103,7 @@ public class CallsApiController implements CallsApi {
         csr.setSepPhased(sepPhased);
         csr.setPageSize(pageSize);
         csr.setPage(page);
+        csr.setDimensionColumnAggregation(dimensionColumnAggregationEnum);
         
         if (callSetDbId != null)
                 csr.setCallSetDbIds(Arrays.asList(callSetDbId));
@@ -501,6 +503,7 @@ public class CallsApiController implements CallsApi {
         }
         
         AlleleMatrixSearchRequest amsr = new AlleleMatrixSearchRequest();
+        amsr.setDimensionColumnAggregation(body.getDimensionColumnAggregation());
         amsr.setCallSetDbIds(body.getCallSetDbIds());
         amsr.setVariantDbIds(body.getVariantDbIds());
         amsr.setVariantSetDbIds(body.getVariantSetDbIds());
@@ -508,6 +511,8 @@ public class CallsApiController implements CallsApi {
         amsr.setSepUnphased(body.getSepUnphased());
         amsr.setUnknownString(body.getUnknownString());
         amsr.setExpandHomozygotes(body.isExpandHomozygotes());
+        amsr.setGermplasmDbIds(body.getGermplasmDbIds());
+        amsr.setSampleDbIds(body.getSampleDbIds());
         AlleleMatrixSearchRequestPagination variantPagination = new AlleleMatrixSearchRequestPagination();
         variantPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         amsr.addPaginationItem(variantPagination);
@@ -524,7 +529,8 @@ public class CallsApiController implements CallsApi {
             if (resp0.getStatusCode().equals(HttpStatus.OK)) {
                 List<AlleleMatrixPagination> pagination = resp0.getBody().getResult().getPagination();
                 
-                if (pagination.get(0).getDimension().equals(AlleleMatrixPagination.DimensionEnum.CALLSETS)) {
+                if (pagination.get(0).getDimension() == AlleleMatrixPagination.DimensionEnum.CALLSETS
+                        || pagination.get(0).getDimension() == AlleleMatrixPagination.DimensionEnum.COLUMNS) {
                     callSetsPagination = pagination.get(0);
                     variantsPagination = pagination.get(1);
                     
@@ -602,7 +608,9 @@ public class CallsApiController implements CallsApi {
             amsr.addPaginationItem(variantRequestPagination);
             amsr.addPaginationItem(callSetRequestPagination);
             try {            
-                res = callSearchMatrix(authorization, amsr, 0, 1, 0, pageSize > variantsNb - page * pageSize ? variantsNb - page * pageSize : pageSize, res);
+                res = callSearchMatrix(authorization, amsr, 0, 1, 0,
+                        pageSize > variantsNb - page * pageSize ? variantsNb - page * pageSize : pageSize, res,
+                        body.getDimensionColumnAggregation());
             } catch (Exception ex) {
                 log.error(null, ex);
                 return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -617,7 +625,9 @@ public class CallsApiController implements CallsApi {
             amsr.addPaginationItem(variantRequestPagination);
             amsr.addPaginationItem(callSetRequestPagination);
             try {
-                res = callSearchMatrix(authorization, amsr, 0, pageSize > callSetsNb - page * pageSize ? callSetsNb - page * pageSize : pageSize, 0, 1, res);
+                res = callSearchMatrix(authorization, amsr, 0,
+                        pageSize > callSetsNb - page * pageSize ? callSetsNb - page * pageSize : pageSize,
+                        0, 1, res, body.getDimensionColumnAggregation());
             } catch (Exception ex) {
                 log.error(null, ex);
                 return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -652,7 +662,8 @@ public class CallsApiController implements CallsApi {
             
             if (endVarIndex - startVarIndex == variantsNb && variantsNb * callSetsNb < maxPageSize) { // get all variants data
                 try {                    
-                    res = callSearchMatrix(authorization, amsr, startCallSetIndex, endCallSetIndex, startVarIndex, endVarIndex, res);
+                    res = callSearchMatrix(authorization, amsr, startCallSetIndex, endCallSetIndex, startVarIndex, endVarIndex, res,
+                            body.getDimensionColumnAggregation());
                 } catch (Exception ex) {
                     log.error(null, ex);
                     return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -671,7 +682,8 @@ public class CallsApiController implements CallsApi {
                         eCallsets = endCallSetIndex;
                     }
                     try {                
-                        res = callSearchMatrix(authorization, amsr, sCallsets, eCallsets, 0, 1, res);
+                        res = callSearchMatrix(authorization, amsr, sCallsets, eCallsets, 0, 1, res,
+                                body.getDimensionColumnAggregation());
                     } catch (Exception ex) {
                         log.error(null, ex);
                         return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -709,7 +721,8 @@ public class CallsApiController implements CallsApi {
                                                     int endCallSetIndex, 
                                                     int startVariantIndex, 
                                                     int endVariantIndex,
-                                                    CallsListResponseResult res
+                                                    CallsListResponseResult res,
+                                                    AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregation
                                                     ) throws Exception {
         try {
             ResponseEntity<AlleleMatrixResponse> resp = allelematrixApiController.searchAllelematrixPost(authorization, amsr, false);
@@ -764,7 +777,13 @@ public class CallsApiController implements CallsApi {
                         call.setGenotypeMetadata(metadataList);
                         call.setVariantDbId(result.getVariantDbIds().get(v));
                         call.setVariantName(result.getVariantDbIds().get(v));
-                        call.setCallSetDbId(result.getCallSetDbIds().get(s));
+                        if (dimensionColumnAggregation == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
+                            call.setGermplasmDbId(result.getGermplasmDbIds().get(s));
+                        } else if (dimensionColumnAggregation == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
+                            call.setSampleDbId(result.getSampleDbIds().get(s));
+                        } else {
+                            call.setCallSetDbId(result.getCallSetDbIds().get(s));
+                        }
                         if (result.getVariantSetDbIds().size() > 1) {
 //                            Run run = samplesRuns.get(call.getCallSetDbId());
                             call.setVariantSetDbId("module + Helper.ID_SEPARATOR + run.getProjectId() + Helper.ID_SEPARATOR + run.getRunName()");

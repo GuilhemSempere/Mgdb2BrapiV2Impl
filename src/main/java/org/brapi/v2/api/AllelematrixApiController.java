@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 
 import javax.ejb.ObjectNotFoundException;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
 import org.brapi.v2.model.AlleleMatrixDataMatrices.DataTypeEnum;
@@ -103,9 +105,10 @@ public class AllelematrixApiController implements AllelematrixApi {
 
     @Override
     public ResponseEntity<AlleleMatrixResponse> allelematrixGet(Integer dimensionVariantPage, Integer dimensionVariantPageSize, Integer dimensionCallSetPage, Integer dimensionCallSetPageSize,
+                                                                Integer dimensionColumnPage, Integer dimensionColumnPageSize,
                                                                 Boolean preview, String dataMatrixAbbreviations, String positionRange, String germplasmDbId, String germplasmName, String germplasmPUI, String callSetDbId,
                                                                 String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased,
-                                                                String studyDbId, String dimensionColumnAggregation, String authorization) throws InterruptedException, ObjectNotFoundException, MalformedParametersException {
+                                                                String studyDbId, AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregation, String authorization) throws InterruptedException, ObjectNotFoundException, MalformedParametersException {
 
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
@@ -114,31 +117,20 @@ public class AllelematrixApiController implements AllelematrixApi {
         }
 
         AlleleMatrixSearchRequest request = new AlleleMatrixSearchRequest();
-        // Infer column dimension for the pagination request from the finest-grained
-        // column filter provided — mirrors the inference logic in searchAllelematrixPost().
-        AlleleMatrixSearchRequestPagination.DimensionEnum colPagDimension;
-        if (dimensionColumnAggregation != null) {
-            if ("sample".equalsIgnoreCase(dimensionColumnAggregation))
-                colPagDimension = AlleleMatrixSearchRequestPagination.DimensionEnum.SAMPLES;
-            else if ("germplasm".equalsIgnoreCase(dimensionColumnAggregation))
-                colPagDimension = AlleleMatrixSearchRequestPagination.DimensionEnum.GERMPLASM;
-            else
-                colPagDimension = AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS;
-        } else if (callSetDbId != null) {
-            colPagDimension = AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS;
-        } else if (germplasmDbId != null || germplasmName != null || germplasmPUI != null || studyDbId != null) {
-            colPagDimension = AlleleMatrixSearchRequestPagination.DimensionEnum.GERMPLASM;
-        } else {
-            colPagDimension = AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS;
-        }
 
         AlleleMatrixSearchRequestPagination csPagination = new AlleleMatrixSearchRequestPagination();
-        csPagination.setDimension(colPagDimension);
+        csPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.COLUMNS);
         if (dimensionCallSetPage != null) {
             csPagination.setPage(dimensionCallSetPage);
         }
+        if (dimensionColumnPage != null) {
+            csPagination.setPage(dimensionColumnPage);
+        }
         if (dimensionCallSetPageSize != null) {
             csPagination.setPageSize(dimensionCallSetPageSize);
+        }
+        if (dimensionColumnPageSize != null) {
+            csPagination.setPageSize(dimensionColumnPageSize);
         }
         request.getPagination().add(csPagination);
 
@@ -215,6 +207,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             int bioEntitiesPage = 0;
             int numberOfMarkersPerPage = 100;
             int variantsPage = 0;
+            boolean fCSPagination = false; // just to stay compliant with callset pagination dimension
 
             if (body.getPagination() != null && !body.getPagination().isEmpty()) {
                 for (AlleleMatrixSearchRequestPagination pagination : body.getPagination()) {
@@ -224,11 +217,12 @@ public class AllelematrixApiController implements AllelematrixApi {
                                 "Invalid pagination dimension specified, only 'VARIANTS', 'GERMPLASM', 'SAMPLES' and 'CALLSETS' are accepted!"
                         );
                     }
+
                     if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS
-                            || pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.SAMPLES
-                            || pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.GERMPLASM) {
+                            || pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.COLUMNS) {
                         numberOfBioEntitiesPerPage = pagination.getPageSize();
                         bioEntitiesPage = pagination.getPage();
+                        fCSPagination = pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS;
                     } else if (pagination.getDimension() == AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS) {
                         numberOfMarkersPerPage = pagination.getPageSize();
                         variantsPage = pagination.getPage();
@@ -444,6 +438,14 @@ public class AllelematrixApiController implements AllelematrixApi {
             // -------------------------------------------------------------------------
             HashSet<String> sampleIDs = new HashSet<>();
             if (germplasmIds != null) {
+                if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
+                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= germplasmIds.size()) {
+                        germplasmIds = new ArrayList<>();
+                    } else {
+                        Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= germplasmIds.size() ? germplasmIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
+                        germplasmIds = germplasmIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
+                    }
+                }
                 for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
                     sampleIDs.add(s.getId());
             }
@@ -453,8 +455,18 @@ public class AllelematrixApiController implements AllelematrixApi {
                     sampleIDs = givenSampleIds;
                 else
                     sampleIDs.retainAll(givenSampleIds);
-                if (sampleIDs.isEmpty())
+                if (sampleIDs.isEmpty()) {
                     return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, bioEntitiesPage, numberOfBioEntitiesPerPage);
+                } else {
+                    if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
+                        if (bioEntitiesPage * numberOfBioEntitiesPerPage >= sampleIDs.size()) {
+                            sampleIDs = new HashSet<>();
+                        } else {
+                            Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= sampleIDs.size() ? sampleIDs.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
+                            sampleIDs = new HashSet<>(new ArrayList<>(sampleIDs).subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList));
+                        }
+                    }
+                }
             }
 
             List<Integer> callsetIds = new ArrayList<>();
@@ -601,11 +613,15 @@ public class AllelematrixApiController implements AllelematrixApi {
             if (callsetIds != null && !callsetIds.isEmpty()) {
                 allCallsetIdsForAgg = new ArrayList<>(callsetIds);
                 nTotalCallsetsCount = callsetIds.size();
-                if (bioEntitiesPage * numberOfBioEntitiesPerPage >= callsetIds.size()) {
-                    callsetIds = new ArrayList<>();
+                if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
+                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= callsetIds.size()) {
+                        callsetIds = new ArrayList<>();
+                    } else {
+                        Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= callsetIds.size() ? callsetIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
+                        callsetIds = callsetIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
+                    }
                 } else {
-                    Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= callsetIds.size() ? callsetIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
-                    callsetIds = callsetIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
+                    callsetIds = allCallsetIdsForAgg;
                 }
             } else {
                 Query callsetsQuery;
@@ -620,12 +636,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                     callsetsQuery = new Query(new Criteria().orOperator(vsCrits));
                 } else
                     callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(projectIDs));
- 
+
                 List<Integer> allCallSetIDs = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
                 allCallsetIdsForAgg = allCallSetIDs;
                 nTotalCallsetsCount = allCallSetIDs.size();
-                int fromIndex = bioEntitiesPage * numberOfBioEntitiesPerPage;
-                callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allCallSetIDs.size()));
+                if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
+                    int fromIndex = bioEntitiesPage * numberOfBioEntitiesPerPage;
+                    callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allCallSetIDs.size()));
+                } else {
+                    callsetIds = allCallsetIdsForAgg;
+                }
             }
 
             if (!fVcfStyleGenotypes && !body.isPreview())
@@ -652,10 +672,8 @@ public class AllelematrixApiController implements AllelematrixApi {
             Map<Integer, String> callsetToAggKey = new LinkedHashMap<>();
             Map<String, List<Integer>> aggKeyToCallsets = new LinkedHashMap<>();
 
-            String colAgg = body.getDimensionColumnAggregation(); // "callSet", "sample", or "germplasm"; null = default
-            if (!"callSet".equalsIgnoreCase(colAgg) && !"sample".equalsIgnoreCase(colAgg) && !"germplasm".equalsIgnoreCase(colAgg))
-            	colAgg = !givenSampleIds.isEmpty() ? "sample" : (germplasmIds != null && !germplasmIds.isEmpty() ? "germplasm" : "callSet");	// apply default (finest requested aggregation level, or callSet)
-            if (colAgg == null) {
+            AlleleMatrixSearchRequest.DimensionColumnAggregationEnum colAgg = body.getDimensionColumnAggregation(); // "callSet", "sample", or "germplasm"; null = default
+            if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
                 // Default: one column per callset
                 for (Integer csId : callsetIds) {
                     String key = module + Helper.ID_SEPARATOR + csId;
@@ -677,7 +695,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                 for (Integer csId : callsetIds) {
                     GenotypingSample sample = callsetToSample.get(csId);
                     String key;
-                    if ("sample".equalsIgnoreCase(colAgg))
+                    if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE)
                         key = module + Helper.ID_SEPARATOR + (sample != null ? sample.getId() : csId);
                     else // germplasm
                         key = module + Helper.ID_SEPARATOR + (sample != null && sample.getIndividual() != null ? sample.getIndividual() : csId);
@@ -694,7 +712,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             // distinct keys across all pages, not just the current one.
             // -------------------------------------------------------------------------
             int nTotalAggregatedColumnCount = nTotalCallsetsCount; // default for callSet level
-            if (!"callSet".equalsIgnoreCase(colAgg) && !allCallsetIdsForAgg.isEmpty()) {
+            if (colAgg != AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET && !allCallsetIdsForAgg.isEmpty()) {
                 List<GenotypingSample> allSamplesForCount = mongoTemplate.find(
                         new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(allCallsetIdsForAgg)),
                         GenotypingSample.class);
@@ -703,7 +721,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     if (s.getCallSets() == null) continue;
                     for (Callset cs : s.getCallSets()) {
                         if (!allCallsetIdsForAgg.contains(cs.getId())) continue;
-                        String key = "sample".equalsIgnoreCase(colAgg)
+                        String key = "sample".equalsIgnoreCase(colAgg.toString())
                                 ? module + Helper.ID_SEPARATOR + s.getId()
                                 : module + Helper.ID_SEPARATOR + (s.getIndividual() != null ? s.getIndividual() : cs.getId());
                         distinctAggKeys.add(key);
@@ -742,7 +760,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             if (callsetIds.isEmpty()) {
                 countThread.join();
                 return buildFinalResponse(response, result, metadata, status,
-                        false, !sampleIDs.isEmpty(), nTotalMarkerCount.get(),
+                        false, !sampleIDs.isEmpty(), fCSPagination, nTotalMarkerCount.get(),
                         numberOfMarkersPerPage, variantsPage, nTotalCallsetsCount,
                         numberOfBioEntitiesPerPage, bioEntitiesPage, nSkipCount);            }
 
@@ -750,7 +768,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             if (nTotalMarkerCount.get() != -1 && nSkipCount > nTotalMarkerCount.get()) {
                 countThread.join();
                 return buildFinalResponse(response, result, metadata, status,
-                        false, !sampleIDs.isEmpty(), nTotalMarkerCount.get(),
+                        false, !sampleIDs.isEmpty(), fCSPagination, nTotalMarkerCount.get(),
                         numberOfMarkersPerPage, variantsPage, nTotalCallsetsCount,
                         numberOfBioEntitiesPerPage, bioEntitiesPage, nSkipCount);
             }
@@ -832,7 +850,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                 final List<String> pageVariantIDs = VariantsApiController.getSortedVariantListChunk(mongoTemplate, nAssemblyId, VariantData.class, variantsQuery, nSkipCount, numberOfMarkersPerPage).stream().map(AbstractVariantData::getVariantId).collect(Collectors.toList());
                 if (pageVariantIDs.isEmpty())
                 	return buildFinalResponse(response, result, metadata, status,
-                            false, !sampleIDs.isEmpty(), nTotalMarkerCount.get(),
+                            false, !sampleIDs.isEmpty(), fCSPagination, nTotalMarkerCount.get(),
                             numberOfMarkersPerPage, variantsPage, nTotalCallsetsCount,
                             numberOfBioEntitiesPerPage, bioEntitiesPage, nSkipCount);
 
@@ -1059,13 +1077,13 @@ public class AllelematrixApiController implements AllelematrixApi {
             countThread.join();
 
             // Route column identifiers to the correct response field based on aggregation level.
-            if (colAgg != null && "sample".equalsIgnoreCase(colAgg))
+            if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE)
                 result.setSampleDbIds(aggregationKeys);
-            else if (colAgg != null && "germplasm".equalsIgnoreCase(colAgg))
+            else if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM)
                 result.setGermplasmDbIds(aggregationKeys);
             else
             	result.setCallSetDbIds(callSetDbIds);
-            List<String> responseCallSetIds = ("callSet".equalsIgnoreCase(colAgg)) ? callSetDbIds : new ArrayList<>();
+            List<String> responseCallSetIds = (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) ? callSetDbIds : new ArrayList<>();
 
             // variantDbIds and variantSetDbIds are accumulated during the matrix loop
             result.setVariantDbIds(new ArrayList<>(variantDbIds));
@@ -1077,7 +1095,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             LOG.info("alleleMatrix took " + (System.currentTimeMillis() - before) / 1000d + "s");
 
             return buildFinalResponse(response, result, metadata, status,
-                    !variantDbIds.isEmpty(), !sampleIDs.isEmpty(),
+                    !variantDbIds.isEmpty(), !sampleIDs.isEmpty(), fCSPagination,
                     nTotalMarkerCount.get(), numberOfMarkersPerPage, variantsPage,
                     nTotalAggregatedColumnCount, numberOfBioEntitiesPerPage, bioEntitiesPage, nSkipCount);
 
@@ -1280,17 +1298,12 @@ public class AllelematrixApiController implements AllelematrixApi {
     // -------------------------------------------------------------------------
     private ResponseEntity<AlleleMatrixResponse> buildFinalResponse(
             AlleleMatrixResponse response, AlleleMatrix result, Metadata metadata, Status status,
-            boolean fGotVariants, boolean fGotColumns,
+            boolean fGotVariants, boolean fGotColumns, boolean fCSPagination,
             long totalMarkerCount, int numberOfMarkersPerPage, int variantsPage,
             int nTotalColumnCount, int numberOfColumnsPerPage, int columnsPage, int nSkipCount) {
- 
-        // Column pagination dimension is inferred from whichever column ID list is populated
+
         AlleleMatrixPagination.DimensionEnum colDimension =
-                result.getGermplasmDbIds() != null && !result.getGermplasmDbIds().isEmpty()
-                        ? AlleleMatrixPagination.DimensionEnum.GERMPLASM
-                : result.getSampleDbIds() != null && !result.getSampleDbIds().isEmpty()
-                        ? AlleleMatrixPagination.DimensionEnum.SAMPLES
-                : AlleleMatrixPagination.DimensionEnum.CALLSETS;
+                fCSPagination ? AlleleMatrixPagination.DimensionEnum.CALLSETS : AlleleMatrixPagination.DimensionEnum.COLUMNS;
  
         AlleleMatrixPagination columnPagination = new AlleleMatrixPagination();
         columnPagination.setDimension(colDimension);
@@ -1312,7 +1325,8 @@ public class AllelematrixApiController implements AllelematrixApi {
                 status.setMessage("Requested variant page does not exist");
                 status.setMessageType(Status.MessageTypeEnum.INFO);
             } else if (!fGotColumns) {
-                status.setMessage("Requested column page does not exist");
+                String str = fCSPagination ? "callset" :  "column";
+                status.setMessage("Requested " + str + " page does not exist");
                 status.setMessageType(Status.MessageTypeEnum.INFO);
             }
         }
