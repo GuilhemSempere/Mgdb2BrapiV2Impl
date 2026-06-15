@@ -200,6 +200,13 @@ public class AllelematrixApiController implements AllelematrixApi {
         response.setMetadata(metadata);
 
         try {
+            if (body.getGermplasmPUIs() != null && !body.getGermplasmPUIs().isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "germplasmPUIs filter is not supported"
+                );
+            }
+
             // -------------------------------------------------------------------------
             // Parse pagination parameters
             // -------------------------------------------------------------------------

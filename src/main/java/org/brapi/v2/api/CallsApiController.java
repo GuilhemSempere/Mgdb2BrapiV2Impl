@@ -1,5 +1,6 @@
 package org.brapi.v2.api;
 
+import java.lang.reflect.MalformedParametersException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -61,6 +62,7 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
+import org.springframework.web.server.ResponseStatusException;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -501,6 +503,8 @@ public class CallsApiController implements CallsApi {
         if (pageSize > maxPageSize) {
             pageSize = maxPageSize;
         }
+        Metadata metadata = new Metadata();
+        clr.setMetadata(metadata);
         
         AlleleMatrixSearchRequest amsr = new AlleleMatrixSearchRequest();
         amsr.setDimensionColumnAggregation(body.getDimensionColumnAggregation());
@@ -513,6 +517,9 @@ public class CallsApiController implements CallsApi {
         amsr.setExpandHomozygotes(body.isExpandHomozygotes());
         amsr.setGermplasmDbIds(body.getGermplasmDbIds());
         amsr.setSampleDbIds(body.getSampleDbIds());
+        amsr.setStudyDbIds(body.getStudyDbIds());
+        amsr.setGermplasmNames(body.getGermplasmNames());
+        amsr.setGermplasmPUIs(body.getGermplasmPUIs());
         AlleleMatrixSearchRequestPagination variantPagination = new AlleleMatrixSearchRequestPagination();
         variantPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         amsr.addPaginationItem(variantPagination);
@@ -573,9 +580,6 @@ public class CallsApiController implements CallsApi {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-    	Metadata metadata = new Metadata();
-    	clr.setMetadata(metadata);
-
         long totalCount = (long) variantsNb * callSetsNb;
         int totalPages = (int) Math.ceil((float) totalCount / pageSize);
         if (page >= totalPages) {
@@ -591,7 +595,7 @@ public class CallsApiController implements CallsApi {
         AlleleMatrixSearchRequestPagination variantRequestPagination = new AlleleMatrixSearchRequestPagination();
         variantRequestPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.VARIANTS);
         AlleleMatrixSearchRequestPagination callSetRequestPagination = new AlleleMatrixSearchRequestPagination();
-        callSetRequestPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.CALLSETS);        
+        callSetRequestPagination.setDimension(AlleleMatrixSearchRequestPagination.DimensionEnum.COLUMNS);
 
         abbreviations.add("GT"); // in order to get GT even if there is no VCFheader
         amsr.setDataMatrixAbbreviations(new ArrayList<>(abbreviations));
