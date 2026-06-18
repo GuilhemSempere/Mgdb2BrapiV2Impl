@@ -3,8 +3,7 @@ package org.brapi.v2.api;
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_END_SITE;
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_SEQUENCE;
 import static fr.cirad.mgdb.model.mongo.subtypes.ReferencePosition.FIELDNAME_START_SITE;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.*;
 
 import java.lang.reflect.MalformedParametersException;
 import java.util.ArrayList;
@@ -189,7 +188,7 @@ public class AllelematrixApiController implements AllelematrixApi {
         return searchAllelematrixPost(authorization, body, true);
     }
 
-    protected ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body, boolean fVcfStyleGenotypes) throws InterruptedException, ObjectNotFoundException {
+    public ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(String authorization, AlleleMatrixSearchRequest body, boolean fVcfStyleGenotypes) throws InterruptedException, ObjectNotFoundException {
         int maxTotalCalls = appConfig.getAlleleSearchMaxTotalPageSize();
         String token = ServerinfoApiController.readToken(authorization);
         long before = System.currentTimeMillis();
@@ -631,7 +630,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     callsetIds = allCallsetIdsForAgg;
                 }
             } else {
-                Query callsetsQuery;
+                Query query;
                 if (fGotVariantSetList) {
                     List<Criteria> vsCrits = new ArrayList<>();
                     for (String vsId : body.getVariantSetDbIds()) {
@@ -640,18 +639,28 @@ public class AllelematrixApiController implements AllelematrixApi {
                                 Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).is(Integer.parseInt(info[1])),
                                 Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_RUN).is(info[2])));
                     }
-                    callsetsQuery = new Query(new Criteria().orOperator(vsCrits));
+                    query = new Query(new Criteria().orOperator(vsCrits));
                 } else
-                    callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(projectIDs));
+                    query = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "." + Callset.FIELDNAME_PROJECT_ID).in(projectIDs));
 
-                List<Integer> allCallSetIDs = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
-                allCallsetIdsForAgg = allCallSetIDs;
-                nTotalCallsetsCount = allCallSetIDs.size();
+                int fromIndex = bioEntitiesPage * numberOfBioEntitiesPerPage;
                 if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
-                    int fromIndex = bioEntitiesPage * numberOfBioEntitiesPerPage;
+                    List<Integer> allCallSetIDs = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
                     callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allCallSetIDs.size()));
-                } else {
-                    callsetIds = allCallsetIdsForAgg;
+                } else if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
+                    List<String> allSampleIDs = mongoTemplate.findDistinct(query, "._id", GenotypingSample.class, String.class);
+                    if (fromIndex < allSampleIDs.size()) {
+                        List<String> samplesIds = allSampleIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allSampleIDs.size()));
+                        Query callsetsQuery = new Query(Criteria.where("_id").in(samplesIds));
+                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                    }
+                } else if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
+                    List<String> allIndIDs = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                    if (fromIndex < allIndIDs.size()) {
+                        List<String> indIds = allIndIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allIndIDs.size()));
+                        Query callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
+                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                    }
                 }
             }
 
