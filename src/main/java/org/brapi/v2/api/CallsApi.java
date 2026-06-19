@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.brapi.v2.model.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,10 +25,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.validation.Valid;
 import java.util.List;
-import org.brapi.v2.model.Call;
-import org.brapi.v2.model.CallsListResponse;
-import org.brapi.v2.model.CallsListResponseResult;
-import org.brapi.v2.model.CallsSearchRequest;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
 @Api(value = "calls", description = "the calls API", tags={ "Calls" })
@@ -54,7 +51,8 @@ public interface CallsApi {
             @Parameter(in = ParameterIn.QUERY, description = "The string to use as a separator for phased allele calls" ,schema=@Schema()) @Valid @RequestParam(value = "sepPhased", required = false) String sepPhased, 
             @Parameter(in = ParameterIn.QUERY, description = "The string to use as a separator for unphased allele calls" ,schema=@Schema()) @Valid @RequestParam(value = "sepUnphased", required = false) String sepUnphased, 
             @Parameter(in = ParameterIn.QUERY, description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`." ,schema=@Schema()) @Valid @RequestParam(value = "page", required = false) Integer page, 
-            @Parameter(in = ParameterIn.QUERY, description = "The size of the pages to be returned. Default is `1000`." ,schema=@Schema()) @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, 
+            @Parameter(in = ParameterIn.QUERY, description = "The size of the pages to be returned. Default is `1000`." ,schema=@Schema()) @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
+            @Parameter(in = ParameterIn.QUERY, description = "Override the default column aggregation granularity. Accepted values: 'CALLSET' (default, one column per CallSet), 'SAMPLE' (one column per Sample, genotypes aggregated by majority vote), 'GERMPLASM' (one column per Germplasm, genotypes aggregated by majority vote). When a tie occurs, the column is treated as missing data.", schema = @Schema(allowableValues = {"CALLSET", "SAMPLE", "GERMPLASM"}, defaultValue = "CALLSET")) @Valid @RequestParam(value = "dimensionColumnAggregation", required = false) AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregation,
             @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
