@@ -39,14 +39,8 @@ import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.ArrayOperators;
-import org.springframework.data.mongodb.core.aggregation.Field;
-import org.springframework.data.mongodb.core.aggregation.Fields;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.aggregation.ObjectOperators.MergeObjects;
-import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
@@ -220,7 +214,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     if (pagination.getDimension() == null) {
                         throw new ResponseStatusException(
                                 HttpStatus.BAD_REQUEST,
-                                "Invalid pagination dimension specified, only 'VARIANTS', 'GERMPLASM', 'SAMPLES' and 'CALLSETS' are accepted!"
+                                "Invalid pagination dimension specified, only 'VARIANTS' or 'COLUMNS' are accepted!"
                         );
                     }
 
@@ -609,25 +603,49 @@ public class AllelematrixApiController implements AllelematrixApi {
             Query runQuery = vrdCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(vrdCrits));
             Query variantsQuery = variantCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(variantCrits));
 
+            AlleleMatrixSearchRequest.DimensionColumnAggregationEnum colAgg = body.getDimensionColumnAggregation(); // "callSet", "sample", or "germplasm"
+
             // -------------------------------------------------------------------------
-            // Callset pagination
+            // Column pagination (callset, sample or germplasm)
             // -------------------------------------------------------------------------
-            // allCallsetIdsForAgg holds the complete pre-pagination callset list so we can
             // count distinct aggregation keys across all pages for the column totalCount.
             List<Integer> allCallsetIdsForAgg = new ArrayList<>();
             int nTotalCallsetsCount = 0;
+            int nTotalAggregatedColumnCount = 0;
             if (callsetIds != null && !callsetIds.isEmpty()) {
-                allCallsetIdsForAgg = new ArrayList<>(callsetIds);
                 nTotalCallsetsCount = callsetIds.size();
-                if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
+                if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
                     if (bioEntitiesPage * numberOfBioEntitiesPerPage >= callsetIds.size()) {
                         callsetIds = new ArrayList<>();
                     } else {
-                        Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= callsetIds.size() ? callsetIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
+                        int endOfList = Math.min((bioEntitiesPage + 1) * numberOfBioEntitiesPerPage, callsetIds.size());
                         callsetIds = callsetIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
                     }
-                } else {
-                    callsetIds = allCallsetIdsForAgg;
+                    nTotalAggregatedColumnCount = nTotalCallsetsCount;
+                } else if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
+                    Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds));
+                    List<String> samplesIds = mongoTemplate.findDistinct(query, "_id", GenotypingSample.class, String.class);
+                    nTotalAggregatedColumnCount = samplesIds.size();
+                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= samplesIds.size()) {
+                        callsetIds = new ArrayList<>();
+                    } else {
+                        int endOfList = Math.min((bioEntitiesPage + 1) * numberOfBioEntitiesPerPage, samplesIds.size());
+                        samplesIds = samplesIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
+                        Query callsetsQuery = new Query(Criteria.where("_id").in(samplesIds));
+                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                    }
+                } else if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
+                    Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds));
+                    List<String> indIds = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                    nTotalAggregatedColumnCount = indIds.size();
+                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= indIds.size()) {
+                        callsetIds = new ArrayList<>();
+                    } else {
+                        int endOfList = Math.min((bioEntitiesPage + 1) * numberOfBioEntitiesPerPage, indIds.size());
+                        indIds = indIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
+                        Query callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
+                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                    }
                 }
             } else {
                 Query query;
@@ -647,8 +665,10 @@ public class AllelematrixApiController implements AllelematrixApi {
                 if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
                     List<Integer> allCallSetIDs = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
                     callsetIds = allCallSetIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allCallSetIDs.size()));
+                    nTotalAggregatedColumnCount = allCallSetIDs.size();
                 } else if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
                     List<String> allSampleIDs = mongoTemplate.findDistinct(query, "._id", GenotypingSample.class, String.class);
+                    nTotalAggregatedColumnCount = allSampleIDs.size();
                     if (fromIndex < allSampleIDs.size()) {
                         List<String> samplesIds = allSampleIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allSampleIDs.size()));
                         Query callsetsQuery = new Query(Criteria.where("_id").in(samplesIds));
@@ -656,6 +676,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                     }
                 } else if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
                     List<String> allIndIDs = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                    nTotalAggregatedColumnCount = allIndIDs.size();
                     if (fromIndex < allIndIDs.size()) {
                         List<String> indIds = allIndIDs.subList(fromIndex, Math.min(fromIndex + numberOfBioEntitiesPerPage, allIndIDs.size()));
                         Query callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
@@ -688,7 +709,6 @@ public class AllelematrixApiController implements AllelematrixApi {
             Map<Integer, String> callsetToAggKey = new LinkedHashMap<>();
             Map<String, List<Integer>> aggKeyToCallsets = new LinkedHashMap<>();
 
-            AlleleMatrixSearchRequest.DimensionColumnAggregationEnum colAgg = body.getDimensionColumnAggregation(); // "callSet", "sample", or "germplasm"; null = default
             if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET) {
                 // Default: one column per callset
                 for (Integer csId : callsetIds) {
@@ -727,24 +747,24 @@ public class AllelematrixApiController implements AllelematrixApi {
             // Uses allCallsetIdsForAgg (full pre-pagination list) so totalCount reflects
             // distinct keys across all pages, not just the current one.
             // -------------------------------------------------------------------------
-            int nTotalAggregatedColumnCount = nTotalCallsetsCount; // default for callSet level
-            if (colAgg != AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET && !allCallsetIdsForAgg.isEmpty()) {
-                List<GenotypingSample> allSamplesForCount = mongoTemplate.find(
-                        new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(allCallsetIdsForAgg)),
-                        GenotypingSample.class);
-                Set<String> distinctAggKeys = new LinkedHashSet<>();
-                for (GenotypingSample s : allSamplesForCount) {
-                    if (s.getCallSets() == null) continue;
-                    for (Callset cs : s.getCallSets()) {
-                        if (!allCallsetIdsForAgg.contains(cs.getId())) continue;
-                        String key = "sample".equalsIgnoreCase(colAgg.toString())
-                                ? module + Helper.ID_SEPARATOR + s.getId()
-                                : module + Helper.ID_SEPARATOR + (s.getIndividual() != null ? s.getIndividual() : cs.getId());
-                        distinctAggKeys.add(key);
-                    }
-                }
-                nTotalAggregatedColumnCount = distinctAggKeys.size();
-            }
+//            int nTotalAggregatedColumnCount = nTotalCallsetsCount; // default for callSet level
+//            if (colAgg != AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET && !allCallsetIdsForAgg.isEmpty()) {
+//                List<GenotypingSample> allSamplesForCount = mongoTemplate.find(
+//                        new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(allCallsetIdsForAgg)),
+//                        GenotypingSample.class);
+//                Set<String> distinctAggKeys = new LinkedHashSet<>();
+//                for (GenotypingSample s : allSamplesForCount) {
+//                    if (s.getCallSets() == null) continue;
+//                    for (Callset cs : s.getCallSets()) {
+//                        if (!allCallsetIdsForAgg.contains(cs.getId())) continue;
+//                        String key = "sample".equalsIgnoreCase(colAgg.toString())
+//                                ? module + Helper.ID_SEPARATOR + s.getId()
+//                                : module + Helper.ID_SEPARATOR + (s.getIndividual() != null ? s.getIndividual() : cs.getId());
+//                        distinctAggKeys.add(key);
+//                    }
+//                }
+//                nTotalAggregatedColumnCount = distinctAggKeys.size();
+//            }
 
             // -------------------------------------------------------------------------
             // Start async variant count — runs concurrently with the data fetch below
@@ -823,11 +843,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                 // Using _order as the synthetic projectId is a deliberate hack: the field
                 // must exist for deserialization, and _order is identical across all runs
                 // of the same variant so grouping still works correctly.
-                GroupOperation group = Aggregation.group(Fields.from(new Field[] {
+                GroupOperation group = varIDs.isEmpty()
+                        ? Aggregation.group(Fields.from(new Field[] {
+                                Fields.field("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID),
+                                Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_id." + VariantRunDataId.FIELDNAME_PROJECT_ID) }))
+                        : Aggregation.group(Fields.from(new Field[] {
                                 Fields.field("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID),
                                 Fields.field(VariantRunDataId.FIELDNAME_PROJECT_ID, "_order") }))
-                        .and("_order", ArrayOperators.First.firstOf("$_order"))
-                        .addToSet(new Document()
+                        .and("_order", ArrayOperators.First.firstOf("$_order"));
+
+                group = group.addToSet(new Document()
                                 .append(VariantRunDataId.FIELDNAME_PROJECT_ID, "$_id." + VariantRunDataId.FIELDNAME_PROJECT_ID)
                                 .append(VariantRunDataId.FIELDNAME_RUNNAME, "$_id." + VariantRunDataId.FIELDNAME_RUNNAME))
                         .as(VariantRunDataWithRuns.FIELDNAME_RUNS)
@@ -835,9 +860,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                         .and(VariantRunData.FIELDNAME_SAMPLEGENOTYPES, MergeObjects.mergeValuesOf(VariantRunData.FIELDNAME_SAMPLEGENOTYPES))
                         .and(VariantRunData.SECTION_ADDITIONAL_INFO, MergeObjects.mergeValuesOf(VariantRunData.SECTION_ADDITIONAL_INFO));
 
+                AggregationOperation sortOp = varIDs.isEmpty()
+                        //fix sort (spring added "_id" before the field when using spring sort function)
+                        ? Aggregation.stage(
+                                new Document("$sort", new Document("_id" + VariantRunDataId.FIELDNAME_PROJECT_ID, 1)
+                                        .append("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID, 1)))
+                        : sort(Sort.by(Sort.Direction.ASC, "_order"));
+
                 Aggregation aggregation = Aggregation.newAggregation(
                                 match, project, group,
-                                sort(Sort.by(Sort.Direction.ASC, "_id." + Run.FIELDNAME_PROJECT_ID)),
+                                sortOp,
                                 Aggregation.skip(nSkipCount), Aggregation.limit(numberOfMarkersPerPage))
                         .withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
 
