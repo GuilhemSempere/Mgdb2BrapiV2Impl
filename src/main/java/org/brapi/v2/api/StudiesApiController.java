@@ -69,7 +69,6 @@ public class StudiesApiController implements StudiesApi {
                                         body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
             boolean hasProjectFilter = body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty() ||
                                        body.getStudyNames() != null && !body.getStudyNames().isEmpty() ||
-                                       body.getStudyCodes() != null && !body.getStudyCodes().isEmpty() ||
                                        body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty() ||
                                        body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty();
             
@@ -213,7 +212,6 @@ public class StudiesApiController implements StudiesApi {
         boolean hasStudyNames = body.getStudyNames() != null && !body.getStudyNames().isEmpty();
         boolean hasProgramDbIds = body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
         boolean hasTrialDbIds = body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
-        boolean hasStudyCodes = body.getStudyCodes() != null && !body.getStudyCodes().isEmpty();
         boolean hasGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
         boolean hasGermplasmDbIds = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty();
         
@@ -222,7 +220,7 @@ public class StudiesApiController implements StudiesApi {
         response.setMetadata(metadata);
         
         // Unsupported filters for deletion
-        if (hasStudyCodes || hasGermplasmNames || hasGermplasmDbIds) {
+        if (hasGermplasmNames || hasGermplasmDbIds) {
             metadata.addStatusItem(new Status() {{
                 setMessage("Study deletion only supports studyDbIds, studyNames, programDbIds and trialDbIds filters.");
                 setMessageType(Status.MessageTypeEnum.ERROR);
@@ -375,7 +373,6 @@ public class StudiesApiController implements StudiesApi {
         boolean fGotTrialIDs = body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
         boolean fGotProgramIDs = body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
         boolean fGotStudyNames = body.getStudyNames() != null && !body.getStudyNames().isEmpty();
-        boolean fGotStudyCodes = body.getStudyCodes() != null && !body.getStudyCodes().isEmpty();
         boolean fGotStudyDbIds = body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty();
         boolean fGotGermplasmNames = body.getGermplasmNames() != null && !body.getGermplasmNames().isEmpty();
         boolean fGotGermplasmDbIds = body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty();
@@ -413,8 +410,7 @@ public class StudiesApiController implements StudiesApi {
         Map<String, Set<Integer>> projectsByModule = new HashMap<>();
         
         // Step 3: If no project-level filters, return ALL projects from databases
-        boolean hasProjectLevelFilter = fGotStudyDbIds || fGotStudyNames || fGotStudyCodes || 
-                                        fGotGermplasmNames || fGotGermplasmDbIds;
+        boolean hasProjectLevelFilter = fGotStudyDbIds || fGotStudyNames || fGotGermplasmNames || fGotGermplasmDbIds;
         
         if (!hasProjectLevelFilter) {
             for (String module : dbsToAccountFor) {
@@ -473,14 +469,8 @@ public class StudiesApiController implements StudiesApi {
             }
             
             // Add studyNames filter
-            if (fGotStudyNames) {
+            if (fGotStudyNames)
                 andCriteria.add(Criteria.where("name").in(body.getStudyNames()));
-            }
-            
-            // Add studyCodes filter
-            if (fGotStudyCodes) {
-                andCriteria.add(Criteria.where("code").in(body.getStudyCodes()));
-            }
             
             // Add germplasm filters (if any)
             if (fGotGermplasmNames || fGotGermplasmDbIds) {
