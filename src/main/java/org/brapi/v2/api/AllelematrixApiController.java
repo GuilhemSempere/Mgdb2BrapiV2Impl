@@ -46,6 +46,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -75,7 +76,6 @@ import fr.cirad.tools.query.GroupedExecutor.TaskWrapper;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import org.springframework.web.server.ResponseStatusException;
 
 @Controller
 public class AllelematrixApiController implements AllelematrixApi {

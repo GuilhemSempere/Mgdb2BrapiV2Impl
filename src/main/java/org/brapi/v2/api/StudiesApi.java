@@ -34,6 +34,7 @@ public interface StudiesApi {
 	public static final String studiesGet_url = "studies";
 	public static final String studiesPost_url = studiesGet_url;
     public static final String searchStudiesPost_url = "search/studies";
+    public static final String deleteStudiesPost_url = "delete/studies";
     
     @ApiOperation(value = "Returns a filtered list of `Study` objects", nickname = "searchStudiesPost", notes = "Returns a filtered list of `Study` objects. Empty body accepted", response = SuccessfulSearchResponse.class, authorizations = {
         @Authorization(value = "AuthorizationToken")    }, tags={ "Studies" })
@@ -90,6 +91,22 @@ public interface StudiesApi {
         consumes = { "application/json" }, 
         method = RequestMethod.POST)
     ResponseEntity<StudyListResponse> studiesPost(@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @Valid @RequestBody List<StudyNewRequest> body);
+    
+    @ApiOperation(value = "Delete studies", nickname = "deleteStudiesPost", notes = "Delete one or more studies. Accepts either explicit study IDs or search criteria.", response = StudyListResponse.class, authorizations = {
+    	    @Authorization(value = "AuthorizationToken") }, tags = { "Studies" })
+    	@ApiResponses(value = {
+    	    @ApiResponse(code = 200, message = "OK", response = StudyListResponse.class),
+    	    @ApiResponse(code = 400, message = "Bad Request", response = String.class),
+    	    @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
+    	    @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    	@RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/delete/studies",
+    	    produces = { "application/json" },
+    	    consumes = { "application/json" },
+    	    method = RequestMethod.POST)
+    	ResponseEntity<StudyListResponse> deleteStudiesPost(
+    	    @ApiParam @Valid @RequestBody StudySearchRequest body,
+    	    @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>")
+    	    @RequestHeader(value = "Authorization", required = false) String authorization);
 //
 //
 //    /**
