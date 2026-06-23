@@ -348,9 +348,9 @@ public class AllelematrixApiController implements AllelematrixApi {
             // -------------------------------------------------------------------------
             // Resolve germplasm → individual IDs
             // -------------------------------------------------------------------------
-            List<String> germplasmIds = null;
+            List<String> givenGermplasmIds = null;
             if (body.getGermplasmDbIds() != null && !body.getGermplasmDbIds().isEmpty()) {
-                germplasmIds = new ArrayList<>();
+                givenGermplasmIds = new ArrayList<>();
                 Map<String, Collection<String>> gMap = GermplasmApiController.readGermplasmIDs(body.getGermplasmDbIds());
                 if (gMap.size() > 1) {
                     throw new ResponseStatusException(
@@ -366,10 +366,10 @@ public class AllelematrixApiController implements AllelematrixApi {
                             "You may specify VariantSets / Variants / CallSets / Germplasm only belonging to the same program / trial!"
                     );
                 }
-                germplasmIds.addAll(gMap.get(module));
+                givenGermplasmIds.addAll(gMap.get(module));
             }
 
-            HashSet<String> givenSampleIds = new HashSet<>();
+            LinkedHashSet<String> givenSampleIds = new LinkedHashSet<>();
             if (body.getSampleDbIds() != null && !body.getSampleDbIds().isEmpty()) {
                 for (String sampleDbId : body.getSampleDbIds()) {
                     String[] info = Helper.getInfoFromId(sampleDbId, 2);
@@ -424,29 +424,29 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
                 Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(body.getGermplasmNames()));
                 List<String> germplasmIdsByNames = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
-                if (germplasmIds == null)
-                    germplasmIds = germplasmIdsByNames;
+                if (givenGermplasmIds == null)
+                    givenGermplasmIds = germplasmIdsByNames;
                 else
-                    germplasmIds.retainAll(germplasmIdsByNames);
+                    givenGermplasmIds.retainAll(germplasmIdsByNames);
             }
 
-            if (germplasmIds != null && germplasmIds.isEmpty())
+            if (givenGermplasmIds != null && givenGermplasmIds.isEmpty())
                 return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, bioEntitiesPage, numberOfBioEntitiesPerPage);
 
             // -------------------------------------------------------------------------
             // Resolve germplasm → sample IDs → callset IDs
             // -------------------------------------------------------------------------
             HashSet<String> sampleIDs = new HashSet<>();
-            if (germplasmIds != null) {
+            if (givenGermplasmIds != null) {
                 if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
-                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= germplasmIds.size()) {
-                        germplasmIds = new ArrayList<>();
+                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= givenGermplasmIds.size()) {
+                        givenGermplasmIds = new ArrayList<>();
                     } else {
-                        Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= germplasmIds.size() ? germplasmIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
-                        germplasmIds = germplasmIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
+                        Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= givenGermplasmIds.size() ? givenGermplasmIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
+                        givenGermplasmIds = givenGermplasmIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
                     }
                 }
-                for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(germplasmIds)), GenotypingSample.class))
+                for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(givenGermplasmIds)), GenotypingSample.class))
                     sampleIDs.add(s.getId());
             }
 
@@ -625,26 +625,72 @@ public class AllelematrixApiController implements AllelematrixApi {
                 } else if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
                     Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds));
                     List<String> samplesIds = mongoTemplate.findDistinct(query, "_id", GenotypingSample.class, String.class);
+                    if (givenSampleIds != null && !givenSampleIds.isEmpty()) { // to keep the same order as it was given in the search query.
+                        Set<String> samplesIdsSet = new HashSet<>(samplesIds);
+                        samplesIds = givenSampleIds.stream()
+                                .filter(samplesIdsSet::contains)
+                                .collect(Collectors.toList());
+                    }
                     nTotalAggregatedColumnCount = samplesIds.size();
                     if (bioEntitiesPage * numberOfBioEntitiesPerPage >= samplesIds.size()) {
                         callsetIds = new ArrayList<>();
                     } else {
                         int endOfList = Math.min((bioEntitiesPage + 1) * numberOfBioEntitiesPerPage, samplesIds.size());
                         samplesIds = samplesIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
-                        Query callsetsQuery = new Query(Criteria.where("_id").in(samplesIds));
-                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                        Aggregation agg = Aggregation.newAggregation(
+                                Aggregation.match(Criteria.where("_id").in(samplesIds)),
+                                Aggregation.addFields()
+                                        .addFieldWithValue("_order",
+                                                new Document("$indexOfArray", Arrays.asList(givenSampleIds, "$_id")))
+                                        .build(),
+                                Aggregation.sort(Sort.by("_order")),
+                                Aggregation.unwind("cs"),
+                                Aggregation.project().and("cs._id").as("callsetId")
+                        );
+
+                        callsetIds = mongoTemplate.aggregate(agg, GenotypingSample.class, Document.class)
+                                .getMappedResults()
+                                .stream()
+                                .map(doc -> doc.getInteger("callsetId"))
+                                .distinct()
+                                .collect(Collectors.toList());
+//                        Query callsetsQuery = new Query(Criteria.where("_id").in(samplesIds));
+//                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
                     }
                 } else if (colAgg == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
                     Query query = new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds));
                     List<String> indIds = mongoTemplate.findDistinct(query, GenotypingSample.FIELDNAME_INDIVIDUAL, GenotypingSample.class, String.class);
+                    if (givenGermplasmIds != null && !givenGermplasmIds.isEmpty()) { // to keep the same order as it was given in the search query.
+                        Set<String> indIdSet = new HashSet<>(indIds);
+                        indIds = givenGermplasmIds.stream()
+                                .filter(indIdSet::contains)
+                                .collect(Collectors.toList());
+                    }
                     nTotalAggregatedColumnCount = indIds.size();
                     if (bioEntitiesPage * numberOfBioEntitiesPerPage >= indIds.size()) {
                         callsetIds = new ArrayList<>();
                     } else {
                         int endOfList = Math.min((bioEntitiesPage + 1) * numberOfBioEntitiesPerPage, indIds.size());
                         indIds = indIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
-                        Query callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
-                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
+                        Aggregation agg = Aggregation.newAggregation(
+                                Aggregation.match(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds)),
+                                Aggregation.addFields()
+                                        .addFieldWithValue("_order",
+                                                new Document("$indexOfArray", Arrays.asList(givenGermplasmIds, "$" + GenotypingSample.FIELDNAME_INDIVIDUAL)))
+                                        .build(),
+                                Aggregation.sort(Sort.by("_order")),
+                                Aggregation.unwind("cs"),
+                                Aggregation.project().and("cs._id").as("callsetId")
+                        );
+
+                        callsetIds = mongoTemplate.aggregate(agg, GenotypingSample.class, Document.class)
+                                .getMappedResults()
+                                .stream()
+                                .map(doc -> doc.getInteger("callsetId"))
+                                .distinct()
+                                .collect(Collectors.toList());
+//                        Query callsetsQuery = new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(indIds));
+//                        callsetIds = mongoTemplate.findDistinct(callsetsQuery, GenotypingSample.FIELDNAME_CALLSETS + "._id", GenotypingSample.class, Integer.class);
                     }
                 }
             } else {
@@ -719,9 +765,33 @@ public class AllelematrixApiController implements AllelematrixApi {
                 }
             } else {
                 // Aggregate by sample or germplasm: build reverse maps
-                List<GenotypingSample> samplesForCallsets = mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)), GenotypingSample.class);
+                List<GenotypingSample> samplesForCallsets = new ArrayList<>();
+                if (givenSampleIds  != null && !givenSampleIds.isEmpty()) {
+                    Aggregation agg = Aggregation.newAggregation(
+                            Aggregation.match(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)),
+                            Aggregation.addFields()
+                                    .addFieldWithValue("_order",
+                                            new Document("$indexOfArray", Arrays.asList(givenSampleIds, "$_id")))
+                                    .build(),
+                            Aggregation.sort(Sort.by("_order"))
+                    );
+                    samplesForCallsets = mongoTemplate.aggregate(agg, GenotypingSample.class, GenotypingSample.class).getMappedResults();
+                } else if (givenGermplasmIds != null  && !givenGermplasmIds.isEmpty()) {
+                    Aggregation agg = Aggregation.newAggregation(
+                            Aggregation.match(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)),
+                            Aggregation.addFields()
+                                    .addFieldWithValue("_order",
+                                            new Document("$indexOfArray", Arrays.asList(givenGermplasmIds, "$" + GenotypingSample.FIELDNAME_INDIVIDUAL)))
+                                    .build(),
+                            Aggregation.sort(Sort.by("_order"))
+                    );
+                    samplesForCallsets = mongoTemplate.aggregate(agg, GenotypingSample.class, GenotypingSample.class).getMappedResults();
+
+                } else {
+                    samplesForCallsets = mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").in(callsetIds)), GenotypingSample.class);
+                }
                 // Map callsetId → sample
-                Map<Integer, GenotypingSample> callsetToSample = new HashMap<>();
+                LinkedHashMap<Integer, GenotypingSample> callsetToSample = new LinkedHashMap<>();
                 for (GenotypingSample s : samplesForCallsets)
                     if (s.getCallSets() != null)
                         for (Callset cs : s.getCallSets())
