@@ -438,14 +438,6 @@ public class AllelematrixApiController implements AllelematrixApi {
             // -------------------------------------------------------------------------
             HashSet<String> sampleIDs = new HashSet<>();
             if (givenGermplasmIds != null) {
-                if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.GERMPLASM) {
-                    if (bioEntitiesPage * numberOfBioEntitiesPerPage >= givenGermplasmIds.size()) {
-                        givenGermplasmIds = new ArrayList<>();
-                    } else {
-                        Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= givenGermplasmIds.size() ? givenGermplasmIds.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
-                        givenGermplasmIds = givenGermplasmIds.subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList);
-                    }
-                }
                 for (GenotypingSample s : mongoTemplate.find(new Query(Criteria.where(GenotypingSample.FIELDNAME_INDIVIDUAL).in(givenGermplasmIds)), GenotypingSample.class))
                     sampleIDs.add(s.getId());
             }
@@ -457,15 +449,6 @@ public class AllelematrixApiController implements AllelematrixApi {
                     sampleIDs.retainAll(givenSampleIds);
                 if (sampleIDs.isEmpty()) {
                     return returnEmptyMatrix(response, variantsPage, numberOfMarkersPerPage, bioEntitiesPage, numberOfBioEntitiesPerPage);
-                } else {
-                    if (body.getDimensionColumnAggregation() == AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.SAMPLE) {
-                        if (bioEntitiesPage * numberOfBioEntitiesPerPage >= sampleIDs.size()) {
-                            sampleIDs = new HashSet<>();
-                        } else {
-                            Integer endOfList = (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage >= sampleIDs.size() ? sampleIDs.size() : (bioEntitiesPage + 1) * numberOfBioEntitiesPerPage;
-                            sampleIDs = new HashSet<>(new ArrayList<>(sampleIDs).subList(bioEntitiesPage * numberOfBioEntitiesPerPage, endOfList));
-                        }
-                    }
                 }
             }
 
