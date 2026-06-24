@@ -89,7 +89,7 @@ public class CallsApiController implements CallsApi {
             String sepUnphased,
             Integer page, 
             Integer pageSize,
-            AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregationEnum,
+            //AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregationEnum,
             String authorization) {
         
         if (variantSetDbId == null && callSetDbId != null) {
@@ -105,7 +105,7 @@ public class CallsApiController implements CallsApi {
         csr.setSepPhased(sepPhased);
         csr.setPageSize(pageSize);
         csr.setPage(page);
-        csr.setDimensionColumnAggregation(dimensionColumnAggregationEnum);
+        csr.setDimensionColumnAggregation(AlleleMatrixSearchRequest.DimensionColumnAggregationEnum.CALLSET);
         
         if (callSetDbId != null)
                 csr.setCallSetDbIds(Arrays.asList(callSetDbId));

@@ -104,10 +104,9 @@ public class AllelematrixApiController implements AllelematrixApi {
 
     @Override
     public ResponseEntity<AlleleMatrixResponse> allelematrixGet(Integer dimensionVariantPage, Integer dimensionVariantPageSize, Integer dimensionCallSetPage, Integer dimensionCallSetPageSize,
-                                                                Integer dimensionColumnPage, Integer dimensionColumnPageSize,
                                                                 Boolean preview, String dataMatrixAbbreviations, String positionRange, String germplasmDbId, String germplasmName, String germplasmPUI, String callSetDbId,
                                                                 String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased,
-                                                                String studyDbId, AlleleMatrixSearchRequest.DimensionColumnAggregationEnum dimensionColumnAggregation, String authorization) throws InterruptedException, ObjectNotFoundException, MalformedParametersException {
+                                                                String studyDbId, String authorization) throws InterruptedException, ObjectNotFoundException, MalformedParametersException {
 
         if (variantSetDbId == null && callSetDbId != null) {
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
@@ -122,15 +121,15 @@ public class AllelematrixApiController implements AllelematrixApi {
         if (dimensionCallSetPage != null) {
             csPagination.setPage(dimensionCallSetPage);
         }
-        if (dimensionColumnPage != null) {
-            csPagination.setPage(dimensionColumnPage);
-        }
+//        if (dimensionColumnPage != null) {
+//            csPagination.setPage(dimensionColumnPage);
+//        }
         if (dimensionCallSetPageSize != null) {
             csPagination.setPageSize(dimensionCallSetPageSize);
         }
-        if (dimensionColumnPageSize != null) {
-            csPagination.setPageSize(dimensionColumnPageSize);
-        }
+//        if (dimensionColumnPageSize != null) {
+//            csPagination.setPageSize(dimensionColumnPageSize);
+//        }
         request.getPagination().add(csPagination);
 
         AlleleMatrixSearchRequestPagination vPagination = new AlleleMatrixSearchRequestPagination();
@@ -176,9 +175,9 @@ public class AllelematrixApiController implements AllelematrixApi {
         if (studyDbId != null) {
             request.setStudyDbIds(Arrays.asList(studyDbId));
         }
-        if (dimensionColumnAggregation != null) {
-            request.setDimensionColumnAggregation(dimensionColumnAggregation);
-        }
+//        if (dimensionColumnAggregation != null) {
+//            request.setDimensionColumnAggregation(dimensionColumnAggregation);
+//        }
 
         return searchAllelematrixPost(authorization, request);
     }
