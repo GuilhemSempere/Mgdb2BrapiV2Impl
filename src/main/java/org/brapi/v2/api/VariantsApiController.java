@@ -1,7 +1,10 @@
 package org.brapi.v2.api;
 
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
+import static org.springframework.data.mongodb.core.aggregation.ArrayOperators.IndexOfArray.arrayOf;
+
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.MalformedParametersException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -17,13 +20,22 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import javax.ejb.ObjectNotFoundException;
 import javax.validation.Valid;
 
 import org.apache.commons.collections.IteratorUtils;
-import org.brapi.v2.model.*;
+import org.brapi.v2.model.CallsListResponse;
+import org.brapi.v2.model.CallsSearchRequest;
+import org.brapi.v2.model.IndexPagination;
+import org.brapi.v2.model.Metadata;
+import org.brapi.v2.model.Reference;
+import org.brapi.v2.model.ReferenceListResponse;
+import org.brapi.v2.model.ReferencesSearchRequest;
+import org.brapi.v2.model.Status;
+import org.brapi.v2.model.Variant;
+import org.brapi.v2.model.VariantListResponse;
+import org.brapi.v2.model.VariantListResponseResult;
+import org.brapi.v2.model.VariantsSearchRequest;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +43,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
@@ -38,6 +54,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -55,18 +72,8 @@ import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-
 import htsjdk.variant.variantcontext.VariantContext.Type;
 import io.swagger.annotations.ApiParam;
-import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
-import static org.springframework.data.mongodb.core.aggregation.ArrayOperators.IndexOfArray.arrayOf;
-import org.springframework.data.mongodb.core.aggregation.MatchOperation;
-import org.springframework.data.mongodb.core.aggregation.SortOperation;
-import org.springframework.web.server.ResponseStatusException;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -236,10 +243,10 @@ public class VariantsApiController implements VariantsApi {
                         return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
                     }
                     module = info[0];
-                    Integer assemblyId = Integer.parseInt(info[1]);
-                    if (assemblyIdForReturnedPositions == null) {
+                    Integer assemblyId = info[1].isBlank() ? null : Integer.parseInt(info[1]);
+                    if (assemblyIdForReturnedPositions == null)
                         assemblyIdForReturnedPositions = assemblyId;    // if there are several then the first encountered will be used
-                    }
+                    
                     String refPosPath = assemblyId != null ? VariantData.FIELDNAME_POSITIONS + "." + assemblyId : VariantData.FIELDNAME_REFERENCE_POSITION;
                     List<String> asmSeqs = seqsByAssembly.get(refPosPath);
                     if (asmSeqs == null) {
@@ -326,8 +333,6 @@ public class VariantsApiController implements VariantsApi {
             AtomicLong totalCount = new AtomicLong();
             Thread countThread = null;
             List<VariantData> varList;
-            HashMap<String, Integer> projectByVariant = projId == null ? new HashMap<>() : null;    // if searching by variantDbIds we have no info what projectId to set in referenceDbId and referenceSetDbId: find this out
-
             final Query finalVarQuery = varQueryCrits.isEmpty() ? new Query() : new Query(new Criteria().andOperator(varQueryCrits));
             countThread = new Thread() {
                 public void run() {
@@ -360,15 +365,14 @@ public class VariantsApiController implements VariantsApi {
 
             finalVarQuery.fields().include(AbstractVariantData.SECTION_ADDITIONAL_INFO);
 
-            Query vrdQueryForAI = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantsById.keySet()));
-            vrdQueryForAI.fields().include(VariantRunData.SECTION_ADDITIONAL_INFO);
-            mongoTemplate.find(vrdQueryForAI, VariantRunData.class).forEach(vrd -> {
-                variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());    // FIXME: this is sub-optimal as it may be called several times for the same variant
-//        			Optional.ofNullable(variantsById.get(vrd.getVariantId())).ifPresent(variant -> variant.getAdditionalInfo().putAll(vrd.getAdditionalInfo()));	// FIXME: this is sub-optimal as it may be called several times for the same variant
-                if (projectByVariant != null && !projectByVariant.containsKey(vrd.getVariantId())) {
-                    projectByVariant.put(vrd.getVariantId(), vrd.getId().getProjectId());
-                }
-            });
+            MongoCollection<Document> vcfHeaderColl = MongoTemplateManager.get(module).getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
+            if (vcfHeaderColl.estimatedDocumentCount() > 0) {
+	            Query vrdQueryForAI = new Query(Criteria.where("_id." + VariantRunDataId.FIELDNAME_VARIANT_ID).in(variantsById.keySet()));
+	            vrdQueryForAI.fields().include(VariantRunData.SECTION_ADDITIONAL_INFO);
+	            mongoTemplate.find(vrdQueryForAI, VariantRunData.class).forEach(vrd -> {
+	                variantsById.get(vrd.getVariantId()).getAdditionalInfo().putAll(vrd.getAdditionalInfo());    // FIXME: this is sub-optimal as it may be called several times for the same variant
+	            });
+            }
 
             ArrayList<String> headerList = null;
             boolean fAnnStyle = true;
@@ -386,15 +390,12 @@ public class VariantsApiController implements VariantsApi {
                 variant.setVariantType(dbVariant.getType());
                 ReferencePosition refPos = assemblyIdForReturnedPositions != null ? dbVariant.getReferencePosition(assemblyIdForReturnedPositions) : dbVariant.getDefaultReferencePosition();
                 if (refPos != null) {
-                    Integer nProjectIdForVariant = projId != null ? projId : projectByVariant.get(dbVariant.getVariantId());
-                    if (nProjectIdForVariant != null) {
-                        variant.setReferenceSetDbId(module + Helper.ID_SEPARATOR + (assemblyIdForReturnedPositions == null ? "" : assemblyIdForReturnedPositions));
-                        variant.setReferenceDbId(variant.getReferenceSetDbId() + Helper.ID_SEPARATOR + refPos.getSequence());
-                        if (status.getMessage() == null) {
-                            status.setMessage("Returned variant positions are based on referenceSetDbId " + variant.getReferenceSetDbId());
-                            status.setMessageType(Status.MessageTypeEnum.INFO);
-                            metadata.addStatusItem(status);
-                        }
+                    variant.setReferenceSetDbId(module + Helper.ID_SEPARATOR + (assemblyIdForReturnedPositions == null ? "" : assemblyIdForReturnedPositions));
+                    variant.setReferenceDbId(variant.getReferenceSetDbId() + Helper.ID_SEPARATOR + refPos.getSequence());
+                    if (status.getMessage() == null) {
+                        status.setMessage("Returned variant positions are based on referenceSetDbId " + variant.getReferenceSetDbId());
+                        status.setMessageType(Status.MessageTypeEnum.INFO);
+                        metadata.addStatusItem(status);
                     }
                     variant.setReferenceName(refPos.getSequence());
                     variant.setStart((int) refPos.getStartSite());
@@ -432,7 +433,6 @@ public class VariantsApiController implements VariantsApi {
                                 fieldHeader.put(AbstractVariantData.VCF_CONSTANT_INFO_META_DATA + "." + VcfImport.ANNOTATION_FIELDNAME_CSQ + "." + AbstractVariantData.VCF_CONSTANT_DESCRIPTION, 1);
                             }
 
-                            MongoCollection<Document> vcfHeaderColl = MongoTemplateManager.get(module).getCollection(MongoTemplateManager.getMongoCollectionName(DBVCFHeader.class));
                             BasicDBList vcfHeaderQueryOrList = new BasicDBList();
                             for (String key : fieldHeader.keySet()) {
                                 vcfHeaderQueryOrList.add(new BasicDBObject(key, new BasicDBObject("$exists", true)));
