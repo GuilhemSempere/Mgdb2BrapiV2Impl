@@ -72,6 +72,7 @@ public interface VariantsApi {
     		@ApiParam(value= "The ID of the `Reference` to be retrieved (this parameter was added for convenience and is not standard in BrAPI v2.0).") @Valid @RequestParam(value = "referenceDbId", required = false) String referenceDbId,
     		@ApiParam(value= "The beginning of the window (0-based, inclusive) for which overlapping variants should be returned (this parameter was added for convenience and is not standard in BrAPI v2.0).") @Valid @RequestParam(value = "start", required = false) Integer start,
     		@ApiParam(value= "The end of the window (0-based, inclusive) for which overlapping variants should be returned (this parameter was added for convenience and is not standard in BrAPI v2.0).") @Valid @RequestParam(value = "end", required = false) Integer end,
+			@ApiParam(value= "The name of the variant to be retrieved.") @Valid @RequestParam(value = "variantName", required = false) String variantName,
     		@ApiParam(value= "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
     		@ApiParam(value= "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
     		@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
