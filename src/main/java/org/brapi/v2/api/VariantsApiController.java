@@ -192,23 +192,25 @@ public class VariantsApiController implements VariantsApi {
                 }
                 varQueryCrits.add(Criteria.where("_id").in(variantIDs));
             }
+
             if (body.getVariantNames() != null && !body.getVariantNames().isEmpty()) {
-            	if (variantIDs.isEmpty())
-            		variantIDs.addAll(body.getVariantNames());
-            	else
-            		variantIDs.retainAll(body.getVariantNames());
+                boolean fSynonymsExist = true;
+                if (!fSynonymsExist) {	// only account for IDs as names
+	            	if (variantIDs.isEmpty())
+	            		variantIDs.addAll(body.getVariantNames());
+	            	else
+	            		variantIDs.retainAll(body.getVariantNames());
+	            	varQueryCrits.add(Criteria.where("_id").in(variantIDs));
+                }
+                else {
+                	List<Criteria> critList = new ArrayList<>();
+                	if (!variantIDs.isEmpty())
+                		critList.add(Criteria.where("_id").in(body.getVariantNames()));
+                	critList.addAll(InitialVariantImport.synonymColNames.stream().map(type -> Criteria.where(VariantData.FIELDNAME_SYNONYMS + "." + type).in(body.getVariantNames())).toList());
+                    varQueryCrits.add(new Criteria().orOperator(critList));
+                }
             }
 
-            if (!variantIDs.isEmpty()) {
-            	Criteria idCrit = Criteria.where("_id").in(variantIDs);
-//            	if (true) {	//FIXME: see if there are synonyms at all?
-//                	List<Criteria> critList = InitialVariantImport.synonymColNames.stream().map(type -> Criteria.where(VariantData.FIELDNAME_SYNONYMS + "." + type).in(variantIDs)).toList();
-//            		critList.add(idCrit);
-//            		idCrit = new Criteria().orOperator(critList);
-//            	}
-                varQueryCrits.add(idCrit);
-            }
-            
             if (fGotRefDbIds || fGotRefSetDbIds) {
                 if (!fGotRefDbIds) { // select all references in this referenceSet
                     for (String referenceSetDbId : body.getReferenceSetDbIds()) {
