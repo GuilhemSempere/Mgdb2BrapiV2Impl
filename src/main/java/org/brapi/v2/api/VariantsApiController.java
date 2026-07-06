@@ -20,7 +20,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.validation.Valid;
 
@@ -136,17 +135,21 @@ public class VariantsApiController implements VariantsApi {
                     status.setMessage("You may only request variant records from one program at a time!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
-                } else {
+                } else
                     module = body.getProgramDbIds().get(0);
-                }
             }
             if (body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty()) {
-                if (body.getProgramDbIds().size() > 1) {
+                if (body.getTrialDbIds().size() > 1) {
                     status.setMessage("You may only request variant records from one trial at a time!");
                     metadata.addStatusItem(status);
                     return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
                 } else {
-                    module = body.getProgramDbIds().get(0);
+                    if (module != null && !module.equals(body.getTrialDbIds().get(0))) {	// we already have a program selected: let's make sure it matches the trial
+                        status.setMessage("Trial and program dbIds do not match!");
+                        metadata.addStatusItem(status);
+                        return new ResponseEntity<>(vlr, HttpStatus.BAD_REQUEST);
+                    } else
+                        module = body.getTrialDbIds().get(0);
                 }
             }
             if (body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty()) {
@@ -194,21 +197,20 @@ public class VariantsApiController implements VariantsApi {
             }
 
             if (body.getVariantNames() != null && !body.getVariantNames().isEmpty()) {
-                boolean fSynonymsExist = true;
-                if (!fSynonymsExist) {	// only account for IDs as names
-	            	if (variantIDs.isEmpty())
-	            		variantIDs.addAll(body.getVariantNames());
-	            	else
-	            		variantIDs.retainAll(body.getVariantNames());
-	            	varQueryCrits.add(Criteria.where("_id").in(variantIDs));
-                }
-                else {
+//                boolean fSynonymsExist = true;	// if needs to be optimized, check if synonyms have been indexed?
+//                if (!fSynonymsExist) {	// only account for IDs as names
+//	            	if (variantIDs.isEmpty())
+//	            		variantIDs.addAll(body.getVariantNames());
+//	            	else
+//	            		variantIDs.retainAll(body.getVariantNames());
+//	            	varQueryCrits.add(Criteria.where("_id").in(variantIDs));
+//                }
+//                else {
                 	List<Criteria> critList = new ArrayList<>();
-                	if (!variantIDs.isEmpty())
-                		critList.add(Criteria.where("_id").in(body.getVariantNames()));
+               		critList.add(Criteria.where("_id").in(body.getVariantNames()));
                 	critList.addAll(InitialVariantImport.synonymColNames.stream().map(type -> Criteria.where(VariantData.FIELDNAME_SYNONYMS + "." + type).in(body.getVariantNames())).toList());
                     varQueryCrits.add(new Criteria().orOperator(critList));
-                }
+//                }
             }
 
             if (fGotRefDbIds || fGotRefSetDbIds) {
@@ -502,7 +504,9 @@ public class VariantsApiController implements VariantsApi {
             }
 
             if (assemblyIdForReturnedPositions != null && status.getMessage() == null) {
-                status.setMessage("Returned variant positions are based on assembly #" + assemblyIdForReturnedPositions + " (" + mongoTemplate.findById(assemblyIdForReturnedPositions, Assembly.class).getName() + ")");
+            	String assemblyName = mongoTemplate.findById(assemblyIdForReturnedPositions, Assembly.class).getName();
+            	mongoTemplate.findById(assemblyIdForReturnedPositions, Assembly.class).getName();
+                status.setMessage("Returned variant positions are based on assembly #" + assemblyIdForReturnedPositions + (assemblyName != null ?  " (" + assemblyName + ")" : ""));
                 status.setMessageType(Status.MessageTypeEnum.INFO);
                 metadata.addStatusItem(status);
             }
