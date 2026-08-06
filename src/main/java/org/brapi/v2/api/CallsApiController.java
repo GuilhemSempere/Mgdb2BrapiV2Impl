@@ -705,7 +705,7 @@ public class CallsApiController implements CallsApi {
 
     private VariantRunData convertCallToVrd(Call c, VariantData vd, int projectId, String runName) {
         VariantRunData vrd = new VariantRunData(new VariantRunDataId(projectId, runName, vd.getId()));
-        vrd.setAdditionalInfo((HashMap<String, Object>) (Map) c.getAdditionalInfo());
+        vrd.setVariantAnnotation((HashMap<String, Object>) (Map) c.getAdditionalInfo());
         vrd.setReferencePosition(vd.getReferencePosition());	// in case we have an old-style DB that doesn't support assemblies
         vrd.setPositions(vd.getPositions());
         vrd.setKnownAlleles(vd.getKnownAlleles());
