@@ -10,7 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.ejb.ObjectNotFoundException;
+import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.ejb.ObjectNotFoundException;
 
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
@@ -39,10 +40,10 @@ import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import springfox.documentation.annotations.ApiIgnore;
+import org.springframework.web.bind.annotation.RestController;
 
-@javax.annotation.Generated(value = "org.brapi.v2.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T09:51:33.671Z[GMT]")
-@Controller
+@jakarta.annotation.Generated(value = "org.brapi.v2.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T09:51:33.671Z[GMT]")
+@RestController
 public class StudiesApiController implements StudiesApi {
 
     private static final Logger log = LoggerFactory.getLogger(StudiesApiController.class);
@@ -197,7 +198,7 @@ public class StudiesApiController implements StudiesApi {
 		return searchStudiesPost(body, authorization);
 	}
 
-    @ApiIgnore
+    @Hidden
 	@Override
 	public ResponseEntity<StudyListResponse> studiesPost(String authorization, List<StudyNewRequest> body) {
 		return new ResponseEntity<StudyListResponse>(HttpStatus.NOT_IMPLEMENTED);

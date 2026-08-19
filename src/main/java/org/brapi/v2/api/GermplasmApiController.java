@@ -9,10 +9,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.ejb.ObjectNotFoundException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.ejb.ObjectNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.ExternalReferencesInner;
 import org.brapi.v2.model.Germplasm;
@@ -35,7 +36,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 
 import fr.cirad.io.brapi.BrapiService;
 import fr.cirad.mgdb.model.mongo.maintypes.CustomIndividualMetadata;
@@ -47,10 +49,10 @@ import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import io.swagger.annotations.ApiParam;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@Controller
+
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
+@RestController
 public class GermplasmApiController implements GermplasmApi {
 
     private static final Logger log = LoggerFactory.getLogger(GermplasmApiController.class);
@@ -86,7 +88,8 @@ public class GermplasmApiController implements GermplasmApi {
         return dbIndividuals;
     }
 
-    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam(value = "Germplasm Search request") @Valid @RequestBody GermplasmSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value = "Authorization", required = false) String authorization) throws Exception {
+    @Override
+    public ResponseEntity<GermplasmListResponse> searchGermplasmPost(GermplasmSearchRequest body, String authorization) throws Exception {
         if (body.getCommonCropNames() != null && body.getCommonCropNames().size() > 0) {
             return new ResponseEntity<>(HttpStatus.OK);	// not supported
         }

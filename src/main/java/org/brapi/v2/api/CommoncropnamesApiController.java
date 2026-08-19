@@ -2,9 +2,10 @@ package org.brapi.v2.api;
 
 import java.util.stream.Collectors;
 
-import javax.ejb.ObjectNotFoundException;
-import javax.servlet.http.HttpServletRequest;
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.ejb.ObjectNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.CommonCropNamesResponse;
 import org.brapi.v2.model.CommonCropNamesResponseResult;
@@ -19,14 +20,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import io.swagger.annotations.ApiParam;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
-@Controller
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
+@RestController
 public class CommoncropnamesApiController implements CommoncropnamesApi {
 
     private static final Logger log = LoggerFactory.getLogger(CommoncropnamesApiController.class);
@@ -44,7 +45,7 @@ public class CommoncropnamesApiController implements CommoncropnamesApi {
     }
 
     @Override
-    public ResponseEntity<CommonCropNamesResponse> commoncropnamesGet(@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    public ResponseEntity<CommonCropNamesResponse> commoncropnamesGet(Integer page,Integer pageSize, String authorization) {
         String token = ServerinfoApiController.readToken(authorization);
     	
         try {

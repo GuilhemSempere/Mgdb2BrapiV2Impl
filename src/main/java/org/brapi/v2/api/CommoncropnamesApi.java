@@ -5,7 +5,15 @@
  */
 package org.brapi.v2.api;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.CommonCropNamesResponse;
 import org.springframework.http.ResponseEntity;
@@ -14,28 +22,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
-@Api(value = "commoncropnames", description = "the commoncropnames API", tags={ "Common Crop Names" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
+@Tag(name = "commoncropnames", description = "the commoncropnames API")
 public interface CommoncropnamesApi {
 
 	public static final String commoncropnamesGet_url = "commoncropnames";
-	
-    @ApiOperation(value = "Get the Common Crop Names", nickname = "commoncropnamesGet", notes = "List the common crop names for the crops available in a database server.   This call is ** required ** for multi-crop systems where data from multiple  crops may be stored in the same database server. A distinct database server  is defined by everything in the URL before \"/brapi/v2\", including host  name and base path.  This call is recommended for single crop systems to be compatible with  multi-crop clients. For a single crop system the response should contain  an array with exactly 1 element.   The common crop name can be used as a search parameter for Programs,  Studies, and Germplasm.", response = CommonCropNamesResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Common Crop Names", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = CommonCropNamesResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+
+    @Operation(summary = "Get the Common Crop Names", operationId = "commoncropnamesGet", description = "List the common crop names for the crops available in a database server.   This call is ** required ** for multi-crop systems where data from multiple  crops may be stored in the same database server. A distinct database server  is defined by everything in the URL before \"/brapi/v2\", including host  name and base path.  This call is recommended for single crop systems to be compatible with  multi-crop clients. For a single crop system the response should contain  an array with exactly 1 element.   The common crop name can be used as a search parameter for Programs,  Studies, and Germplasm.",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Common Crop Names", })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = CommonCropNamesResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + commoncropnamesGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<CommonCropNamesResponse> commoncropnamesGet(@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<CommonCropNamesResponse> commoncropnamesGet(
+            @Parameter(description = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
+            @Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
+            @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 }

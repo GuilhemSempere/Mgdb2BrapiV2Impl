@@ -23,7 +23,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import javax.ejb.ObjectNotFoundException;
+import jakarta.ejb.ObjectNotFoundException;
 
 import org.brapi.v2.model.AlleleMatrix;
 import org.brapi.v2.model.AlleleMatrixDataMatrices;
@@ -35,6 +35,8 @@ import org.brapi.v2.model.AlleleMatrixSearchRequestPagination;
 import org.brapi.v2.model.Metadata;
 import org.brapi.v2.model.Status;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -53,6 +55,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.mongodb.BasicDBList;
@@ -84,10 +87,10 @@ import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 
-@Controller
+@RestController
 public class AllelematrixApiController implements AllelematrixApi {
 
-    static private final org.apache.log4j.Logger LOG = org.apache.log4j.Logger.getLogger(AllelematrixApiController.class);
+    static private final Logger LOG = LoggerFactory.getLogger(AllelematrixApiController.class);
 
     @Autowired
     AbstractTokenManager tokenManager;

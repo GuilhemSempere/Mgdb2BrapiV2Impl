@@ -1,6 +1,7 @@
 package org.brapi.v2.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -9,8 +10,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.ejb.ObjectNotFoundException;
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.ejb.ObjectNotFoundException;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.ExternalReferences;
 import org.brapi.v2.model.ExternalReferencesInner;
@@ -41,11 +43,11 @@ import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import io.swagger.annotations.ApiParam;
+
 import java.lang.reflect.MalformedParametersException;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Controller
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
+@RestController
 //@ApiIgnore
 public class SamplesApiController implements SamplesApi {
 
@@ -63,7 +65,7 @@ public class SamplesApiController implements SamplesApi {
     }
 
     @Override
-    public ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam(value = "")  @Valid @RequestBody SampleSearchRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    public ResponseEntity<SampleListResponse> searchSamplesPost(SampleSearchRequest body, String authorization) {
         String token = ServerinfoApiController.readToken(authorization);
     	Authentication auth = tokenManager.getAuthenticationFromToken(token);
 

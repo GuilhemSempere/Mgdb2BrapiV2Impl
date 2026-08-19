@@ -6,9 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
-import org.apache.log4j.Logger;
 import org.brapi.v2.api.ServerinfoApi;
 import org.brapi.v2.api.VariantsetsApi;
 import org.brapi.v2.model.VariantSet;
@@ -18,6 +17,8 @@ import org.brapi.v2.model.VariantSetAvailableFormats.FileFormatEnum;
 import org.brapi.v2.model.VariantSetMetadataFields;
 import org.brapi.v2.model.VariantSetMetadataFields.DataTypeEnum;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -45,7 +46,7 @@ public class MongoBrapiCache {
 
 	@Autowired private AppConfig appConfig;
 	
-    private static final Logger LOG = Logger.getLogger(MongoBrapiCache.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MongoBrapiCache.class);
 	
 	private HttpServletRequest request;
 

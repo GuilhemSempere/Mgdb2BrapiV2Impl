@@ -5,7 +5,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.IndexPagination;
 import org.brapi.v2.model.Metadata;
@@ -28,10 +29,11 @@ import fr.cirad.mgdb.model.mongo.maintypes.Assembly;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
-import io.swagger.annotations.ApiParam;
+import org.springframework.web.bind.annotation.RestController;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Controller
+
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
+@RestController
 public class ReferencesetsApiController implements ReferencesetsApi {
 
     private static final Logger log = LoggerFactory.getLogger(ReferencesetsApiController.class);
@@ -40,7 +42,13 @@ public class ReferencesetsApiController implements ReferencesetsApi {
 
 	@Autowired private StudiesApiController studiesApiController;
 
-    public ResponseEntity<ReferenceSetListResponse> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+    public ResponseEntity<ReferenceSetListResponse> referencesetsGet(
+			@Parameter(description = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,
+			@Parameter(description = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,
+			@Parameter(description = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,
+			@Parameter(description = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,
+			@Parameter(description = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
+			@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 		ReferenceSetsSearchRequest srr = new ReferenceSetsSearchRequest();
 		srr.setPageSize(pageSize);
 		srr.setPage(pageSize);
@@ -55,7 +63,7 @@ public class ReferencesetsApiController implements ReferencesetsApi {
 		return searchReferenceSetsPost(srr, authorization);
     }
 
-//    public ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId) {    
+//    public ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@Parameter(description = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId) {    
 //        try {
 //            return new ResponseEntity<ReferenceSet>(objectMapper.readValue("{\n  \"isDerived\" : true,\n  \"sourceURI\" : \"sourceURI\",\n  \"species\" : {\n    \"termURI\" : \"termURI\",\n    \"term\" : \"term\"\n  },\n  \"md5checksum\" : \"md5checksum\",\n  \"additionalInfo\" : {\n    \"key\" : \"additionalInfo\"\n  },\n  \"assemblyPUI\" : \"assemblyPUI\",\n  \"description\" : \"description\",\n  \"referenceSetDbId\" : \"referenceSetDbId\",\n  \"referenceSetName\" : \"referenceSetName\",\n  \"sourceAccessions\" : [ \"sourceAccessions\", \"sourceAccessions\" ]\n}", ReferenceSet.class), HttpStatus.NOT_IMPLEMENTED);
 //        } catch (IOException e) {
@@ -63,8 +71,9 @@ public class ReferencesetsApiController implements ReferencesetsApi {
 //            return new ResponseEntity<ReferenceSet>(HttpStatus.INTERNAL_SERVER_ERROR);
 //        }
 //    }
-    
-    public ResponseEntity<ReferenceSetListResponse> searchReferenceSetsPost(@ApiParam(value = "ReferenceSets Search request") @Valid @RequestBody ReferenceSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+
+	@Override
+    public ResponseEntity<ReferenceSetListResponse> searchReferenceSetsPost(ReferenceSetsSearchRequest body, String authorization) {
         try {
         	ReferenceSetListResponse rlr = new ReferenceSetListResponse();
         	ReferenceSetListResponseResult result = new ReferenceSetListResponseResult();

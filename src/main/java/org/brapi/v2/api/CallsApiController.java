@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.ejb.ObjectNotFoundException;
+import jakarta.ejb.ObjectNotFoundException;
 
 import org.brapi.v2.api.cache.MongoBrapiCache;
 import org.brapi.v2.model.AlleleMatrix;
@@ -44,7 +44,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.result.UpdateResult;
@@ -64,8 +65,8 @@ import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
 import org.springframework.web.server.ResponseStatusException;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@Controller
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
+@RestController
 public class CallsApiController implements CallsApi {
 
     private static final Logger log = LoggerFactory.getLogger(CallsApiController.class);

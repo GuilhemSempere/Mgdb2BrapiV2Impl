@@ -7,8 +7,17 @@ package org.brapi.v2.api;
 
 import java.util.List;
 
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.GermplasmAttributeListResponse;
 import org.brapi.v2.model.GermplasmAttributeNewRequest;
@@ -19,14 +28,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2020-01-22T11:58:54.700Z[GMT]")
-@Api(value = "attributes", description = "the attributes API", tags={ "Germplasm Attributes" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2020-01-22T11:58:54.700Z[GMT]")
+@Tag(name = "Germplasm Attributes", description = "the attributes API")
 public interface AttributesApi {
 
 	public static final String attributesGet_url = "attributes";
@@ -41,7 +44,7 @@ public interface AttributesApi {
 //    @RequestMapping(value = "/attributes/{attributeDbId}",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
-//    ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdGet(@ApiParam(value = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdGet(@Parameter(description = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
 //    @ApiOperation(value = "Create new Germplasm Attributes", nickname = "attributesAttributeDbIdPost", notes = "Create new Germplasm Attributes", response = GermplasmAttributeSingleResponse.class, authorizations = {
@@ -55,7 +58,7 @@ public interface AttributesApi {
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" },
 //        method = RequestMethod.POST)
-//    ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdPost(@ApiParam(value = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@ApiParam(value = ""  )  @Valid @RequestBody GermplasmAttributeNewRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdPost(@Parameter(description = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@Parameter(description = ""  )  @Valid @RequestBody GermplasmAttributeNewRequest body,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
 //    @ApiOperation(value = "Get the Categories of Germplasm Attributes", nickname = "attributesCategoriesGet", notes = "List all available attribute categories.", response = GermplasmAttributeCategoryListResponse.class, authorizations = {
@@ -68,33 +71,33 @@ public interface AttributesApi {
 //    @RequestMapping(value = "/attributes/categories",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
-//    ResponseEntity<GermplasmAttributeCategoryListResponse> attributesCategoriesGet(@ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<GermplasmAttributeCategoryListResponse> attributesCategoriesGet(@Parameter(description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Get the Germplasm Attributes", nickname = "attributesGet", notes = "List available attributes.", response = GermplasmAttributeListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm Attributes", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = GermplasmAttributeListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @Operation(summary = "Get the Germplasm Attributes", operationId = "attributesGet", description = "List available attributes.",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Germplasm Attributes", })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = GermplasmAttributeListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + attributesGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<GermplasmAttributeListResponse> attributesGet(HttpServletResponse response, @ApiParam(value = "The general category for the attribute. very similar to Trait class.") @Valid @RequestParam(value = "attributeCategory", required = false) String attributeCategory,@ApiParam(value = "The unique id for an attribute") @Valid @RequestParam(value = "attributeDbId", required = false) String attributeDbId,@ApiParam(value = "The human readable name for an attribute") @Valid @RequestParam(value = "attributeName", required = false) String attributeName,@ApiParam(value = "Get all attributes associated with this germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<GermplasmAttributeListResponse> attributesGet(HttpServletResponse response, @Parameter(description = "The general category for the attribute. very similar to Trait class.") @Valid @RequestParam(value = "attributeCategory", required = false) String attributeCategory,@Parameter(description = "The unique id for an attribute") @Valid @RequestParam(value = "attributeDbId", required = false) String attributeDbId,@Parameter(description = "The human readable name for an attribute") @Valid @RequestParam(value = "attributeName", required = false) String attributeName,@Parameter(description = "Get all attributes associated with this germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@Parameter(description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Create new Germplasm Attributes", nickname = "attributesPost", notes = "Create new Germplasm Attributes", response = GermplasmAttributeListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm Attributes", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = GermplasmAttributeListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @Operation(summary = "Create new Germplasm Attributes", operationId = "attributesPost", description = "Create new Germplasm Attributes",
+            security = {@SecurityRequirement(name = "AuthorizationToken")}, tags={ "Germplasm Attributes", })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = GermplasmAttributeListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + attributesGet_url,
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)
-    ResponseEntity<GermplasmAttributeListResponse> attributesPost(@ApiParam(value = ""  )  @Valid @RequestBody List<GermplasmAttributeNewRequest> body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<GermplasmAttributeListResponse> attributesPost(@Valid @RequestBody List<GermplasmAttributeNewRequest> body, @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }

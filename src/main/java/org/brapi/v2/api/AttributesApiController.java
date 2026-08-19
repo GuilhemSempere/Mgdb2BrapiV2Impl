@@ -4,9 +4,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.GermplasmAttribute;
 import org.brapi.v2.model.GermplasmAttributeListResponse;
@@ -23,15 +25,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import fr.cirad.web.controller.rest.BrapiRestController;
-import io.swagger.annotations.ApiParam;
-import springfox.documentation.annotations.ApiIgnore;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2020-01-22T11:58:54.700Z[GMT]")
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2020-01-22T11:58:54.700Z[GMT]")
 @RestController
 public class AttributesApiController implements AttributesApi {
 
@@ -51,7 +51,7 @@ public class AttributesApiController implements AttributesApi {
         this.request = request;
     }
 
-//    public ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdGet(@ApiParam(value = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+//    public ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdGet(@Parameter(description = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        String accept = request.getHeader("Accept");
 //        if (accept != null && accept.contains("application/json")) {
 //            try {
@@ -65,7 +65,7 @@ public class AttributesApiController implements AttributesApi {
 //        return new ResponseEntity<GermplasmAttributeSingleResponse>(HttpStatus.NOT_IMPLEMENTED);
 //    }
 
-//    public ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdPost(@ApiParam(value = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@ApiParam(value = ""  )  @Valid @RequestBody GermplasmAttributeNewRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+//    public ResponseEntity<GermplasmAttributeSingleResponse> attributesAttributeDbIdPost(@Parameter(description = "The unique id for an attribute",required=true) @PathVariable("attributeDbId") String attributeDbId,@Parameter(description = ""  )  @Valid @RequestBody GermplasmAttributeNewRequest body,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        String accept = request.getHeader("Accept");
 //        if (accept != null && accept.contains("application/json")) {
 //            try {
@@ -79,7 +79,7 @@ public class AttributesApiController implements AttributesApi {
 //        return new ResponseEntity<GermplasmAttributeSingleResponse>(HttpStatus.NOT_IMPLEMENTED);
 //    }
 
-//    public ResponseEntity<GermplasmAttributeCategoryListResponse> attributesCategoriesGet(@ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+//    public ResponseEntity<GermplasmAttributeCategoryListResponse> attributesCategoriesGet(@Parameter(description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 //        String accept = request.getHeader("Accept");
 //        if (accept != null && accept.contains("application/json")) {
 //            try {
@@ -93,7 +93,16 @@ public class AttributesApiController implements AttributesApi {
 //        return new ResponseEntity<GermplasmAttributeCategoryListResponse>(HttpStatus.NOT_IMPLEMENTED);
 //    }
 
-    public ResponseEntity<GermplasmAttributeListResponse> attributesGet(HttpServletResponse response, @ApiParam(value = "The general category for the attribute. very similar to Trait class.") @Valid @RequestParam(value = "attributeCategory", required = false) String attributeCategory,@ApiParam(value = "The unique id for an attribute") @Valid @RequestParam(value = "attributeDbId", required = false) String attributeDbId,@ApiParam(value = "The human readable name for an attribute") @Valid @RequestParam(value = "attributeName", required = false) String attributeName,@ApiParam(value = "Get all attributes associated with this germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {    	
+    public ResponseEntity<GermplasmAttributeListResponse> attributesGet(
+			HttpServletResponse response,
+			@Parameter(description = "The general category for the attribute. very similar to Trait class.") @Valid @RequestParam(value = "attributeCategory", required = false) String attributeCategory,
+			@Parameter(description = "The unique id for an attribute") @Valid @RequestParam(value = "attributeDbId", required = false) String attributeDbId,
+			@Parameter(description = "The human readable name for an attribute") @Valid @RequestParam(value = "attributeName", required = false) String attributeName,
+			@Parameter(description = "Get all attributes associated with this germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,
+			@Parameter(description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
+			@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
+			@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization
+	) {
 		String token = ServerinfoApiController.readToken(authorization);
 		String[] info = Helper.getInfoFromId(germplasmDbId, 2);
 
@@ -129,7 +138,7 @@ public class AttributesApiController implements AttributesApi {
         }
     }
 
-    @ApiIgnore
+    @Hidden
 	@Override
 	public ResponseEntity<GermplasmAttributeListResponse> attributesPost(List<GermplasmAttributeNewRequest> body, String authorization) {
 		return new ResponseEntity<GermplasmAttributeListResponse>(HttpStatus.NOT_IMPLEMENTED);

@@ -5,10 +5,10 @@
  */
 package org.brapi.v2.api;
 
-import io.swagger.annotations.Api;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Api(value = "markerpositions", description = "the markerpositions API", tags={ "Genome Maps", })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
+@Tag(name = "markerpositions", description = "the markerpositions API")
 public interface MarkerpositionsApi {
 
 //    @ApiOperation(value = "Get marker position info", nickname = "markerpositionsGet", notes = "Get marker position information, based on Map, Linkage Group, and Marker ID", response = MarkerPositionListResponse.class, authorizations = {
@@ -21,6 +21,6 @@ public interface MarkerpositionsApi {
 //    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/markerpositions",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
-//    ResponseEntity<MarkerPositionListResponse> markerpositionsGet(@ApiParam(value = "unique id of a map") @Valid @RequestParam(value = "mapDbId", required = false) String mapDbId,@ApiParam(value = "The chromosome identifier or the generic linkage group identifier if the chromosome is not applicable.") @Valid @RequestParam(value = "linkageGroupName", required = false) String linkageGroupName,@ApiParam(value = "The unique id for a marker") @Valid @RequestParam(value = "markerDbId", required = false) String markerDbId,@ApiParam(value = "The minimum position") @Valid @RequestParam(value = "minPosition", required = false) Integer minPosition,@ApiParam(value = "The maximum position") @Valid @RequestParam(value = "maxPosition", required = false) Integer maxPosition,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<MarkerPositionListResponse> markerpositionsGet(@Parameter(description = "unique id of a map") @Valid @RequestParam(value = "mapDbId", required = false) String mapDbId,@Parameter(description = "The chromosome identifier or the generic linkage group identifier if the chromosome is not applicable.") @Valid @RequestParam(value = "linkageGroupName", required = false) String linkageGroupName,@Parameter(description = "The unique id for a marker") @Valid @RequestParam(value = "markerDbId", required = false) String markerDbId,@Parameter(description = "The minimum position") @Valid @RequestParam(value = "minPosition", required = false) Integer minPosition,@Parameter(description = "The maximum position") @Valid @RequestParam(value = "maxPosition", required = false) Integer maxPosition,@Parameter(description = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }

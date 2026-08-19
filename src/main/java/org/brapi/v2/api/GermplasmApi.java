@@ -5,8 +5,17 @@
  */
 package org.brapi.v2.api;
 
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.GermplasmListResponse;
 import org.brapi.v2.model.GermplasmSearchRequest;
@@ -17,30 +26,24 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@Api(value = "germplasm", description = "the germplasm API", tags={ "Germplasm" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
+@Tag(name = "germplasm", description = "the germplasm API")
 public interface GermplasmApi {
 
     public static final String searchGermplasmPost_url = "search/germplasm";
-    
-    @ApiOperation(value = "Returns a filtered list of `Germplasm` objects", nickname = "searchGermplasmPost", notes = "Returns a filtered list of `Germplasm` objects. Either a single studyDbId or a list of germplasmDbIds must be specified", response = SuccessfulSearchResponse.class, authorizations = {
-            @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm" })
-        @ApiResponses(value = { 
-            @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
-            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+
+    @Operation(summary = "Returns a filtered list of `Germplasm` objects", operationId = "searchGermplasmPost", description = "Returns a filtered list of `Germplasm` objects. Either a single studyDbId or a list of germplasmDbIds must be specified",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Germplasm" })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SuccessfulSearchResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
         @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchGermplasmPost_url,
-            produces = { "application/json" }, 
+            produces = { "application/json" },
             consumes = { "application/json" },
             method = RequestMethod.POST)
-        ResponseEntity<GermplasmListResponse> searchGermplasmPost(HttpServletResponse response, @ApiParam @Valid @RequestBody GermplasmSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws Exception;
+        ResponseEntity<GermplasmListResponse> searchGermplasmPost(@Valid @RequestBody GermplasmSearchRequest body,
+            @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) throws Exception;
 
 }

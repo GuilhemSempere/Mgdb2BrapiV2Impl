@@ -5,6 +5,14 @@
  */
 package org.brapi.v2.api;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,22 +20,16 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import org.brapi.v2.model.GermplasmAttributeValueListResponse;
 import org.brapi.v2.model.SuccessfulSearchResponse;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import org.brapi.v2.model.GermplasmAttributeValueSearchRequest;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-09-14T15:37:29.213Z[GMT]")
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-09-14T15:37:29.213Z[GMT]")
 @Validated
-@Api(value = "attributevalues", description = "the attributevalues API", tags={ "Attribute values", })
+@Tag(name = "attributevalues", description = "the attributevalues API")
 public interface AttributevaluesApi {
 
     public static String searchAttributevaluesPost_url = "search/attributevalues";
@@ -97,18 +99,19 @@ public interface AttributevaluesApi {
 //        method = RequestMethod.POST)
 //    ResponseEntity<GermplasmAttributeValueListResponse> attributevaluesPost(@Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) @RequestHeader(value="Authorization", required=false) String authorization, @Parameter(in = ParameterIn.DEFAULT, description = "", schema=@Schema()) @Valid @RequestBody List<GermplasmAttributeValueNewRequest> body);
 
-    @ApiOperation(value = "Submit a search request for Germplasm `Attributes`", notes = "Submit a search request for Germplasm `Attributes`", authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Germplasm Attributes" })
-    @ApiResponses(value = { 
-            @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
-            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @Operation(summary = "Submit a search request for Germplasm `Attributes`", description = "Submit a search request for Germplasm `Attributes`",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Germplasm Attributes" })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SuccessfulSearchResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
+
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchAttributevaluesPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" }, 
         method = RequestMethod.POST)
-    ResponseEntity<GermplasmAttributeValueListResponse> searchAttributevaluesPost(HttpServletResponse response, @ApiParam @Valid @RequestBody GermplasmAttributeValueSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<GermplasmAttributeValueListResponse> searchAttributevaluesPost(HttpServletResponse response, @Valid @RequestBody GermplasmAttributeValueSearchRequest body, @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }
 

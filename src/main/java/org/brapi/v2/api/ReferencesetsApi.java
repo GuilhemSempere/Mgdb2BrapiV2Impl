@@ -5,7 +5,15 @@
  */
 package org.brapi.v2.api;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.ReferenceSetListResponse;
 import org.brapi.v2.model.ReferenceSetsSearchRequest;
@@ -17,45 +25,40 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Api(value = "referencesets", description = "the referencesets API", tags={ "Reference Sets" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
+@Tag(name = "referencesets", description = "the referencesets API")
 public interface ReferencesetsApi {
 
 	public static final String searchReferenceSetsPost_url = "search/referencesets";
 	public static final String referencesetsGet_url = "referencesets";
 
-    @ApiOperation(value = "Gets a `ReferenceSet` by ID. Gigwa considers has one ReferenceSet per Study and their IDs are equal", nickname = "referencesetsGet", notes = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.", response = ReferenceSetListResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets", })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "A successful response.", response = ReferenceSetListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @Operation(summary = "Gets a `ReferenceSet` by ID. Gigwa considers has one ReferenceSet per Study and their IDs are equal", operationId = "referencesetsGet", description = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Reference Sets", })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ReferenceSetListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + referencesetsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<ReferenceSetListResponse> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<ReferenceSetListResponse> referencesetsGet(@Parameter(description = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@Parameter(description = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@Parameter(description = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@Parameter(description = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@Parameter(description = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 
-    @ApiOperation(value = "Submit a search request for `ReferenceSets.", nickname = "searchReferenceSetsPost", notes = "`POST /referencesets/search` must accept a JSON version of `ReferenceSetsSearchRequest` as the post body and will return a JSON version of `ReferenceSetListResponse`.", response = SuccessfulSearchResponse.class, authorizations = {
-            @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets" })
-        @ApiResponses(value = { 
-            @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
-            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-        @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchReferenceSetsPost_url,
-            produces = { "application/json" }, 
-            consumes = { "application/json" },
-            method = RequestMethod.POST)
-        ResponseEntity<ReferenceSetListResponse> searchReferenceSetsPost(@ApiParam(value = "ReferenceSets Search request") @Valid @RequestBody ReferenceSetsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    @Operation(summary = "Submit a search request for `ReferenceSets.", operationId = "searchReferenceSetsPost", description = "`POST /referencesets/search` must accept a JSON version of `ReferenceSetsSearchRequest` as the post body and will return a JSON version of `ReferenceSetListResponse`.",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Reference Sets" })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SuccessfulSearchResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
+    @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchReferenceSetsPost_url,
+        produces = { "application/json" },
+        consumes = { "application/json" },
+        method = RequestMethod.POST)
+    ResponseEntity<ReferenceSetListResponse> searchReferenceSetsPost(
+            @Valid @RequestBody ReferenceSetsSearchRequest body,
+            @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
     
 //    @ApiOperation(value = "Gets a `ReferenceSet` by ID.", nickname = "referencesetsReferenceSetDbIdGet", notes = "`GET /referencesets/{reference_set_id}` will return a JSON version of `ReferenceSet`.", response = ReferenceSet.class, authorizations = {
@@ -65,6 +68,6 @@ public interface ReferencesetsApi {
 //    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/referencesets/{referenceSetDbId}",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
-//    ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId);
+//    ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@Parameter(description = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId);
 
 }

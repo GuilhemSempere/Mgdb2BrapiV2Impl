@@ -2,7 +2,8 @@ package org.brapi.v2.api;
 
 import java.util.ArrayList;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.CallsResponse;
 import org.brapi.v2.model.ContentTypes;
@@ -17,17 +18,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.annotations.ApiParam;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
-@Controller
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T14:22:13.640Z[GMT]")
+@RestController
 public class ServerinfoApiController implements ServerinfoApi {
 
     private static final Logger log = LoggerFactory.getLogger(ServerinfoApiController.class);
 
     @SuppressWarnings("serial")
-	public ResponseEntity<CallsResponse> serverinfoGet(@ApiParam(value = "The data format supported by the call.") @Valid @RequestParam(value = "dataType", required = false) ContentTypes dataType,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
+	@Override
+	public ResponseEntity<CallsResponse> serverinfoGet(ContentTypes dataType, String authorization) {
     	CallsResponse cr = new CallsResponse();
     	ServerInfo result = new ServerInfo();
 		result.addCallsItem(new Service() {{ getVersions().add(VersionsEnum._0); getMethods().add(MethodsEnum.GET); setService(ServerinfoApi.serverinfoGet_url); setContentTypes(new ArrayList<ContentTypes>() {{ add(ContentTypes.fromValue("application/json")); }}); }});

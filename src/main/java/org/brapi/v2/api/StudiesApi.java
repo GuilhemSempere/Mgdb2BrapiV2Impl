@@ -7,7 +7,15 @@ package org.brapi.v2.api;
 
 import java.util.List;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.StudyListResponse;
 import org.brapi.v2.model.StudyNewRequest;
@@ -20,92 +28,91 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-
-@javax.annotation.Generated(value = "org.brapi.v2.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T09:51:33.671Z[GMT]")
-@Api(value = "studies", description = "the studies API", tags={ "Studies"})
+@jakarta.annotation.Generated(value = "org.brapi.v2.codegen.v3.generators.java.SpringCodegen", date = "2021-03-16T09:51:33.671Z[GMT]")
+@Tag(name = "studies", description = "the studies API")
 public interface StudiesApi {
 
 	public static final String studiesGet_url = "studies";
 	public static final String studiesPost_url = studiesGet_url;
     public static final String searchStudiesPost_url = "search/studies";
     public static final String deleteStudiesPost_url = "delete/studies";
-    
-    @ApiOperation(value = "Returns a filtered list of `Study` objects", nickname = "searchStudiesPost", notes = "Returns a filtered list of `Study` objects. Empty body accepted", response = SuccessfulSearchResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Studies" })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+
+	@Operation(summary = "Returns a filtered list of `Study` objects", operationId = "searchStudiesPost", description = "Returns a filtered list of `Study` objects. Empty body accepted",
+			security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Studies" })
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SuccessfulSearchResponse.class))),
+			@ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchStudiesPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)
-    ResponseEntity<StudyListResponse> searchStudiesPost(@ApiParam @Valid @RequestBody StudySearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<StudyListResponse> searchStudiesPost(@Parameter @Valid @RequestBody StudySearchRequest body, @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
-    @ApiOperation(value = "Get a filtered list of Studies", nickname = "studiesGet", notes = "`GET /studies/{study_id}` will return a JSON version of `Study`.", response = StudyListResponse.class, authorizations = {@Authorization(value = "AuthorizationToken")    }, tags={ "Studies", })
-    @ApiResponses(value = { 
-            @ApiResponse(code = 200, message = "A successful response.", response = StudyListResponse.class),
-            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })    
+	@Operation(summary = "Get a filtered list of Studies", operationId = "studiesGet", description = "`GET /studies/{study_id}` will return a JSON version of `Study`.",
+			security = {@SecurityRequirement(name = "AuthorizationToken")}, tags={ "Studies", })
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = StudyListResponse.class))),
+			@ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + studiesGet_url,
-        produces = { "application/json" }, 
+        produces = { "application/json" },
         method = RequestMethod.GET)
     ResponseEntity<StudyListResponse> studiesGet(
-    		@ApiParam(value = "Common name for the crop associated with this study") @Valid @RequestParam(value = "commonCropName", required = false) String commonCropName,
-    		@ApiParam(value = "Filter based on study type unique identifier") @Valid @RequestParam(value = "studyType", required = false) String studyType,
-    		@ApiParam(value = "Program filter to only return studies associated with given program id.") @Valid @RequestParam(value = "programDbId", required = false) String programDbId,
-    		@ApiParam(value = "Filter by location") @Valid @RequestParam(value = "locationDbId", required = false) String locationDbId,
-    		@ApiParam(value = "Filter by season or year") @Valid @RequestParam(value = "seasonDbId", required = false) String seasonDbId,
-    		@ApiParam(value = "Filter by trial") @Valid @RequestParam(value = "trialDbId", required = false) String trialDbId,
-    		@ApiParam(value = "Filter by study DbId") @Valid @RequestParam(value = "studyDbId", required = false) String studyDbId,
-    		@ApiParam(value = "Filter by study name") @Valid @RequestParam(value = "studyName", required = false) String studyName,
-    		@ApiParam(value = "Filter by study code") @Valid @RequestParam(value = "studyCode", required = false) String studyCode,
-    		@ApiParam(value = "Filter by study PUI") @Valid @RequestParam(value = "studyPUI", required = false) String studyPUI,
-    		@ApiParam(value = "Filter by germplasm DbId") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,
-    		@ApiParam(value = "Filter by observation variable DbId") @Valid @RequestParam(value = "observationVariableDbId", required = false) String observationVariableDbId,
-    		@ApiParam(value = "Filter active status true/false.") @Valid @RequestParam(value = "active", required = false) Boolean active,
-    		@ApiParam(value = "Name of the field to sort by.", allowableValues = "studyDbId, trialDbId, programDbId, locationDbId, seasonDbId, studyType, studyName, studyLocation, programName") @Valid @RequestParam(value = "sortBy", required = false) String sortBy, 
-    		@ApiParam(value = "Sort order direction. Ascending/Descending.", allowableValues="asc, ASC, desc, DESC") @Valid @RequestParam(value = "sortOrder", required = false) String sortOrder, 
-    		@ApiParam(value = "An external reference ID. Could be a simple string or a URI. (use with `externalReferenceSource` parameter)") @Valid @RequestParam(value = "externalReferenceID", required = false) String externalReferenceID, 
-    		@ApiParam(value = "An identifier for the source system or database of an external reference (use with `externalReferenceID` parameter)") @Valid @RequestParam(value = "externalReferenceSource", required = false) String externalReferenceSource, 
-    		@ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
-    		@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
+    		@Parameter(description = "Common name for the crop associated with this study") @Valid @RequestParam(value = "commonCropName", required = false) String commonCropName,
+    		@Parameter(description = "Filter based on study type unique identifier") @Valid @RequestParam(value = "studyType", required = false) String studyType,
+    		@Parameter(description = "Program filter to only return studies associated with given program id.") @Valid @RequestParam(value = "programDbId", required = false) String programDbId,
+    		@Parameter(description = "Filter by location") @Valid @RequestParam(value = "locationDbId", required = false) String locationDbId,
+    		@Parameter(description = "Filter by season or year") @Valid @RequestParam(value = "seasonDbId", required = false) String seasonDbId,
+    		@Parameter(description = "Filter by trial") @Valid @RequestParam(value = "trialDbId", required = false) String trialDbId,
+    		@Parameter(description = "Filter by study DbId") @Valid @RequestParam(value = "studyDbId", required = false) String studyDbId,
+    		@Parameter(description = "Filter by study name") @Valid @RequestParam(value = "studyName", required = false) String studyName,
+    		@Parameter(description = "Filter by study code") @Valid @RequestParam(value = "studyCode", required = false) String studyCode,
+    		@Parameter(description = "Filter by study PUI") @Valid @RequestParam(value = "studyPUI", required = false) String studyPUI,
+    		@Parameter(description = "Filter by germplasm DbId") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,
+    		@Parameter(description = "Filter by observation variable DbId") @Valid @RequestParam(value = "observationVariableDbId", required = false) String observationVariableDbId,
+    		@Parameter(description = "Filter active status true/false.") @Valid @RequestParam(value = "active", required = false) Boolean active,
+    		@Parameter(description = "Name of the field to sort by.", schema = @Schema(allowableValues = {"studyDbId, trialDbId, programDbId, locationDbId, seasonDbId, studyType, studyName, studyLocation, programName"})) @Valid @RequestParam(value = "sortBy", required = false) String sortBy,
+    		@Parameter(description = "Sort order direction. Ascending/Descending.", schema = @Schema(allowableValues = {"asc, ASC, desc, DESC"})) @Valid @RequestParam(value = "sortOrder", required = false) String sortOrder,
+    		@Parameter(description = "An external reference ID. Could be a simple string or a URI. (use with `externalReferenceSource` parameter)") @Valid @RequestParam(value = "externalReferenceID", required = false) String externalReferenceID,
+    		@Parameter(description = "An identifier for the source system or database of an external reference (use with `externalReferenceID` parameter)") @Valid @RequestParam(value = "externalReferenceSource", required = false) String externalReferenceSource,
+    		@Parameter(description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,
+    		@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,
     		@RequestHeader(value="Authorization", required=false) String authorization);
-    
-    @ApiOperation(value = "Create new Studies.", nickname = "studiesPost", notes = "Create new studies  Implementation Notes  StartDate and endDate should be ISO-8601 format for dates  `studDbId` is generated by the server.", authorizations = { @Authorization(value = "AuthorizationToken")    }, tags={ "Studies" })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = StudyListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+
+	@Operation(summary = "Create new Studies.", operationId = "studiesPost", description = "Create new studies  Implementation Notes  StartDate and endDate should be ISO-8601 format for dates  `studDbId` is generated by the server.",
+			security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Studies" })
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = StudyListResponse.class))),
+			@ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + studiesPost_url,
-        produces = { "application/json" }, 
-        consumes = { "application/json" }, 
+        produces = { "application/json" },
+        consumes = { "application/json" },
         method = RequestMethod.POST)
-    ResponseEntity<StudyListResponse> studiesPost(@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @Valid @RequestBody List<StudyNewRequest> body);
-    
-    @ApiOperation(value = "Delete studies", nickname = "deleteStudiesPost", notes = "Delete one or more studies. Accepts either explicit study IDs or search criteria.", response = StudyListResponse.class, authorizations = {
-    	    @Authorization(value = "AuthorizationToken") }, tags = { "Studies" })
+    ResponseEntity<StudyListResponse> studiesPost(
+			@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization,
+			@Valid @RequestBody List<StudyNewRequest> body);
+
+	@Operation(summary =  "Delete studies", operationId = "deleteStudiesPost", description = "Delete one or more studies. Accepts either explicit study IDs or search criteria.",
+			security = { @SecurityRequirement(name = "AuthorizationToken") }, tags = { "Studies" })
+	@ApiResponse(responseCode = "200", description = "OK",
+			content = @Content(schema = @Schema(implementation = StudyListResponse.class)))
     	@ApiResponses(value = {
-    	    @ApiResponse(code = 200, message = "OK", response = StudyListResponse.class),
-    	    @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-    	    @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-    	    @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    	    @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = StudyListResponse.class))),
+			@ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+			@ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     	@RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/delete/studies",
     	    produces = { "application/json" },
     	    consumes = { "application/json" },
     	    method = RequestMethod.POST)
     	ResponseEntity<StudyListResponse> deleteStudiesPost(
-    	    @ApiParam @Valid @RequestBody StudySearchRequest body,
-    	    @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>")
+    	    @Valid @RequestBody StudySearchRequest body,
+    	    @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>")
     	    @RequestHeader(value = "Authorization", required = false) String authorization);
 //
 //
@@ -116,18 +123,18 @@ public interface StudiesApi {
 //     */
 //    @Operation(summary = "Get the details for a specific Study", description = "Retrieve the information of the study required for field data collection  An additionalInfo field was added to provide a controlled vocabulary for less common data fields.", security = {
 //        @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Studies" })
-//    @ApiResponses(value = { 
+//    @ApiResponses(value = {
 //        @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = StudySingleResponse.class))),
-//        
+//
 //        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = String.class))),
-//        
+//
 //        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = String.class))),
-//        
+//
 //        @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = String.class))),
-//        
+//
 //        @ApiResponse(responseCode = "404", description = "Not Found", content = @Content(schema = @Schema(implementation = String.class))) })
 //    @RequestMapping(value = "/studies/{studyDbId}",
-//        produces = { "application/json" }, 
+//        produces = { "application/json" },
 //        method = RequestMethod.GET)
 //    ResponseEntity<StudySingleResponse> studiesStudyDbIdGet(@Parameter(in = ParameterIn.PATH, description = "Identifier of the study. Usually a number, could be alphanumeric.", required=true, schema=@Schema()) @PathVariable("studyDbId") String studyDbId, @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
 //
@@ -140,19 +147,19 @@ public interface StudiesApi {
 //     */
 //    @Operation(summary = "Update an existing Study", description = "Update an existing Study with new data", security = {
 //        @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Studies" })
-//    @ApiResponses(value = { 
+//    @ApiResponses(value = {
 //        @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = StudySingleResponse.class))),
-//        
+//
 //        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = String.class))),
-//        
+//
 //        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = String.class))),
-//        
+//
 //        @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = String.class))),
-//        
+//
 //        @ApiResponse(responseCode = "404", description = "Not Found", content = @Content(schema = @Schema(implementation = String.class))) })
 //    @RequestMapping(value = "/studies/{studyDbId}",
-//        produces = { "application/json" }, 
-//        consumes = { "application/json" }, 
+//        produces = { "application/json" },
+//        consumes = { "application/json" },
 //        method = RequestMethod.PUT)
 //    ResponseEntity<StudySingleResponse> studiesStudyDbIdPut(@Parameter(in = ParameterIn.PATH, description = "Identifier of the study. Usually a number, could be alphanumeric.", required=true, schema=@Schema()) @PathVariable("studyDbId") String studyDbId, @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @Parameter(in = ParameterIn.DEFAULT, description = "", schema=@Schema()) @Valid @RequestBody StudyNewRequest body);
 

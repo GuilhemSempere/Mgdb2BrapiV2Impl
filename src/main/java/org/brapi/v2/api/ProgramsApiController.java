@@ -20,9 +20,10 @@ import org.springframework.stereotype.Controller;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
+import org.springframework.web.bind.annotation.RestController;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-06-24T08:33:51.198Z[GMT]")
-@Controller
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-06-24T08:33:51.198Z[GMT]")
+@RestController
 public class ProgramsApiController implements ProgramsApi {
 
     private static final Logger log = LoggerFactory.getLogger(ProgramsApiController.class);

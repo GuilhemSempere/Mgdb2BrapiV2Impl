@@ -5,7 +5,6 @@
  */
 package org.brapi.v2.api;
 
-import io.swagger.annotations.Api;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -14,20 +13,21 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import javax.ejb.ObjectNotFoundException;
-import javax.validation.Valid;
+import jakarta.ejb.ObjectNotFoundException;
+import jakarta.validation.Valid;
 import org.brapi.v2.model.AlleleMatrixResponse;
 import org.brapi.v2.model.AlleleMatrixSearchRequest;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
-@Api(value = "Allele Matrix", description = "the alleleMatrix API", tags={ "Allele Matrix" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
+@Tag(name = "Allele Matrix", description = "the alleleMatrix API")
 public interface AllelematrixApi {
     
     public static final String alleleMatrixGet_url = "allelematrix";
@@ -70,9 +70,9 @@ public interface AllelematrixApi {
     @Operation(summary = "Submit a search request for a Allele Matrix", description = "Use this endpoint to retrieve a two dimensional matrix of genotype data. The response structure is based on the VCF format, but the search and filter parameters give the ability to slice and merge data sets. This allows the user to return the subset of data they are interested in, without having to download the entire genotype file. <br/>Each row of data (outer array) corresponds to a variant definition, and each column (inner array) corresponds to a callSet.  <br/>Search requests allow a client to send a complex query for data. However, the server may not respond with the search results immediately. If a server needs more time to process the request, it might respond with a `searchResultsDbId`. Use the corresponding `GET /search/calls/{searchResultsDbId}` to retrieve the results of the search.  <br/>Review the <a target=\"_blank\" href=\"https://wiki.brapi.org/index.php/Search_Services#POST_Search_Entity\">Search Services documentation</a> for additional implementation details.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Allele Matrix" })
     @ApiResponses(value = { 
-        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AlleleMatrixResponse.class))),         
-        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
-        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
+        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AlleleMatrixResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchAlleleMatrixPost_url,
         produces = { "application/json" }, 
@@ -81,6 +81,6 @@ public interface AllelematrixApi {
     ResponseEntity<AlleleMatrixResponse> searchAllelematrixPost(
             @Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) 
             @RequestHeader(value="Authorization", required=false) String authorization, 
-            @Parameter(in = ParameterIn.DEFAULT, description = "Study Search request", schema=@Schema()) @Valid @RequestBody AlleleMatrixSearchRequest body) throws InterruptedException, ObjectNotFoundException;
+            @Valid @RequestBody AlleleMatrixSearchRequest body) throws InterruptedException, ObjectNotFoundException;
 
 }

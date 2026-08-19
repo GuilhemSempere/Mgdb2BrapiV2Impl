@@ -5,7 +5,15 @@
  */
 package org.brapi.v2.api;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.TrialListResponse;
 import org.brapi.v2.model.TrialSearchRequest;
@@ -17,48 +25,56 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.threeten.bp.LocalDate;
+import java.time.LocalDate;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-import io.swagger.annotations.Authorization;
-
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-06-24T08:33:51.198Z[GMT]")
-@Api(value = "trials", description = "the trials API", tags={ "Trials" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-06-24T08:33:51.198Z[GMT]")
+@Tag(name = "trials", description = "the trials API")
 public interface TrialsApi {
 
 	public static final String trialsGet_url = "trials";
 	public static final String trialsTrialDbIdGet_url = "trials/{trialDbId}";
     public static final String searchTrialsPost_url = "search/trials";
 
-    @ApiOperation(value = "Returns a filtered list of `Trial` objects", notes = "Returns a filtered list of `Trials` objects. Empty body accepted", authorizations = { @Authorization(value = "AuthorizationToken")    }, tags={ "Trials" })
-        @ApiResponses(value = { 
-            @ApiResponse(code = 200, message = "OK", response = TrialListResponse.class),
-//            @ApiResponse(code = 202, message = "Accepted", response = Model202AcceptedSearchResponse.class),
-            @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-            @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-            @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @Operation(summary = "Returns a filtered list of `Trial` objects", description = "Returns a filtered list of `Trials` objects. Empty body accepted",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags = {"Trials"})
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = TrialListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request",  content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",  content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
         @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchTrialsPost_url,
             produces = { "application/json" }, 
             consumes = { "application/json" }, 
             method = RequestMethod.POST)
-        ResponseEntity<TrialListResponse> searchTrialsPost(@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @ApiParam @Valid @RequestBody TrialSearchRequest body);
+        ResponseEntity<TrialListResponse> searchTrialsPost(
+                @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization,
+                @Valid @RequestBody TrialSearchRequest body);
 
-    @ApiOperation(value = "Get a filtered list of Trials", notes = "Retrieve a filtered list of breeding Trials. A Trial is a collection of Studies", authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Trials" })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = TrialListResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+    @Operation(summary = "Get a filtered list of Trials", description = "Retrieve a filtered list of breeding Trials. A Trial is a collection of Studies",
+            security = { @SecurityRequirement(name = "AuthorizationToken") })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = TrialListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request",  content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",  content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + trialsGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<TrialListResponse> trialsGet(@ApiParam(value = "Filter active status true/false.") @Valid @RequestParam(value = "active", required = false) Boolean active, @ApiParam(value = "Common name for the crop associated with this trial") @Valid @RequestParam(value = "commonCropName", required = false) String commonCropName, @ApiParam(value = "Contact entities associated with this trial") @Valid @RequestParam(value = "contactDbId", required = false) String contactDbId, @ApiParam(value = "Program filter to only return trials associated with given program id.") @Valid @RequestParam(value = "programDbId", required = false) String programDbId, @ApiParam(value = "Filter by location") @Valid @RequestParam(value = "locationDbId", required = false) String locationDbId, @ApiParam(value = "The start of the overlapping search date range. `searchDateRangeStart` must be before `searchDateRangeEnd`.  Return a Trial entity if any of the following cases are true  - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is null   - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is after `trial.startDate`  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is null  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is before `trial.endDate`") @Valid @RequestParam(value = "searchDateRangeStart", required = false) LocalDate searchDateRangeStart, @ApiParam(value = "The start of the overlapping search date range. `searchDateRangeStart` must be before `searchDateRangeEnd`.  Return a Trial entity if any of the following cases are true  - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is null   - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is after `trial.startDate`  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is null  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is before `trial.endDate`") @Valid @RequestParam(value = "searchDateRangeEnd", required = false) LocalDate searchDateRangeEnd, @ApiParam(value = "Filter by connected studyDbId") @Valid @RequestParam(value = "studyDbId", required = false) String studyDbId, @ApiParam(value = "Filter by trialDbId") @Valid @RequestParam(value = "trialDbId", required = false) String trialDbId, @ApiParam(value = "Filter by trial name") @Valid @RequestParam(value = "trialName", required = false) String trialName, @ApiParam(value = "Filter by trial PUI") @Valid @RequestParam(value = "trialPUI", required = false) String trialPUI, @ApiParam(value = "Sort order. Name of the field to sort by.", allowableValues="trialDbId, trialName, programDbId, programName, locationDbId, startDate, endDate"
-) @Valid @RequestParam(value = "sortBy", required = false) String sortBy, @ApiParam(value = "Sort order direction: asc/desc") @Valid @RequestParam(value = "sortOrder", required = false) String sortOrder, @ApiParam(value = "An external reference ID. Could be a simple string or a URI. (use with `externalReferenceSource` parameter)") @Valid @RequestParam(value = "externalReferenceID", required = false) String externalReferenceID, @ApiParam(value = "An identifier for the source system or database of an external reference (use with `externalReferenceID` parameter)") @Valid @RequestParam(value = "externalReferenceSource", required = false) String externalReferenceSource, @ApiParam(value = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<TrialListResponse> trialsGet(
+            @Parameter(description = "Filter active status true/false.") @Valid @RequestParam(value = "active", required = false) Boolean active,
+            @Parameter(description = "Common name for the crop associated with this trial") @Valid @RequestParam(value = "commonCropName", required = false) String commonCropName,
+            @Parameter(description = "Contact entities associated with this trial") @Valid @RequestParam(value = "contactDbId", required = false) String contactDbId,
+            @Parameter(description = "Program filter to only return trials associated with given program id.") @Valid @RequestParam(value = "programDbId", required = false) String programDbId,
+            @Parameter(description = "Filter by location") @Valid @RequestParam(value = "locationDbId", required = false) String locationDbId,
+            @Parameter(description = "The start of the overlapping search date range. `searchDateRangeStart` must be before `searchDateRangeEnd`.  Return a Trial entity if any of the following cases are true  - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is null   - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is after `trial.startDate`  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is null  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is before `trial.endDate`") @Valid @RequestParam(value = "searchDateRangeStart", required = false) LocalDate searchDateRangeStart,
+            @Parameter(description = "The start of the overlapping search date range. `searchDateRangeStart` must be before `searchDateRangeEnd`.  Return a Trial entity if any of the following cases are true  - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is null   - `searchDateRangeStart` is before `trial.endDate` AND `searchDateRangeEnd` is after `trial.startDate`  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is null  - `searchDateRangeEnd` is after `trial.startDate` AND `searchDateRangeStart` is before `trial.endDate`") @Valid @RequestParam(value = "searchDateRangeEnd", required = false) LocalDate searchDateRangeEnd,
+            @Parameter(description = "Filter by connected studyDbId") @Valid @RequestParam(value = "studyDbId", required = false) String studyDbId,
+            @Parameter(description = "Filter by trialDbId") @Valid @RequestParam(value = "trialDbId", required = false) String trialDbId,
+            @Parameter(description = "Filter by trial name") @Valid @RequestParam(value = "trialName", required = false) String trialName,
+            @Parameter(description = "Filter by trial PUI") @Valid @RequestParam(value = "trialPUI", required = false) String trialPUI,
+            @Parameter(description = "Sort order. Name of the field to sort by.", schema = @Schema(allowableValues = {"trialDbId", "trialName", "programDbId", "programName", "locationDbId", "startDate", "endDate"})) @Valid @RequestParam(value = "sortBy", required = false) String sortBy,
+            @Parameter(description = "Sort order direction: asc/desc") @Valid @RequestParam(value = "sortOrder", required = false) String sortOrder,
+            @Parameter(description = "An external reference ID. Could be a simple string or a URI. (use with `externalReferenceSource` parameter)") @Valid @RequestParam(value = "externalReferenceID", required = false) String externalReferenceID, @Parameter(description = "An identifier for the source system or database of an external reference (use with `externalReferenceID` parameter)") @Valid @RequestParam(value = "externalReferenceSource", required = false) String externalReferenceSource, @Parameter(description = "Used to request a specific page of data to be returned.  The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page, @Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
 
 
 //    @ApiOperation(value = "Create new trials", notes = "Create new breeding Trials. A Trial represents a collection of related Studies. `trialDbId` is generated by the server.", authorizations = {
@@ -72,21 +88,23 @@ public interface TrialsApi {
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" }, 
 //        method = RequestMethod.POST)
-//    ResponseEntity<TrialListResponse> trialsPost(@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @ApiParam(value = "") @Valid @RequestBody List<TrialNewRequest> body);
+//    ResponseEntity<TrialListResponse> trialsPost(@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @Parameter(description = "") @Valid @RequestBody List<TrialNewRequest> body);
 
 
-    @ApiOperation(value = "Get the details of a specific Trial", notes = "Get the details of a specific Trial", authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Trials" })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = TrialSingleResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
-        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
+
+    @Operation(summary = "Get the details of a specific Trial", description = "Get the details of a specific Trial",
+            security = { @SecurityRequirement(name = "AuthorizationToken")})
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = TrialListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request",  content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",  content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + trialsTrialDbIdGet_url,
         produces = { "application/json" }, 
         method = RequestMethod.GET)
-    ResponseEntity<TrialSingleResponse> trialsTrialDbIdGet(@ApiParam(value = "The internal trialDbId", required=true) @PathVariable("trialDbId") String trialDbId, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<TrialSingleResponse> trialsTrialDbIdGet(
+            @Parameter(description = "The internal trialDbId", required=true) @PathVariable("trialDbId") String trialDbId,
+            @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization);
 
 
 //    @ApiOperation(value = "Update the details of an existing Trial", notes = "Update the details of an existing Trial", authorizations = {
@@ -101,7 +119,7 @@ public interface TrialsApi {
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" }, 
 //        method = RequestMethod.PUT)
-//    ResponseEntity<TrialSingleResponse> trialsTrialDbIdPut(@ApiParam(value = "The internal trialDbId", required=true) @PathVariable("trialDbId") String trialDbId, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @ApiParam(value = "") @Valid @RequestBody TrialNewRequest body);
+//    ResponseEntity<TrialSingleResponse> trialsTrialDbIdPut(@Parameter(description = "The internal trialDbId", required=true) @PathVariable("trialDbId") String trialDbId, @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value="Authorization", required=false) String authorization, @Parameter(description = "") @Valid @RequestBody TrialNewRequest body);
 
 }
 

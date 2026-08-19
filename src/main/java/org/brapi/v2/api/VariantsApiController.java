@@ -21,7 +21,8 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 
 import org.apache.commons.collections.IteratorUtils;
 import org.brapi.v2.model.CallsListResponse;
@@ -54,6 +55,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.mongodb.BasicDBList;
@@ -74,10 +76,10 @@ import fr.cirad.tools.Helper;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.variantcontext.VariantContext.Type;
-import io.swagger.annotations.ApiParam;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
-@Controller
+
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
+@RestController
 public class VariantsApiController implements VariantsApi {
 
     private static final Logger log = LoggerFactory.getLogger(VariantsApiController.class);
@@ -101,7 +103,8 @@ public class VariantsApiController implements VariantsApi {
 //        this.objectMapper = objectMapper;
 //        this.request = request;
 //    }
-    public ResponseEntity<VariantListResponse> searchVariantsPost(@ApiParam(value = "Variant Search request") @Valid @RequestBody VariantsSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>") @RequestHeader(value = "Authorization", required = false) String authorization) {
+    @Override
+    public ResponseEntity<VariantListResponse> searchVariantsPost(VariantsSearchRequest body, String authorization) {
         boolean fGotVariants = body.getVariantDbIds() != null && !body.getVariantDbIds().isEmpty();
         boolean fGotVariantSets = body.getVariantSetDbIds() != null && !body.getVariantSetDbIds().isEmpty();
         if (body.getReferenceDbId() != null && !body.getReferenceDbId().isEmpty() && (body.getReferenceDbIds() == null || body.getReferenceDbId().isEmpty())) {

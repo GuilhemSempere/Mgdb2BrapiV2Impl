@@ -5,7 +5,6 @@
  */
 package org.brapi.v2.api;
 
-import io.swagger.annotations.Api;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -14,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.brapi.v2.model.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -23,11 +23,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import java.util.List;
 
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
-@Api(value = "calls", description = "the calls API", tags={ "Calls" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2022-09-19T13:16:35.755Z[GMT]")
+@Tag(name = "Calls", description = "the calls API")
 public interface CallsApi {
     public static final String callsGet_url = "calls";
     public static final String callsPut_url = "calls";
@@ -36,9 +36,9 @@ public interface CallsApi {
     @Operation(summary = "Gets a filtered list of `Calls`", description = "Gets a filtered list of `Call` JSON objects. At least one callSetDbId, variantDbId or variantSetDbId must be specified.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
-        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),        
-        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
-        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
+        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + callsGet_url,
         produces = { "application/json" }, 
@@ -59,9 +59,9 @@ public interface CallsApi {
     @Operation(summary = "Update existing `Calls` with new genotype value or metadata", description = "Update existing `Calls` with new genotype value or metadata <br/>Implementation Note -  <br/>A `Call` object does not have a DbId of its own. It is defined by the unique combination of  `callSetDbId`, `variantDbId`, and `variantSetDbId`. These three fields MUST be present for every  `call` update request. This endpoint should not allow these fields to be modified for a given  `call`. Modifying these fields in the database is effectively moving a cell to a different location in the genotype matrix. This action is dangerous and can cause data collisions.     ", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
-        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponseResult.class))),        
-        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
-        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
+        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponseResult.class))),
+        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + callsPut_url,
         produces = { "application/json" }, 
@@ -73,16 +73,16 @@ public interface CallsApi {
     @Operation(summary = "Submit a search request for `Calls`", description = "Submit a search request for `Calls`. At least one callSetDbId, variantDbId or variantSetDbId must be specified.", security = {
         @SecurityRequirement(name = "AuthorizationToken")    }, tags={ "Calls" })
     @ApiResponses(value = { 
-        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),              
-        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
-        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),        
+        @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CallsListResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))) })
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchCallsPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" }, 
         method = RequestMethod.POST)
     ResponseEntity<CallsListResponse> searchCallsPost(@Parameter(in = ParameterIn.HEADER, description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ,schema=@Schema()) @RequestHeader(value="Authorization", required=false) String authorization, 
-            @Parameter(in = ParameterIn.DEFAULT, description = "Study Search request", schema=@Schema()) @Valid @RequestBody CallsSearchRequest body);
+            @Valid @RequestBody CallsSearchRequest body);
     
     
 }

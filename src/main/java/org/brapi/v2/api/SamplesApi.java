@@ -5,7 +5,15 @@
  */
 package org.brapi.v2.api;
 
-import javax.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import org.brapi.v2.model.SampleListResponse;
 import org.brapi.v2.model.SampleSearchRequest;
@@ -16,26 +24,26 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
-import io.swagger.annotations.*;
-
-@javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
-@Api(value = "samples", description = "the samples API", tags={ "Samples" })
+@jakarta.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2019-11-19T12:30:12.318Z[GMT]")
+@Tag(name = "samples", description = "the samples API")
 public interface SamplesApi {
 	
     public static final String searchSamplesPost_url = "search/samples";
-    
-    @ApiOperation(value = "Returns a filtered list of `Sample` objects", nickname = "searchSamplesPost", notes = "Returns a filtered list of `Samples`. At least one germplasmDbId or sampleDbId must be specified. Searching by Plate or ObservationUnit is not supported", response = SuccessfulSearchResponse.class, authorizations = {
-        @Authorization(value = "AuthorizationToken")    }, tags={ "Samples" })
-    @ApiResponses(value = { 
-        @ApiResponse(code = 200, message = "OK", response = SuccessfulSearchResponse.class),
-        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
-        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
-        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
+
+    @Operation(summary = "Returns a filtered list of `Sample` objects", operationId = "searchSamplesPost", description = "Returns a filtered list of `Samples`. At least one germplasmDbId or sampleDbId must be specified. Searching by Plate or ObservationUnit is not supported",
+            security = { @SecurityRequirement(name = "AuthorizationToken") }, tags={ "Samples" })
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SuccessfulSearchResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class)))})
     @RequestMapping(value = ServerinfoApi.URL_BASE_PREFIX + "/" + searchSamplesPost_url,
         produces = { "application/json" }, 
         consumes = { "application/json" },
         method = RequestMethod.POST)
-    ResponseEntity<SampleListResponse> searchSamplesPost(@ApiParam @Valid @RequestBody SampleSearchRequest body, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+    ResponseEntity<SampleListResponse> searchSamplesPost(
+            @Valid @RequestBody SampleSearchRequest body,
+            @Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 //    @ApiOperation(value = "Get the Samples", nickname = "samplesGet", notes = "Used to retrieve list of Samples from a Sample Tracking system based on some search criteria.", response = SampleListResponse.class, authorizations = {
 //        @Authorization(value = "AuthorizationToken")    }, tags={ "Samples", })
@@ -47,7 +55,7 @@ public interface SamplesApi {
 //    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/samples",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
-//    ResponseEntity<SampleListResponse> samplesGet(@ApiParam(value = "the internal DB id for a sample") @Valid @RequestParam(value = "sampleDbId", required = false) String sampleDbId,@ApiParam(value = "the internal DB id for an observation unit where a sample was taken from") @Valid @RequestParam(value = "observationUnitDbId", required = false) String observationUnitDbId,@ApiParam(value = "the internal DB id for a plate of samples") @Valid @RequestParam(value = "plateDbId", required = false) String plateDbId,@ApiParam(value = "the internal DB id for a germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<SampleListResponse> samplesGet(@Parameter(description = "the internal DB id for a sample") @Valid @RequestParam(value = "sampleDbId", required = false) String sampleDbId,@Parameter(description = "the internal DB id for an observation unit where a sample was taken from") @Valid @RequestParam(value = "observationUnitDbId", required = false) String observationUnitDbId,@Parameter(description = "the internal DB id for a plate of samples") @Valid @RequestParam(value = "plateDbId", required = false) String plateDbId,@Parameter(description = "the internal DB id for a germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@Parameter(description = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@Parameter(description = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 //
 //
 //    @ApiOperation(value = "Add new Samples", nickname = "samplesPost", notes = "Call to register the event of a sample being taken. Sample ID is assigned as a result of the operation and returned in response.", response = SampleListResponse.class, authorizations = {
@@ -61,7 +69,7 @@ public interface SamplesApi {
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" },
 //        method = RequestMethod.POST)
-//    ResponseEntity<SampleListResponse> samplesPost(@ApiParam(value = ""  )  @Valid @RequestBody List<SampleNewRequest> body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<SampleListResponse> samplesPost(@Parameter(description = ""  )  @Valid @RequestBody List<SampleNewRequest> body,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 //
 //
 //    @ApiOperation(value = "Get the details of a specific Sample", nickname = "samplesSampleDbIdGet", notes = "Used to retrieve the details of a single Sample from a Sample Tracking system.", response = SampleSingleResponse.class, authorizations = {
@@ -75,7 +83,7 @@ public interface SamplesApi {
 //    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/samples/{sampleDbId}",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
-//    ResponseEntity<SampleSingleResponse> samplesSampleDbIdGet(@ApiParam(value = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<SampleSingleResponse> samplesSampleDbIdGet(@Parameter(description = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 //
 //
 //    @ApiOperation(value = "Update the details of an existing Sample", nickname = "samplesSampleDbIdPut", notes = "Update the details of an existing Sample", response = SampleSingleResponse.class, authorizations = {
@@ -90,6 +98,6 @@ public interface SamplesApi {
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" },
 //        method = RequestMethod.PUT)
-//    ResponseEntity<SampleSingleResponse> samplesSampleDbIdPut(@ApiParam(value = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@ApiParam(value = ""  )  @Valid @RequestBody SampleNewRequest body,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
+//    ResponseEntity<SampleSingleResponse> samplesSampleDbIdPut(@Parameter(description = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@Parameter(description = ""  )  @Valid @RequestBody SampleNewRequest body,@Parameter(description = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
 
 }
