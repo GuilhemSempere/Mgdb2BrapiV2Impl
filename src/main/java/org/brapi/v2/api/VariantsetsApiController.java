@@ -665,6 +665,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
                     }).distinct().collect(Collectors.toList());
 		        	exportHandler.writeGenotypeFile(os, module, indIds, new HashMap<>(), nQueryChunkSize, null, result, null, progress);
 		        }
+				if (progress.getError() != null)	// export handlers report failures via the progress indicator: make sure a partial file is never served as complete
+					throw new Exception(progress.getError());
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;
@@ -732,6 +734,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
                     MongoCollection coll = mongoTemplate.getDb().withCodecRegistry(ExportManager.pojoCodecRegistry).getCollection(mongoTemplate.getCollectionName(VariantData.class));
 		        	exportHandler.writeGenotypeFile(os, nQueryChunkSize, coll, vrdQuery, null, result, null, progress);
 		        }
+				if (progress.getError() != null)	// export handlers report failures via the progress indicator: make sure a partial file is never served as complete
+					throw new Exception(progress.getError());
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;
@@ -808,6 +812,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
                 Integer nAssembly = Assembly.safelyGetThreadBoundAssembly(module);
                 Assembly.setThreadAssembly(nAssembly);
 				exportHandler.writeGenotypeFile(module, nAssembly, new HashMap<>(), false, new HashMap<>(), progress, varColl.getNamespace().getCollectionName(), varQuery, (long) variantSet.getVariantCount(), null, callSetsToExport, indIds, distinctSequenceNames, dict, new CustomVCFWriter(null, os, dict, false, false, true));
+				if (progress.getError() != null)	// export handlers report failures via the progress indicator: make sure a partial file is never served as complete
+					throw new Exception(progress.getError());
 				exportThreads.remove(exportId);
 			} catch (Exception ex) {
 				exception = ex;
