@@ -62,7 +62,7 @@ public interface ReferencesetsApi {
 //        @Authorization(value = "AuthorizationToken")    }, tags={ "Reference Sets", })
 //    @ApiResponses(value = { 
 //        @ApiResponse(code = 200, message = "A successful response.", response = ReferenceSet.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/referencesets/{referenceSetDbId}",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/referencesets/{referenceSetDbId}",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<ReferenceSet> referencesetsReferenceSetDbIdGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.",required=true) @PathVariable("referenceSetDbId") String referenceSetDbId);

@@ -1,6 +1,5 @@
 package org.brapi.v2.api;
 
-import java.lang.reflect.MalformedParametersException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -55,6 +54,7 @@ import fr.cirad.mgdb.model.mongo.maintypes.GenotypingSample;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantData;
 import fr.cirad.mgdb.model.mongo.maintypes.VariantRunData;
 import fr.cirad.mgdb.model.mongo.subtypes.Callset;
+import fr.cirad.mgdb.model.mongodao.MgdbDao;
 import fr.cirad.mgdb.model.mongo.subtypes.SampleGenotype;
 import fr.cirad.mgdb.model.mongo.subtypes.VariantRunDataId;
 import fr.cirad.tools.Helper;
@@ -62,7 +62,6 @@ import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.variant.vcf.VCFFormatHeaderLine;
 import htsjdk.variant.vcf.VCFHeaderLineType;
-import org.springframework.web.server.ResponseStatusException;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-03-22T14:25:44.495Z[GMT]")
 @Controller
@@ -744,23 +743,16 @@ public class CallsApiController implements CallsApi {
                     variantIds.add(Helper.getInfoFromId(v, 2)[1]);
                 }
 
-//                Query q = new Query(Criteria.where("_id").in(variantIds));
-//                List<VariantData> variants = MongoTemplateManager.get(module).find(q, VariantData.class);
-//                Map variantMap = variants.stream().collect(Collectors.toMap(VariantData::getId, item -> item.getKnownAlleles()));
-
                 for (AlleleMatrixDataMatrices matrix:result.getDataMatrices())
                     matricesMap.put(matrix.getDataMatrixAbbreviation(), matrix);
 
-//                Map<String, Run> samplesRuns = new HashMap<>();
-//                //Retrieve samples runs (when filtering on variantDbIds)
-//                if (result.getVariantSetDbIds().size() > 1) {
-//                    List<Integer> sampleIDs = resp.getBody().getResult().getCallSetDbIds().stream().map(callSetDbId -> Integer.valueOf(callSetDbId.substring(1 + callSetDbId.indexOf(Helper.ID_SEPARATOR)))).collect(Collectors.toList());
-////                    Query query = new Query(Criteria.where("_id").in(sampleId));
-////                    List<CallSet> callsets = MongoTemplateManager.get(module).find(query, CallSet.class);
-//                    List<CallSet> callsets = MongoTemplateManager.get(module).find(new Query(Criteria.where("_id").in(sampleIDs)), GenotypingSample.class).stream().map(sp -> sp.getCallSets()).flatMap(Collection::stream).toList();
-//                    final String db = module;
-//                    samplesRuns = callsets.stream().collect(Collectors.toMap(cs -> db + Helper.ID_SEPARATOR + cs.getId(), cs -> new Run(cs.getProjectId(), cs.getRun())));
-//                }
+                // when several variantSets are involved, each call's variantSet is that of its callset
+                Map<String, String> callSetVariantSets = new HashMap<>();
+                if (result.getVariantSetDbIds() != null && result.getVariantSetDbIds().size() > 1 && result.getCallSetDbIds() != null && module != null) {
+                    List<Integer> callSetIds = result.getCallSetDbIds().stream().map(csDbId -> Integer.parseInt(Helper.getInfoFromId(csDbId, 2)[1])).toList();
+                    for (Callset cs : MgdbDao.findCallSetsByIDs(MongoTemplateManager.get(module), callSetIds))
+                        callSetVariantSets.put(module + Helper.ID_SEPARATOR + cs.getId(), module + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun());
+                }
 
                 for (int v = startVariantIndex; v < endVariantIndex; v++) {
                     for (int s = startCallSetIndex; s < endCallSetIndex; s++) {
@@ -789,8 +781,8 @@ public class CallsApiController implements CallsApi {
                             call.setCallSetDbId(result.getCallSetDbIds().get(s));
                         }
                         if (result.getVariantSetDbIds().size() > 1) {
-//                            Run run = samplesRuns.get(call.getCallSetDbId());
-                            call.setVariantSetDbId("module + Helper.ID_SEPARATOR + run.getProjectId() + Helper.ID_SEPARATOR + run.getRunName()");
+                            // null when columns are aggregated by sample/germplasm (one column may span several runs)
+                            call.setVariantSetDbId(callSetVariantSets.get(call.getCallSetDbId()));
                         } else {
                             call.setVariantSetDbId(result.getVariantSetDbIds().get(0));
                         }

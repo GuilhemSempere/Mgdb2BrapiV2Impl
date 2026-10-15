@@ -107,14 +107,14 @@ public class GermplasmApiController implements GermplasmApi {
             fGotTrialIDs = !body.getTrialDbIds().isEmpty();
             fGotProgramIDs = !body.getProgramDbIds().isEmpty();
 	    	
-            Authentication auth = tokenManager.getAuthenticationFromToken(tokenManager.readToken(request));
+            String token = tokenManager.readToken(request);
 
             HashMap<String /*module*/, HashSet<Integer> /*projects*/> projectsByModuleFromSpecifiedStudies = new HashMap<>();
             if (body.getStudyDbIds() != null) {
                 for (String studyId : body.getStudyDbIds()) {
                     String[] info = Helper.getInfoFromId(studyId, 2);
                     int nProjId = Integer.parseInt(info[1]);
-                    if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), info[0], nProjId)) {
+                    if (!tokenManager.canUserReadProject(token, info[0], nProjId)) {
                         Status status = new Status();
                         status.setMessage("You don't have access to this study: " + studyId);
                         glr.getMetadata().addStatusItem(status);
@@ -152,7 +152,7 @@ public class GermplasmApiController implements GermplasmApi {
         	
             if (dbsToAccountFor != null) {
                 for (String db : dbsToAccountFor) {
-                    if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
+                    if (!tokenManager.canUserReadDB(token, db)) {
                         Status status = new Status();
                         status.setMessage("You don't have access to this program / trial: " + db);
                         glr.getMetadata().addStatusItem(status);
@@ -160,6 +160,8 @@ public class GermplasmApiController implements GermplasmApi {
                     }
                 }
             }
+            
+            Authentication auth = tokenManager.getAuthenticationFromToken(token);
             String sCurrentUser = auth == null || "anonymousUser".equals(auth.getName()) ? "anonymousUser" : auth.getName();
 
             // germplasm name filtering

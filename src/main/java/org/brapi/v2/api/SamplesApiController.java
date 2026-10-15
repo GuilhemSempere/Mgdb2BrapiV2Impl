@@ -82,7 +82,7 @@ public class SamplesApiController implements SamplesApi {
             }
 
             boolean fGotTrialIDs, fGotProgramIDs;
-            Collection<String> dbsToAccountFor = new ArrayList();
+            Collection<String> dbsToAccountFor = new ArrayList<>();
             if (body.getTrialDbIds() == null)
                 body.setTrialDbIds(new ArrayList<>());
             if (body.getProgramDbIds() == null)
@@ -102,7 +102,7 @@ public class SamplesApiController implements SamplesApi {
                     String[] info = Helper.getInfoFromId(studyId, 2);
                     String module = info[0];
                     int nProjId = Integer.parseInt(info[1]);
-                    if (!tokenManager.canUserReadProject(auth == null ? null : auth.getAuthorities(), module, nProjId)) {
+                    if (!tokenManager.canUserReadProject(token, module, nProjId)) {
                         Status status = new Status();
                         status.setMessage("You don't have access to this study: " + studyId);
                         slr.getMetadata().addStatusItem(status);
@@ -153,7 +153,7 @@ public class SamplesApiController implements SamplesApi {
             long totalCount = 0;
 
             for (String db : dbsToAccountFor) {
-                if (!tokenManager.canUserReadDB(auth == null ? null : auth.getAuthorities(), db)) {
+                if (!tokenManager.canUserReadDB(token, db)) {
                     Status status = new Status();
                     status.setMessage("You don't have access to this program / trial: " + db);
                     slr.getMetadata().addStatusItem(status);

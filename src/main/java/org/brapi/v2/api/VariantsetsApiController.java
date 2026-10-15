@@ -73,6 +73,7 @@ import fr.cirad.tools.AppConfig;
 import fr.cirad.tools.ExportSizeLimitHelper;
 import fr.cirad.tools.Helper;
 import fr.cirad.tools.ProgressIndicator;
+import fr.cirad.tools.SessionAttributeAwareThread;
 import fr.cirad.tools.mongo.MongoTemplateManager;
 import fr.cirad.tools.security.base.AbstractTokenManager;
 import htsjdk.samtools.SAMSequenceDictionary;
@@ -148,6 +149,8 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 	    		Map<String /*module*/, Map<Integer /*project*/, List<String> /*runs (all if null)*/>> variantSetDbIDsByStudyAndRefSet = parseVariantSetOrStudyDbIDs(relevantIDs);
 	        
 		        for (String programDbId : variantSetDbIDsByStudyAndRefSet.isEmpty() ? MongoTemplateManager.getAvailableModules() : variantSetDbIDsByStudyAndRefSet.keySet()) {
+		        	if (!tokenManager.canUserListDB(token, programDbId))
+		        		continue;	// a hidden module is only listed when the token grants at least read access to it
 	    			MongoTemplate mongoTemplate = MongoTemplateManager.get(programDbId);
 	    			Collection<Integer> allowedPjIDs = new HashSet<>();
 		        	Map<Integer, List<String>> variantSetDbIDsByStudy = variantSetDbIDsByStudyAndRefSet.get(programDbId);
@@ -485,7 +488,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
             	ProgressIndicator progress = new ProgressIndicator(exportId, new String[] {"Initiating export"});
             	ProgressIndicator.registerProgressIndicator(progress);
             	
-	        		tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, exportingUser, progress);
+	        	tempFileGenerationThread = new FlapjackExportThread(exportHandler, exportFile, variantSet, exportId, runSamples, exportingUser, progress);
         		exportThreads.put(exportId, tempFileGenerationThread);
         		tempFileGenerationThread.start();
         	}
@@ -600,7 +603,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		return BigInteger.valueOf(mongoTemplate.getCollection(mongoTemplate.getCollectionName(VariantData.class)).countDocuments(variantQuery)).multiply(BigInteger.valueOf(exportedIndividualCount));
 	}
 	
-	public class PLinkExportThread extends Thread {
+	public class PLinkExportThread extends SessionAttributeAwareThread {	// carries the session's attributes, which building the metadata file reads outside of the request thread
 		Exception exception = null;
 		File[] result;
 		PLinkExportHandler exportHandler;
@@ -613,6 +616,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		String exportingUser;
 		
 		PLinkExportThread(PLinkExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<Callset> callSetsToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+			super(request.getSession());
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);
@@ -672,7 +676,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		}
 	}
 	
-	public class FlapjackExportThread extends Thread {
+	public class FlapjackExportThread extends SessionAttributeAwareThread {	// carries the session's attributes, which building the metadata file reads outside of the request thread
 		Exception exception = null;
 		File[] result;
 		FlapjackExportHandler exportHandler;
@@ -685,6 +689,7 @@ public class VariantsetsApiController implements ServletContextAware, Variantset
 		String exportingUser;
 		
 		FlapjackExportThread(FlapjackExportHandler feh, File exportFile, VariantSet variantSet, String exportID, List<Callset> callSetsToExport, String exportingUser, final ProgressIndicator progress) throws SocketException, UnknownHostException {
+			super(request.getSession());
 			exportHandler = feh;
 			this.exportFile = exportFile;
 			MongoTemplate mongoTemplate = MongoTemplateManager.get(variantSet.getVariantSetDbId().split(Helper.ID_SEPARATOR)[0]);

@@ -108,10 +108,16 @@ public class AllelematrixApiController implements AllelematrixApi {
                                                                 String variantDbId, String variantSetDbId, Boolean expandHomozygotes, String unknownString, String sepPhased, String sepUnphased,
                                                                 String studyDbId, String authorization) throws InterruptedException, ObjectNotFoundException, MalformedParametersException {
 
-        if (variantSetDbId == null && callSetDbId != null) {
+        if (variantSetDbId == null && callSetDbId != null) {	// scope the request to the callset's run, when the id designates an existing callset (otherwise the search reports it as any other bad id)
             String[] info = Helper.getInfoFromId(callSetDbId, 2);
-            Callset cs = MongoTemplateManager.get(info[0]).findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").is(Integer.parseInt(info[1]))), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class).iterator().next();
-            variantSetDbId = info[0] + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
+            MongoTemplate mongoTemplate = info == null || !isInteger(info[1]) ? null : MongoTemplateManager.get(info[0]);
+            if (mongoTemplate != null) {
+                int nCallSetId = Integer.parseInt(info[1]);
+                Callset cs = mongoTemplate.findDistinct(new Query(Criteria.where(GenotypingSample.FIELDNAME_CALLSETS + "._id").is(nCallSetId)), GenotypingSample.FIELDNAME_CALLSETS, GenotypingSample.class, Callset.class)
+                        .stream().filter(callset -> callset.getId() == nCallSetId).findFirst().orElse(null);
+                if (cs != null)
+                    variantSetDbId = info[0] + Helper.ID_SEPARATOR + cs.getProjectId() + Helper.ID_SEPARATOR + cs.getRun();
+            }
         }
 
         AlleleMatrixSearchRequest request = new AlleleMatrixSearchRequest();
@@ -180,6 +186,10 @@ public class AllelematrixApiController implements AllelematrixApi {
 //        }
 
         return searchAllelematrixPost(authorization, request);
+    }
+
+    private static boolean isInteger(String s) {
+        return s != null && s.matches("-?\\d{1,9}");
     }
 
     @Override
@@ -283,7 +293,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             if (fGotVariantSetList) {
                 for (String variantSetDbId : body.getVariantSetDbIds()) {
                     String[] info = Helper.getInfoFromId(variantSetDbId, 3);
-                    if (info == null) {
+                    if (info == null || !isInteger(info[1])) {
                         throw new MalformedParametersException("malformed variantSetDbId: " + variantSetDbId);
                     }
                     if (module == null) {
@@ -321,7 +331,7 @@ public class AllelematrixApiController implements AllelematrixApi {
                 List<String> studyVariantSetIds = new ArrayList<>();
                 for (String studyDbId : body.getStudyDbIds()) {
                     String[] info = Helper.getInfoFromId(studyDbId, 2);
-                    if (info == null)
+                    if (info == null || !isInteger(info[1]))
                         throw new MalformedParametersException("malformed studyDbId: " + studyDbId);
                     if (module == null) {
                         module = info[0];
@@ -397,7 +407,7 @@ public class AllelematrixApiController implements AllelematrixApi {
             if (body.getCallSetDbIds() != null && !body.getCallSetDbIds().isEmpty()) {
                 for (String callsetId : body.getCallSetDbIds()) {
                     String[] info = Helper.getInfoFromId(callsetId, 2);
-                    if (info == null) {
+                    if (info == null || !isInteger(info[1])) {
                         throw new MalformedParametersException("malformed callsetDbId: " + callsetId);
                     }
                     if (module == null) {
