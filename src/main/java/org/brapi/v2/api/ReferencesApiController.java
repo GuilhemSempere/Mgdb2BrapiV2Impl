@@ -75,44 +75,56 @@ public class ReferencesApiController implements ReferencesApi {
         	boolean fGotProgramIdList = body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();
         	boolean fGotTrialIdList = body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
 
-	    	if (!fGotStudyIDs && !fGotReferenceSetIDs && !fGotReferenceIDs)
-        		sErrorMsg += "You must provide at least one of programDbId, studyDbIds, referenceSetDbIds, referenceDbIds!";
+	    	if (!fGotStudyIDs && !fGotReferenceSetIDs && !fGotReferenceIDs && !fGotTrialIdList && !fGotProgramIdList)
+        		sErrorMsg += "You must provide at least one of programDbIds, trialDbIds, studyDbIds, referenceSetDbIds, referenceDbIds!";
 
     		ArrayList<Integer> assembliesToAccountFor = new ArrayList<>();
     		HashMap<Integer, ArrayList<String>> projectsSequencesByAssembly = new HashMap<>();
 
 	    	if (fGotReferenceIDs) {
 	        	for (String referenceId : body.getReferenceDbIds()) {
-	        		String[] info = Helper.getInfoFromId(referenceId, 4);
+	        		String[] info = Helper.getInfoFromId(referenceId, 3);	// module§assembly§sequence, as returned by this endpoint
+	        		if (info == null || (!info[1].isEmpty() && !info[1].matches("\\d{1,9}"))) {
+	        			sErrorMsg += "malformed referenceDbId: " + referenceId;
+	        			break;
+	        		}
 					if (module == null)
 						module = info[0];
 					else if (!module.equals(info[0]))
 						sErrorMsg += "You may only request reference records from one program at a time!";
 
-					Integer assemblyId = info[2].isEmpty() ? null : Integer.parseInt(info[2]);
+					Integer assemblyId = info[1].isEmpty() ? null : Integer.parseInt(info[1]);
 	    			ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
 	    			if (assemblySequences == null) {
 	    				assemblySequences = new ArrayList<>();
 	    				projectsSequencesByAssembly.put(assemblyId, assemblySequences);
+	    				assembliesToAccountFor.add(assemblyId);
 	    			}
-	    			assemblySequences.add(info[1] + Helper.ID_SEPARATOR + info[3]);	// this is not a real ID, just concatenating project and sequence for convenience
+	    			assemblySequences.add(info[2]);
 	        	}
         	}
 	    	else if (fGotReferenceSetIDs) {
 	        	for (String referenceSetId : body.getReferenceSetDbIds()) {
 	        		String[] info = Helper.getInfoFromId(referenceSetId, 2);
+	        		if (info == null || (!info[1].isEmpty() && !info[1].matches("\\d{1,9}"))) {
+	        			sErrorMsg += "malformed referenceSetDbId: " + referenceSetId;
+	        			break;
+	        		}
 					if (module == null)
 						module = info[0];
 					else if (!module.equals(info[0]))
 						sErrorMsg += "You may only request reference records from one program at a time!";
 
-		    		if (tokenManager.canUserReadDB(token, module))
-		    			assembliesToAccountFor.add(info[1].isEmpty() ? null : Integer.parseInt(info[1]));
+	    			assembliesToAccountFor.add(info[1].isEmpty() ? null : Integer.parseInt(info[1]));
 		    	}
         	}
 	    	else if (fGotStudyIDs) {
 	    		for (String studyId : body.getStudyDbIds() ) {
 	    			String[] info = Helper.getInfoFromId(studyId, 2);
+	        		if (info == null) {
+	        			sErrorMsg += "malformed studyDbId: " + studyId;
+	        			break;
+	        		}
 					if (module == null)
 						module = info[0];
 					else if (!module.equals(info[0]))
@@ -137,6 +149,13 @@ public class ReferencesApiController implements ReferencesApi {
 				return new ResponseEntity<>(rlr, HttpStatus.BAD_REQUEST);
 			}
 
+   			if (module != null && !tokenManager.canUserReadDB(token, module)) {	// whatever the filter used
+				Status status = new Status();
+				status.setMessage("You don't have access to this program / trial: " + module);
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(rlr, HttpStatus.UNAUTHORIZED);
+   			}
+
 			TreeSet<Reference> uniqueRefs = new TreeSet<>(new AlphaNumericComparator());
    			if (module != null) {
    				MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
@@ -148,7 +167,7 @@ public class ReferencesApiController implements ReferencesApi {
 		   				for (Integer assemblyId : assembliesToAccountFor) {
 		   					ArrayList<String> assemblySequences = projectsSequencesByAssembly.get(assemblyId);
 				   			for (String seq : project.getContigs(assemblyId))
-				   				if (projectsSequencesByAssembly.isEmpty() || (assemblySequences != null && assemblySequences.contains(project.getId() + Helper.ID_SEPARATOR + seq))) {
+				   				if (projectsSequencesByAssembly.isEmpty() || (assemblySequences != null && assemblySequences.contains(seq))) {
 				   					Reference ref = new Reference();
 				   					String speciesName = MongoTemplateManager.getSpecies(module);
 				   					if (speciesName != null) {

@@ -32,15 +32,21 @@ public class TrialsApiController implements TrialsApi {
 
     @Override
     public ResponseEntity<TrialListResponse> searchTrialsPost(String authorization, TrialSearchRequest body) {
+        return searchTrials(authorization, body, true);
+    }
+
+    /** @param fListing whether this is a listing, which only includes hidden modules if the token grants access to them (a lookup by ID does not hide them) */
+    private ResponseEntity<TrialListResponse> searchTrials(String authorization, TrialSearchRequest body, boolean fListing) {
         String token = ServerinfoApiController.readToken(authorization);
         try {
             TrialListResponse slr = new TrialListResponse();
             TrialListResponseResult result = new TrialListResponseResult();
-            if (body.getTrialDbIds() == null || body.getTrialDbIds().isEmpty())
-            	body.setTrialDbIds(body.getProgramDbIds());	// We make no difference between Program and Trial
+            // We make no difference between Program and Trial: both are a module, whose name is also its ID, so each
+            // of these criteria, when provided, must name the module (study-based filtering is deliberately not supported)
             for (String module : MongoTemplateManager.getAvailableModules())
-                if ((body.getTrialDbIds() == null || body.getTrialDbIds().isEmpty() || body.getTrialDbIds().contains(module))
-            			&& tokenManager.canUserReadDB(token, module) &&
+                if (matchesIfProvided(body.getTrialDbIds(), module) && matchesIfProvided(body.getTrialNames(), module)
+                		&& matchesIfProvided(body.getProgramDbIds(), module) && matchesIfProvided(body.getProgramNames(), module)
+            			&& (fListing ? tokenManager.canUserListDB(token, module) : tokenManager.canUserReadDB(token, module)) &&
             			(body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module))))
             		)
                     result.addDataItem(new Trial() {{
@@ -65,6 +71,10 @@ public class TrialsApiController implements TrialsApi {
         }
     }
 
+	private static boolean matchesIfProvided(List<String> criterion, String module) {
+		return criterion == null || criterion.isEmpty() || criterion.contains(module);
+	}
+
 	@Override
 	public ResponseEntity<TrialListResponse> trialsGet(Boolean active, String commonCropName, String contactDbId,
 			String programDbId, String locationDbId, LocalDate searchDateRangeStart, LocalDate searchDateRangeEnd,
@@ -77,6 +87,8 @@ public class TrialsApiController implements TrialsApi {
 			tsr.setProgramDbIds(Arrays.asList(programDbId));
 		if (trialDbId != null)
 			tsr.setTrialDbIds(Arrays.asList(trialDbId));
+		if (trialName != null)
+			tsr.setTrialNames(Arrays.asList(trialName));
                 if (commonCropName != null)
 			tsr.setCommonCropNames(Arrays.asList(commonCropName));
 		return searchTrialsPost(authorization, tsr);

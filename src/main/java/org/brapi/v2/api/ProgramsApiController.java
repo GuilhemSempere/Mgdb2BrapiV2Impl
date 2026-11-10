@@ -31,15 +31,21 @@ public class ProgramsApiController implements ProgramsApi {
     
 	@Override
 	public ResponseEntity<ProgramListResponse> searchProgramsPost(String authorization, ProgramSearchRequest body) {
+		return searchPrograms(authorization, body, true);
+	}
+
+	/** @param fListing whether this is a listing, which only includes hidden modules if the token grants access to them (a lookup by ID does not hide them) */
+	private ResponseEntity<ProgramListResponse> searchPrograms(String authorization, ProgramSearchRequest body, boolean fListing) {
     	String token = ServerinfoApiController.readToken(authorization);
     	try {
 	    	ProgramListResponse slr = new ProgramListResponse();
 	    	ProgramListResponseResult result = new ProgramListResponseResult();
 	    	for (String module : MongoTemplateManager.getAvailableModules())
         		if ((body.getProgramDbIds() == null || body.getProgramDbIds().isEmpty() || body.getProgramDbIds().contains(module))
-        			&& tokenManager.canUserReadDB(token, module) &&
-        			(body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module))))
-        		)
+            			&& (body.getProgramNames() == null || body.getProgramNames().isEmpty() || body.getProgramNames().contains(module))	// a program's name is its module name
+            			&& (fListing ? tokenManager.canUserListDB(token, module) : tokenManager.canUserReadDB(token, module)) &&
+            			(body.getCommonCropNames() == null || body.getCommonCropNames().isEmpty() || body.getCommonCropNames().contains(Helper.nullToEmptyString(MongoTemplateManager.getTaxonName(module))))
+            		)
 		            	result.addDataItem(new Program() {{
 		            		setProgramDbId(module);
 	            		}} );
@@ -71,6 +77,8 @@ public class ProgramsApiController implements ProgramsApi {
 			psr.setCommonCropNames(Arrays.asList(commonCropName));
 		if (programDbId != null)
 			psr.setProgramDbIds(Arrays.asList(programDbId));
+		if (programName != null)
+			psr.setProgramNames(Arrays.asList(programName));
 		return searchProgramsPost(authorization, psr);
 	}
 

@@ -74,7 +74,7 @@ public class StudiesApiController implements StudiesApi {
             
             // Case 1: No filters at all - return ALL projects from ALL databases
             if (!hasDatabaseFilter && !hasProjectFilter) {
-                dbsToAccountFor = new HashSet<>(MongoTemplateManager.getAvailableModules());
+                dbsToAccountFor = new HashSet<>(listableModules(token));
                 for (String module : dbsToAccountFor) {
                     MongoTemplate mongoTemplate = MongoTemplateManager.get(module);
                     if (mongoTemplate == null) continue;
@@ -367,8 +367,20 @@ public class StudiesApiController implements StudiesApi {
         public Map<String, Set<Integer>> getProjectsByModule() { return projectsByModule; }
     }
 
+    /** modules whose studies may be listed for this token: a hidden module only when the token grants at least read access to it */
+    private List<String> listableModules(String token) {
+        List<String> result = new ArrayList<>();
+        for (String module : MongoTemplateManager.getAvailableModules())
+            try {
+                if (tokenManager.canUserListDB(token, module))
+                    result.add(module);
+            }
+            catch (ObjectNotFoundException ignored) {}	// module no longer connected
+        return result;
+    }
+
     private StudyIdentificationResult identifyStudies(StudySearchRequest body, String token) throws ObjectNotFoundException {
-        Set<String> allowedModules = new HashSet<>(MongoTemplateManager.getAvailableModules());
+        Set<String> allowedModules = new HashSet<>(listableModules(token));
         
         boolean fGotTrialIDs = body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
         boolean fGotProgramIDs = body.getProgramDbIds() != null && !body.getProgramDbIds().isEmpty();

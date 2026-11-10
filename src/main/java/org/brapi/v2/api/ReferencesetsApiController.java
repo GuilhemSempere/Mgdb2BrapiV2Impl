@@ -13,6 +13,7 @@ import org.brapi.v2.model.ReferenceSet;
 import org.brapi.v2.model.ReferenceSetListResponse;
 import org.brapi.v2.model.ReferenceSetListResponseResult;
 import org.brapi.v2.model.ReferenceSetsSearchRequest;
+import org.brapi.v2.model.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +44,7 @@ public class ReferencesetsApiController implements ReferencesetsApi {
     public ResponseEntity<ReferenceSetListResponse> referencesetsGet(@ApiParam(value = "The ID of the `ReferenceSet` to be retrieved.") @Valid @RequestParam(value = "referenceSetDbId", required = false) String referenceSetDbId,@ApiParam(value = "If unset, return the reference sets for which the `accession` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "accession", required = false) String accession,@ApiParam(value = "If unset, return the reference sets for which the `assemblyId` matches this string (case-sensitive, exact match).") @Valid @RequestParam(value = "assemblyPUI", required = false) String assemblyPUI,@ApiParam(value = "If unset, return the reference sets for which the `md5checksum` matches this string (case-sensitive, exact match). See `ReferenceSet::md5checksum` for details.") @Valid @RequestParam(value = "md5checksum", required = false) String md5checksum,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize, @ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization) {
 		ReferenceSetsSearchRequest srr = new ReferenceSetsSearchRequest();
 		srr.setPageSize(pageSize);
-		srr.setPage(pageSize);
+		srr.setPage(page);
 		if (assemblyPUI != null)
 			srr.setAssemblyPUIs(Arrays.asList(assemblyPUI));
 		if (referenceSetDbId != null)
@@ -73,6 +74,16 @@ public class ReferencesetsApiController implements ReferencesetsApi {
         	boolean fGotTrialIdList = body.getTrialDbIds() != null && !body.getTrialDbIds().isEmpty();
         	boolean fGotStudyIdList = body.getStudyDbIds() != null && !body.getStudyDbIds().isEmpty();
         	boolean fGotRefSetIdList = body.getReferenceSetDbIds() != null && !body.getReferenceSetDbIds().isEmpty();
+        	
+	    	if (!fGotStudyIdList && !fGotRefSetIdList && !fGotTrialIdList && !fGotProgramIdList) {
+	    		String sErrorMsg = "You must provide at least one of programDbIds, trialDbIds, studyDbIds, referenceSetDbIds!";
+				Status status = new Status();
+				status.setMessage(sErrorMsg);
+				Metadata metadata = new Metadata();
+				rlr.setMetadata(metadata);
+				metadata.addStatusItem(status);
+				return new ResponseEntity<>(rlr, HttpStatus.BAD_REQUEST);
+			}
 
         	HashSet<String> requestedModules = new HashSet<>();
         	if (fGotRefSetIdList)

@@ -44,7 +44,7 @@ public interface SamplesApi {
 //        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/samples",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/samples",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<SampleListResponse> samplesGet(@ApiParam(value = "the internal DB id for a sample") @Valid @RequestParam(value = "sampleDbId", required = false) String sampleDbId,@ApiParam(value = "the internal DB id for an observation unit where a sample was taken from") @Valid @RequestParam(value = "observationUnitDbId", required = false) String observationUnitDbId,@ApiParam(value = "the internal DB id for a plate of samples") @Valid @RequestParam(value = "plateDbId", required = false) String plateDbId,@ApiParam(value = "the internal DB id for a germplasm") @Valid @RequestParam(value = "germplasmDbId", required = false) String germplasmDbId,@ApiParam(value = "Which result page is requested. The page indexing starts at 0 (the first page is 'page'= 0). Default is `0`.") @Valid @RequestParam(value = "page", required = false) Integer page,@ApiParam(value = "The size of the pages to be returned. Default is `1000`.") @Valid @RequestParam(value = "pageSize", required = false) Integer pageSize,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
@@ -57,7 +57,7 @@ public interface SamplesApi {
 //        @ApiResponse(code = 400, message = "Bad Request", response = String.class),
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/samples",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/samples",
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" },
 //        method = RequestMethod.POST)
@@ -72,7 +72,7 @@ public interface SamplesApi {
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
 //        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/samples/{sampleDbId}",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/samples/{sampleDbId}",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<SampleSingleResponse> samplesSampleDbIdGet(@ApiParam(value = "the internal DB id for a sample",required=true) @PathVariable("sampleDbId") String sampleDbId,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
@@ -86,7 +86,7 @@ public interface SamplesApi {
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
 //        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/samples/{sampleDbId}",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/samples/{sampleDbId}",
 //        produces = { "application/json" }, 
 //        consumes = { "application/json" },
 //        method = RequestMethod.PUT)

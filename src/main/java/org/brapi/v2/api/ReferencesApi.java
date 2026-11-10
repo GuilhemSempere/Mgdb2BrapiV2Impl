@@ -74,7 +74,7 @@ public interface ReferencesApi {
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
 //        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/references/{referenceDbId}/bases",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/references/{referenceDbId}/bases",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<ReferenceBasesResponse> referencesReferenceDbIdBasesGet(@ApiParam(value = "The ID of the `Reference` to be retrieved.",required=true) @PathVariable("referenceDbId") String referenceDbId,@ApiParam(value = "The start position (0-based) of this query. Defaults to 0. Genomic positions are non-negative integers less than reference length. Requests spanning the join of circular genomes are represented as two requests one on each side of the join (position 0).") @Valid @RequestParam(value = "start", required = false) Long start,@ApiParam(value = "The end position (0-based, exclusive) of this query. Defaults to the length of this `Reference`.") @Valid @RequestParam(value = "end", required = false) Long end,@ApiParam(value = "The continuation token, which is used to page through large result sets. To get the next page of results, set this parameter to the value of `next_page_token` from the previous response.") @Valid @RequestParam(value = "pageToken", required = false) String pageToken,@ApiParam(value = "HTTP HEADER - Token used for Authorization   <strong> Bearer {token_string} </strong>" ) @RequestHeader(value="Authorization", required=false) String authorization);
@@ -88,7 +88,7 @@ public interface ReferencesApi {
 //        @ApiResponse(code = 401, message = "Unauthorized", response = String.class),
 //        @ApiResponse(code = 403, message = "Forbidden", response = String.class),
 //        @ApiResponse(code = 404, message = "Not Found", response = String.class) })
-//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/" + "/references/{referenceDbId}",
+//    @RequestMapping(value = CallsApi.URL_BASE_PREFIX + "/references/{referenceDbId}",
 //        produces = { "application/json" }, 
 //        method = RequestMethod.GET)
 //    ResponseEntity<ReferenceResponse> referencesReferenceDbIdGet(@ApiParam(value = "The ID of the `Reference` to be retrieved.",required=true) @PathVariable("referenceDbId") String referenceDbId);
